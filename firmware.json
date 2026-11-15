@@ -7,6 +7,8 @@
   "tagline": "A polysynth for the FM-1 that plays Synth1 patches",
   "description": "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself.",
   "tags": ["synth"],
+  "install": "https://fenderberg.github.io/fm1-sy1/install/",
+  "site": "https://fenderberg.github.io/fm1-sy1/",
   "source": "https://github.com/fenderberg/fm1-sy1",
   "screenshot": "docs/img/screen-play.png",
   "hardware": {

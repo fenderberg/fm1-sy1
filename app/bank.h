@@ -9,6 +9,8 @@
  *   01 <slot lo7> <slot hi7> <7-bit packed bytes 0..225 of the record>   write a slot  -> 41 <lo7> <hi7> <0 ok>
  *   02                                                                   erase all     -> 42 <0 ok>
  *   03                                                                   how many?     -> 43 <count lo7> <hi7> <slots lo7> <hi7>
+ *   04 <slot lo7> <slot hi7>                                             a slot's name -> 44 <lo7> <hi7> <1 used> <name, ASCII>
+ *   05 <slot lo7> <slot hi7>                                             empty a slot  -> 45 <lo7> <hi7> <0 ok>
  * 7-bit packing: each 7 bytes as 8, first the 7 top bits (bit 0 = the first byte's), then the 7 low parts. */
 #pragma once
 #include "s1_patch.h"

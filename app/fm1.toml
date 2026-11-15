@@ -18,4 +18,6 @@ credits = "Built on fm1-base and felucca-bsp. The parameter laws are oxo_synth2'
 author = "fenderberg"
 description = "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself."
 tags = ["synth"]
+install = "https://fenderberg.github.io/fm1-sy1/install/"
+site = "https://fenderberg.github.io/fm1-sy1/"
 screenshot = "docs/img/screen-play.png"

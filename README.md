@@ -2,6 +2,8 @@
 
 A polysynth for the [M-VAVE FM-1](https://github.com/m-vave/fm1_open) that plays **Synth1 patches** (`.sy1`).
 
+**[Website](https://fenderberg.github.io/fm1-sy1/)** · [Try it in the browser](https://fenderberg.github.io/fm1-sy1/emu/) · [Install](https://fenderberg.github.io/fm1-sy1/install/) · [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) · [Manual](https://fenderberg.github.io/fm1-sy1/manual/)
+
 Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes, two LFOs, arpeggiator,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
@@ -26,7 +28,7 @@ no third-party patches.
 | Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
 | Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. The second core is not used yet |
 | Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
-| Loading patches into a real FM-1 | **Not tested yet** |
+| Loading patches into a real FM-1 | Works with `tools/sy1_send.py` (tried with one patch) |
 
 ## Try it in the browser
 
@@ -37,8 +39,8 @@ python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/emu
 ```
 
 Open <http://localhost:8471>, switch the FM-1 on, and drop your Synth1 patches on the page. Turn PRESETS
-past the eight built-in patches to play them. With a real FM-1 running SY1 chosen under "MIDI ports", the
-same page loads the patches into it.
+past the eight built-in patches to play them. The page loads the emulated FM-1 only; for a real one, see
+below.
 
 ## Build and test
 
@@ -58,14 +60,22 @@ the FM-1 runs it.
 
 ## Patches on the FM-1
 
-Use the emulator page (above), or make a SysEx file and send it with any SysEx tool, with a pause of 200 ms
-or more between messages (each one is a write to the FM-1's flash):
+With the FM-1 running SY1 connected over USB:
 
 ```sh
-build/sy1pack bank.syx -first 1 folder/*.sy1
+make all                                     # once: builds build/sy1pack
+tools/sy1_send.py folder/ bank.zip one.sy1   # .sy1 files, folders of them, .zip banks
+tools/sy1_send.py --count                    # how many slots are in use
+tools/sy1_send.py --erase                    # erase every loaded patch (the built-in ones stay)
 ```
 
-The FM-1 holds 1024 patches. The protocol is at the top of [app/bank.h](app/bank.h).
+The patches follow the ones already there (`--first N` chooses the slot). Each is acknowledged by the FM-1
+before the next is sent. It needs Python with `mido` and `python-rtmidi`. The FM-1 holds 1024 patches; turn
+PRESETS past `P08` to reach them.
+
+`build/sy1pack bank.syx folder/*.sy1` writes the same frames to a SysEx file instead, for any SysEx tool
+(leave 200 ms or more between messages: each is a write to the flash). The protocol is at the top of
+[app/bank.h](app/bank.h).
 
 ## Controls
 
@@ -106,6 +116,9 @@ app/app.c, bank.h     the FM-1 app; patch storage and the built-in patches
 app/web/emu/app.js    the emulator page's patch loader
 host/                 WAV renderer, patch packer, tests
 tools/gen_tables.py   makes s1_tables.* and the loader's tables from oxo_synth2's measured tables
+tools/sy1_send.py     sends patches to an FM-1 over USB MIDI
+tools/publish_site.sh builds the site (app/site, app/docs) and pushes it to gh-pages
+app/site/             the site's front page and the Patch Manager
 base/                 fm1-base (git submodule)
 ```
 

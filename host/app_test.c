@@ -268,6 +268,22 @@ int main(void)
     send_sysex(frame, sy1_frame(&p, 9, frame) - 9);
     CHECK(sysex_last[5] == 0x41 && sysex_last[8] != 0 && !bank_used(9), "a short frame was stored");
 
+    /* a slot's name; a slot emptied (the others in its sector kept) */
+    {
+        uint8_t name4[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x04, 4, 0, 0xF7}, name5[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x04, 5, 0, 0xF7};
+        uint8_t del6[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x05, 6, 0, 0xF7};
+        send_sysex(name4, sizeof name4);
+        CHECK(sysex_last[5] == 0x44 && sysex_last[6] == 4 && sysex_last[8] == 1 && !memcmp(sysex_last + 9, "Replaced", 8) &&
+              sysex_last[17] == 0xF7, "slot 5's name");
+        send_sysex(name5, sizeof name5);
+        CHECK(sysex_last[5] == 0x44 && sysex_last[8] == 0 && sysex_last[9] == 0xF7, "an empty slot's name");
+        send_sysex(del6, sizeof del6);
+        CHECK(sysex_last[5] == 0x45 && sysex_last[8] == 0 && !bank_used(6) && bank_used(4) && bank_count == 5, "slot 7 emptied");
+        strcpy(p.name, "Second");
+        send_sysex(frame, sy1_frame(&p, 6, frame));
+        CHECK(bank_count == 7, "slot 7 filled again");
+    }
+
     /* save: an edited built-in patch goes to the first free slot; it is all there after a restart */
     patch_select(2);
     tap(B_ENV);

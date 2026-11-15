@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8471", "--bind", "127.0.0.1", "--directory", "app/build/emu"],
       "port": 8471
+    },
+    {
+      "name": "sy1-site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8472", "--bind", "127.0.0.1", "--directory", "app/build/site"],
+      "port": 8472
     }
   ]
 }

@@ -1,7 +1,7 @@
 // SY1's own part of the emulator page (fm1-base copies it as app_own.js): a patch loader. Drop Synth1 patches
 // (.sy1 files, or a .zip bank of them) on the page and they go into the emulated FM-1 exactly as they would
-// over USB: one SysEx frame a patch (app/bank.h), each acknowledged before the next. With a real FM-1 chosen
-// under "MIDI ports", the same frames go to it too.
+// over USB: one SysEx frame a patch (app/bank.h), each acknowledged before the next. It loads the emulated
+// FM-1 only; a real one takes the same frames from tools/sy1_send.py.
 //
 // The reader below is app/dsp/s1_patch.c in JavaScript, byte for byte (tests/web_loader_test.mjs holds it to
 // build/sy1pack's output). Files are read as bytes, not text: old banks are in Shift-JIS or Latin-1.

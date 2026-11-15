@@ -724,6 +724,33 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         if (cur_index >= NFACT)
             patch_select(0);
         app_say("BANK", "ERASED");
+    } else if (p[4] == 0x04u && n >= 7u) {   /* a slot's name */
+        const uint32_t slot = p[5] | (uint32_t)p[6] << 7;
+        const uint8_t *r = bank_rec(slot);
+        uint8_t f[40];
+        uint32_t k = 0, i;
+        f[k++] = 0xF0; f[k++] = 0x7D; f[k++] = 0x53; f[k++] = 0x59; f[k++] = 0x31; f[k++] = 0x44;
+        f[k++] = p[5] & 0x7Fu;
+        f[k++] = p[6] & 0x7Fu;
+        f[k++] = (uint8_t)bank_used(slot);
+        for (i = 0; bank_used(slot) && i < 23u && r[4u + i]; i++)
+            f[k++] = r[4u + i] >= 32u && r[4u + i] < 127u ? r[4u + i] : '?';
+        f[k++] = 0xF7;
+        plat_sysex_send(f, k);
+        return 1;                            /* (nothing changed: no redraw) */
+    } else if (p[4] == 0x05u && n >= 7u) {   /* empty a slot */
+        const uint32_t slot = p[5] | (uint32_t)p[6] << 7;
+        uint32_t status = 1;
+        if (slot < BANK_SLOTS) {
+            ev_push(EV_PANIC, 0, 0);
+            status = bank_write(slot, 0) ? 2u : 0u;
+        }
+        d[0] = p[5];
+        d[1] = p[6];
+        d[2] = (uint8_t)status;
+        sysex_reply(0x45, d, 3);
+        if (!status && cur_index == NFACT + slot)
+            patch_select(0);                 /* the patch playing is gone */
     } else if (p[4] == 0x03u) {              /* how many: the slots in use, and all of them */
         d[0] = (uint8_t)(bank_count & 0x7Fu);
         d[1] = (uint8_t)(bank_count >> 7);
