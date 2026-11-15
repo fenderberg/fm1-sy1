@@ -45,31 +45,30 @@ ol.slots .note { color: var(--muted); font-size: .85rem; }
 progress { width: 100%; height: .6rem; margin-top: .7rem; accent-color: var(--accent); }
 [hidden] { display: none !important; }
 </style>
+<link rel="stylesheet" href="../assets/site.css">
 </head>
-<body>
-<header>
-  <nav aria-label="SY1">
-    <a href="../">SY1</a>
-    <a href="../install/">Install</a>
-    <a href="../emu/">Try it in the browser</a>
-    <a href="../manual/">Manual</a>
-  </nav>
-  <h1>Patch Manager</h1>
+<body data-site-page="manager">
+<a class="site-skip" href="#content">Skip to content</a>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../manager/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+<header class="page-heading">
+  <p class="eyebrow">02 / YOUR SOUND COLLECTION</p>
+  <h1>Your patches. Ready to play.</h1>
   <p class="lede">Load Synth1 patches into an FM-1 running SY1, over USB. Your files stay on this computer: the page
     reads them here and sends them straight to the FM-1.</p>
+  <div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span><span> / USB MIDI</span></div>
 </header>
-<main>
+<main id="content" tabindex="-1">
   <section aria-labelledby="h-connect">
-    <h2 id="h-connect">1. Connect</h2>
+    <h2 id="h-connect"><span class="manager-step">01</span> Connect your FM-1</h2>
     <p class="muted">Connect the FM-1 by USB and switch it on. This needs Chrome, Edge or another browser with Web MIDI.</p>
     <div class="row">
       <button type="button" class="primary" id="connect">Connect to the FM-1</button>
-      <span id="status" role="status" class="muted"></span>
+      <span id="status" role="status" class="muted">Ready when you are.</span>
     </div>
   </section>
 
-  <section aria-labelledby="h-add" id="add" aria-disabled="true">
-    <h2 id="h-add">2. Add patches</h2>
+  <section aria-labelledby="h-add" id="add">
+    <h2 id="h-add"><span class="manager-step">02</span> Bring your patches</h2>
     <div class="drop" id="drop">Drop patches here: <code>.sy1</code> files, folders of them, or <code>.zip</code> banks</div>
     <div class="row">
       <button type="button" id="pick">Choose files</button>
@@ -86,10 +85,11 @@ progress { width: 100%; height: .6rem; margin-top: .7rem; accent-color: var(--ac
     </div>
     <progress id="progress" max="1" value="0" hidden></progress>
     <p id="result" role="status"></p>
+    <p class="tool-tip">You can prepare your list before connecting. Sending becomes available when your FM-1 is connected.</p>
   </section>
 
   <section aria-labelledby="h-have" id="have" aria-disabled="true">
-    <h2 id="h-have">3. On the FM-1</h2>
+    <h2 id="h-have"><span class="manager-step">03</span> On your FM-1</h2>
     <p id="count" class="muted">Not connected.</p>
     <ol class="slots" id="slots" hidden></ol>
     <div class="row">
@@ -132,6 +132,9 @@ const cmd = (c, ...bytes) => [...HEAD, c, ...bytes, 0xf7];
 const slotBytes = (s) => [s & 0x7f, (s >> 7) & 0x7f];
 
 async function connect() {
+  if (busy) return;
+  $("connect").disabled = true;
+  try {
   if (!navigator.requestMIDIAccess) {
     say("This browser has no Web MIDI. Use Chrome or Edge on a computer.", true);
     return;
@@ -161,10 +164,15 @@ async function connect() {
   say(`Connected: ${output.name}.`);
   setConnected(true);
   await readDevice();
+  } finally {
+    $("connect").disabled = false;
+  }
 }
 
 function setConnected(on) {
-  for (const id of ["add", "have"]) $(id).setAttribute("aria-disabled", on ? "false" : "true");
+  $("have").setAttribute("aria-disabled", on ? "false" : "true");
+  $("connection").dataset.state = on ? "connected" : "disconnected";
+  $("connection-label").textContent = on ? "FM-1 CONNECTED" : "FM-1 NOT CONNECTED";
   $("refresh").disabled = $("erase").disabled = !on;
   $("connect").textContent = on ? "Connect again" : "Connect to the FM-1";
   if (!on) { $("slots").hidden = true; $("count").textContent = "Not connected."; }
@@ -173,12 +181,15 @@ function setConnected(on) {
 function say(t, bad = false) {
   $("status").textContent = t;
   $("status").className = bad ? "bad" : "muted";
+  $("connection").dataset.state = bad ? "error" : output ? "connected" : "connecting";
+  $("connection-label").textContent = bad ? "CHECK CONNECTION" : output ? "FM-1 CONNECTED" : "CONNECTING…";
 }
 
 // what is on the FM-1: the count, then each slot's name
 async function readDevice() {
   if (!output || busy) return;
   busy = true;
+  showQueue();
   try {
     const a = await ask(output, cmd(0x03), 0x43, 1500);
     if (!a) { $("count").textContent = "The FM-1 did not answer."; return; }
@@ -250,20 +261,23 @@ async function entryFiles(entry, out) {                // a dropped folder, to a
 }
 
 async function addFiles(files) {
+  if (busy) return;
   let skipped = 0;
   const sorted = [...files].filter((f) => !f.name.startsWith("._"))
     .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, { numeric: true }));
   for (const f of sorted) {
     const zip = /\.zip$/i.test(f.name);
     if (!zip && !/\.sy1$/i.test(f.name)) { skipped++; continue; }
-    const buf = await f.arrayBuffer();
-    const parts = zip ? await unzipSy1(buf).catch(() => []) : [{ name: f.name, bytes: new Uint8Array(buf) }];
-    if (!parts.length) skipped++;
-    for (const part of parts) {
-      const p = parseSy1(part.bytes);
-      if (p.lines) queue.push({ patch: p, from: zip ? `${f.name}: ${part.name}` : f.name });
-      else skipped++;
-    }
+    try {
+      const buf = await f.arrayBuffer();
+      const parts = zip ? await unzipSy1(buf) : [{ name: f.name, bytes: new Uint8Array(buf) }];
+      if (!parts.length) skipped++;
+      for (const part of parts) {
+        const p = parseSy1(part.bytes);
+        if (p.lines) queue.push({ patch: p, from: zip ? `${f.name}: ${part.name}` : f.name });
+        else skipped++;
+      }
+    } catch { skipped++; }
   }
   $("result").textContent = skipped ? `${skipped} file${skipped === 1 ? " was" : "s were"} skipped: not Synth1 patches.` : "";
   showQueue();
@@ -348,5 +362,6 @@ for (const t of [drop, document.body]) {
 }
 showQueue();
 </script>
+<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.1 · Open source · MIT</p></footer>
 </body>
 </html>

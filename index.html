@@ -1,97 +1,73 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SY1 · A polysynth for the FM-1 that plays Synth1 patches</title>
-<meta name="description" content="SY1, A polysynth for the FM-1 that plays Synth1 patches for SY1, a firmware for the M-VAVE FM-1.">
-<style>
-/* paper and ink: warm white paper, ink-blue type, vermilion for what is played, mustard for asides; a shade of the
-   paper for code and callouts (CTL-1's; a firmware may restyle its site) */
-:root {
-  --paper: #fbf8f1; --sheet: #efe9dc; --rule: #ddd4c2; --ink: #1e2b5a; --muted: #5d6585;
-  --hot: #e5482e; --hot-t: #f8d3c9; --cool: #d9a21b; --cool-t: #f5e4b8;
-  --hot-ink: #c23a22;                                 /* the vermilion as text: 4.5:1 on the paper */
-  color-scheme: light;
-}
-body {
-  background: var(--paper); color: var(--ink); margin: 0;
-  font: 400 17px/1.6 "Helvetica Neue", Helvetica, Arial, sans-serif;
-  padding-inline: 16px; padding-block: 32px 64px;
-}
-main { max-width: 46rem; margin: 0 auto; }
-.page > .site { max-width: 46rem; margin-inline: auto; }
-main:focus { outline: none; }
-h1, h2, h3 { font-family: inherit; text-wrap: balance; line-height: 1.2; }
-h1 { font-size: 2.2rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: .02em; }
-h2 { font-size: 1.3rem; font-weight: 700; margin: 3rem 0 .8rem; padding-top: .8rem; border-top: 2px solid var(--ink); }
-h2 .num { color: var(--hot); margin-right: .5em; font-variant-numeric: tabular-nums; }
-h3 { font-size: 1.1rem; font-weight: 700; margin: 2rem 0 .5rem; }
-p, li { max-width: 65ch; }
-p { margin: 0 0 1rem; }
-ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
-li { margin: .2rem 0; }
-li::marker { color: var(--hot); }
-strong { font-weight: 700; }
-a { color: var(--ink); text-decoration-color: var(--hot); text-decoration-thickness: 2px; text-underline-offset: 3px; }
-a:hover { background: var(--hot-t); }
-:focus-visible { outline: 3px solid var(--hot-ink); outline-offset: 2px; }
-.skip { position: absolute; left: 16px; top: -100px; background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 0 0 6px 6px; z-index: 1; }
-.skip:focus { top: 0; }
-code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; }
-code { background: var(--sheet); padding: .08em .35em; border-radius: 3px; }
-pre { background: var(--sheet); border-radius: 6px; padding: 14px 16px; overflow-x: auto; line-height: 1.45; margin: 0 0 1.2rem; }
-pre code { background: none; padding: 0; font-size: inherit; }
-hr { display: none; }
-.table { overflow-x: auto; margin: 0 0 1.3rem; }
-table { border-collapse: collapse; width: 100%; font-size: .95rem; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; vertical-align: top; padding: .45rem .7rem .45rem 0; border-bottom: 1px solid var(--rule); }
-th { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; color: var(--muted); border-bottom: 2px solid var(--ink); }
-td:first-child { white-space: nowrap; }
-.lede { margin-bottom: 1.6rem; }
-.status { background: var(--sheet); border-radius: 6px; padding: 12px 16px; }
-.status p { margin: 0; }
-.site { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1.2rem; margin: 0 0 1.6rem; padding-bottom: .5rem; border-bottom: 2px solid var(--ink); }
-.site .home { font-size: 1.1rem; font-weight: 700; letter-spacing: .04em; color: var(--ink); text-decoration: none; }
-.site .home:hover { color: var(--hot-ink); background: none; }
-.site nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: .92rem; }
-.site nav a { color: var(--ink); text-underline-offset: 3px; }
-.site nav a[aria-current] { text-decoration: none; color: var(--hot-ink); }
-a.home { color: inherit; text-decoration: none; }
-a.home:hover { background: none; color: var(--hot-ink); }
-main > a.home { display: inline-block; font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 .4rem; }
-.callout { border-left: 4px solid var(--cool); background: var(--cool-t); padding: 10px 16px; margin: 0 0 1.2rem; max-width: 65ch; border-radius: 0 6px 6px 0; }
-.callout p { margin: 0; }
-details { background: var(--sheet); border-radius: 6px; padding: 0 16px; margin: 0 0 1.2rem; }
-details > summary { cursor: pointer; padding: 10px 0; }
-details[open] > summary { margin-bottom: .4rem; }
-details > :last-child { margin-bottom: 1rem; }
-.swatch { display: inline-block; width: .7em; height: .7em; margin-right: .4em; vertical-align: .02em; }
-nav.contents ol { columns: 2 14rem; column-gap: 2rem; padding-left: 1.3rem; }
-.figs { display: flex; flex-wrap: wrap; gap: 20px; margin: .4rem 0 1.6rem; }
-figure { margin: 0; flex: 0 1 auto; }
-figure img { display: block; max-width: 100%; height: auto; }
-figure.shot img { width: 300px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
-figure.wide { flex-basis: 100%; }
-figure.wide img { width: 100%; }
-figcaption { color: var(--muted); font-size: .88rem; margin-top: .4rem; max-width: 300px; }
-figure.wide figcaption { max-width: none; }
-nav.contents li { break-inside: avoid; }
-@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SY1 · Small box. Wide-open sound.</title>
+  <meta name="description" content="Turn the M-VAVE FM-1 into a hands-on virtual analog polysynth. Play SY1 in your browser, install the firmware, and manage your Synth1 patches.">
+<link rel="stylesheet" href="assets/site.css">
 </head>
-<body>
-<a class="skip" href="#content">Skip to content</a>
-<div class="page">
-<header class="site"><a class="home" href="./" aria-current="page">SY1</a><nav><a href="emu/">Emulator</a><a href="install/">Install</a><a href="manual/">Manual</a><a href="https://github.com/fenderberg/fm1-sy1">Source</a></nav></header>
-<main id="content" tabindex="-1"><h1>SY1</h1>
-<p class="lede">SY1 turns the M-VAVE FM-1 into a polysynth that plays <strong>Synth1 patches</strong>. It has two oscillators and a sub, FM, ring modulation and sync, four filter types, three envelopes, two LFOs, an arpeggiator, unison, ten effects, an equalizer, a tempo delay and a chorus: Synth1's 99 parameters under Synth1's own numbers, so <code>.sy1</code> patches load as they are. Every parameter can also be edited on the FM-1 itself.</p>
-<div class="figs"><figure class="shot"><img src="manual/img/screen-play.png" alt="SY1&#x27;s Play page: the patch Warm Pad, with the filter&#x27;s frequency, resonance and amount and the gain on the four knobs" loading="lazy"><figcaption>SY1 on the FM-1's screen</figcaption></figure></div>
-<p>This is version 0.1, an early one. It runs on an FM-1 with about seven voices, and its sound has not yet been compared closely with the original Synth1's. You install it at your own risk, and the installer can put M-VAVE's own firmware back.</p>
-<ul><li><a href="emu/">Try it in the browser</a>. Play it right here, with sound, and drop your own Synth1 patches on the page. It runs the same code as the FM-1, so you don't need one.</li><li><a href="install/">Install</a> it from Chrome or Edge, with the FM-1 connected by USB.</li><li>The <a href="manager/">Patch Manager</a> loads <code>.sy1</code> files, folders and <code>.zip</code> banks into the FM-1 from the browser.</li><li>The <a href="manual/">Manual</a> explains the screen, the pages, patches and MIDI.</li><li><a href="firmware/sy1-0.1.fwsc">Download sy1-0.1.fwsc</a> to use the command-line installer: <code>python3 tools/fm1_install.py sy1-0.1.fwsc</code>.</li><li>The <a href="https://github.com/fenderberg/fm1-sy1">Source</a> is under the MIT licence.</li></ul>
-<p>SY1 is built on fm1-base and felucca-bsp, which come from Felucca by Leo Kuroshita, Hügelton Instruments. Its parameter laws are the measurements of the original Synth1 published by oxo_synth2 (MIT, Francois Chabloz).</p>
-<p>Synth1 is the work of Daichi Laboratory. SY1 is not affiliated with or endorsed by Daichi Laboratory, contains nothing of Synth1 itself, and comes with no third-party patches. M-VAVE and FM-1 are trademarks of their owners. SY1 is not affiliated with M-VAVE.</p>
+<body data-site-page="home">
+<a class="site-skip" href="#content">Skip to content</a>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="./" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="./" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="manager/"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+<main id="content" tabindex="-1">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="signal-led" aria-hidden="true"></span> SY1 / VIRTUAL ANALOG POLYSYNTH</p>
+      <h1>Small box.<br><span>Wide-open sound.</span></h1>
+      <p class="hero-lede">Your FM-1 has another side. Two oscillators, a whole world of Synth1 patches, and a sound that invites you to keep turning knobs.</p>
+      <div class="hero-actions"><a class="button primary" href="emu/">Play in the browser <span aria-hidden="true">↗</span></a><a class="button secondary" href="install/">Install on your FM-1 <span aria-hidden="true">→</span></a></div>
+      <p class="hero-note">No hardware needed to try it. Just switch on and play.</p>
+    </div>
+    <a class="rack-link" href="emu/" aria-label="Open SY1 in the browser">
+      <div class="rack" aria-hidden="true">
+        <i class="rack-screw screw-tl"></i><i class="rack-screw screw-tr"></i><i class="rack-screw screw-bl"></i><i class="rack-screw screw-br"></i>
+        <div class="rack-topline"><span class="rack-brand">SY<span>1</span></span><span class="rack-label">POLYPHONIC<br>VIRTUAL ANALOG</span><span class="rack-power"><i></i> ON</span></div>
+        <div class="rack-controls">
+          <div class="rack-lcd"><span class="lcd-caption">PERFORMANCE / PATCH 002</span><img src="manual/img/screen-play.png" width="240" height="240" alt=""><span class="lcd-footer">SYNTH1 PATCH ENGINE</span></div>
+          <div class="rack-knobs">
+            <div class="knob-unit"><span>CUTOFF</span><i class="knob knob-a"></i><small>FREQUENCY</small></div>
+            <div class="knob-unit"><span>RESONANCE</span><i class="knob knob-b"></i><small>CHARACTER</small></div>
+            <div class="knob-unit"><span>ENVELOPE</span><i class="knob knob-c"></i><small>MOVEMENT</small></div>
+            <div class="knob-unit"><span>LEVEL</span><i class="knob knob-d"></i><small>OUTPUT</small></div>
+          </div>
+        </div>
+        <div class="rack-bottom"><span>OSC → FILTER → AMP → FX</span><span class="rack-model">SY1 / FM-1</span></div>
+      </div>
+      <span class="rack-caption">A hands-on engine. Explore it in the browser. <span aria-hidden="true">↗</span></span>
+    </a>
+  </section>
+
+  <div class="spec-strip" aria-label="Synthesizer features"><span><b>02</b> OSCILLATORS + SUB</span><span><b>04</b> FILTER TYPES</span><span><b>99</b> SYNTH1 PARAMETERS</span><span><b>.sy1</b> PATCH COMPATIBLE</span></div>
+
+  <section class="patch-feature" aria-labelledby="patch-title">
+    <div class="patch-copy"><p class="eyebrow">02 / YOUR SOUND COLLECTION</p><h2 id="patch-title">Old favourites.<br>New possibilities.</h2><p>Give your Synth1 collection a new home. Drop in a patch, a folder, or a whole ZIP bank. The Patch Manager sends it straight to your FM-1 over USB.</p><a class="text-link" href="manager/">Open Patch Manager <span aria-hidden="true">→</span></a><p class="micro-note">Your files stay on your computer. Chrome or Edge + USB.</p></div>
+    <div class="patch-preview" aria-label="Patch Manager workflow preview">
+      <div class="panel-title"><span>PATCH MANAGER</span><span class="preview-label">WORKFLOW</span></div>
+      <div class="preview-step"><span class="step-number">01</span><div><strong>Connect your FM-1</strong><span>One USB cable. Straight to the synth.</span></div><span class="mini-jack" aria-hidden="true"></span></div>
+      <div class="preview-step"><span class="step-number">02</span><div><strong>Bring your patches</strong><span>.sy1 files · folders · .zip banks</span></div><span class="file-mark" aria-hidden="true">↓</span></div>
+      <div class="preview-step"><span class="step-number">03</span><div><strong>Send. Turn. Play.</strong><span>Ready to explore on your hardware.</span></div><span class="mini-wave" aria-hidden="true">∿</span></div>
+      <div class="preview-bottom"><span>1,024 USER PATCH SLOTS</span><a href="manager/">LET’S LOAD SOME <span aria-hidden="true">→</span></a></div>
+    </div>
+  </section>
+
+  <section class="sound-section" aria-labelledby="sound-title">
+    <div class="section-heading"><p class="eyebrow">03 / UNDER THE PANEL</p><h2 id="sound-title">Plenty to get your hands on.</h2><p>A familiar signal path with room to wander.</p></div>
+    <div class="signal-path">
+      <article><span class="module-number">01 / OSC</span><span class="module-symbol" aria-hidden="true">╱╲╱╲</span><h3>Start with a spark.</h3><p>Two oscillators and a sub. Add FM, ring modulation or sync to find the edge.</p></article>
+      <article><span class="module-number">02 / FILTER</span><span class="module-symbol" aria-hidden="true">──╲＿</span><h3>Find the sweet spot.</h3><p>Four filter types, three envelopes and two LFOs bring shape and movement.</p></article>
+      <article><span class="module-number">03 / PLAY</span><span class="module-symbol" aria-hidden="true">▂▅▃▇</span><h3>Stay in the moment.</h3><p>Arpeggiate a chord, latch it with Hold, or build a Drone. Keep your hands free to explore.</p></article>
+      <article><span class="module-number">04 / FX</span><span class="module-symbol" aria-hidden="true">)))</span><h3>Let it bloom.</h3><p>Ten effects, EQ, tempo delay and chorus take your patch a little further.</p></article>
+    </div>
+    <a class="text-link" href="manual/">Get to know the controls <span aria-hidden="true">→</span></a>
+  </section>
+
+  <section class="release-section" aria-labelledby="release-title">
+    <div><p class="eyebrow"><span class="signal-led amber" aria-hidden="true"></span> VERSION 0.1 / EARLY RELEASE</p><h2 id="release-title">Ready for a little exploration?</h2><p>SY1 runs on the M-VAVE FM-1 with about seven voices. It is a lighter reimplementation of Synth1; its sound has not yet been compared closely with the original.</p><p>The installer can restore M-VAVE’s stock firmware. Read the manual before installing.</p></div>
+    <div class="release-actions"><a class="button primary" href="install/">Install SY1 <span aria-hidden="true">→</span></a><a class="text-link" href="firmware/sy1-0.1.fwsc" download>Download firmware <span aria-hidden="true">↓</span></a><span class="micro-note">v0.1 · sy1-0.1.fwsc</span></div>
+  </section>
+  <div class="credits"><p>Built on <a href="https://github.com/charlesvestal/fm1-base">fm1-base</a> and felucca-bsp, from Felucca by Leo Kuroshita, Hügelton Instruments. Parameter laws from <a href="https://github.com/chab/oxo_synth2">oxo_synth2</a> by Francois Chabloz.</p><p>Synth1 is the work of Daichi Laboratory. SY1 contains none of Synth1’s code and ships no third-party patches. Not affiliated with Daichi Laboratory, M-VAVE or Nord. FM-1 and other trademarks belong to their owners.</p></div>
 </main>
-</div>
+<footer class="site-footer"><div><a class="footer-wordmark" href="./">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.1 · Open source · MIT</p></footer>
 </body>
 </html>

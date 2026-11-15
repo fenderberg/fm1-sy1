@@ -79,11 +79,14 @@ figure.wide figcaption { max-width: none; }
 nav.contents li { break-inside: avoid; }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 </style>
+<link rel="stylesheet" href="../assets/site.css">
 </head>
-<body>
-<a class="skip" href="#content">Skip to content</a>
+<body data-site-page="manual">
+<a class="site-skip" href="#content">Skip to content</a>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../manager/"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+
 <div class="page">
-<header class="site"><a class="home" href="../">SY1</a><nav><a href="../emu/">Emulator</a><a href="../install/">Install</a><a href="../manual/" aria-current="page">Manual</a><a href="https://github.com/fenderberg/fm1-sy1">Source</a></nav></header>
+
 <main id="content" tabindex="-1"><h1>Manual</h1>
 <p class="lede">SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages, how to get patches into the FM-1, and MIDI.</p>
 <div class="figs"><figure class="shot"><img src="img/screen-play.png" alt="SY1&#x27;s Play page: the patch number P02 and its name Warm Pad at the top, two rows of four values, and at the bottom the voices, the processor load, the octave and the tempo" loading="lazy"><figcaption>SY1's Play page: the patch number P02 and its name Warm Pad at the top, two rows of four values, and at the bottom the voices, the processor load, the octave and the tempo</figcaption></figure></div>
@@ -98,22 +101,26 @@ nav.contents li { break-inside: avoid; }
 <h2 id="s2"><span class="num">2</span>The screen</h2>
 <p>The top shows the patch's number and name, and the page you are on. A patch you have changed says EDITED, and SAVE lights.</p>
 <p>The middle shows the page's rows. Each row has up to four values; the lit row is the one KNOB1 to KNOB4 turn.</p>
-<p>The bottom shows the voices sounding and the most allowed, the processor's load, the octave of the keys, the tempo (CLOCK while a MIDI clock sets it), and MIDI, which lights when notes come in.</p>
+<p>The bottom shows the voices sounding and the most allowed, the processor's load, the octave of the keys, the tempo (CLOCK while a MIDI clock sets it), and MIDI, which lights when notes come in. Below MIDI, ARP means arp running, HLD means arp HOLD, and DRN means Drone. The header shows the browsing category.</p>
 <h2 id="s3"><span class="num">3</span>Patches</h2>
-<p>Turn PRESETS for the next or the previous patch, and ALGORITHM to go ten at a time.</p>
+<p>Turn ALGORITHM to choose a category, and PRESETS for the next or previous patch within it. Both wrap at the ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank. The musical categories are BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX and OTHER.</p>
 <p><code>P01</code> to <code>P08</code> are built in. Your own patches follow them, numbered <code>001</code> to <code>1024</code>; empty slots are skipped.</p>
-<p>SAVE keeps the patch with your changes. A built-in patch is saved to the first free slot of your own. SEQ puts the patch back as it was saved.</p>
+<p>SAVE keeps the patch with your changes. A built-in patch is saved to the first free slot of your own. REC puts the patch back as it was saved and releases hold/drone. Changing patches also releases hold/drone.</p>
+<p>Imported patches are categorized from their names, ignoring case (for example, "deep bass", "Warm Pad" and "FM Bell"). Unrecognized names go under OTHER. To correct a category, use GLO (Voice), SELECT to row 4, then KNOB3 (CAT), and SAVE. Editing CAT returns the browser to ALL. KNOB4 on that row selects the Drone mode. MIDI program changes select their original patch number; if necessary the browser returns to ALL.</p>
 <h2 id="s4"><span class="num">4</span>Pages and editing</h2>
-<div class="table" tabindex="0" role="region" aria-label="Table: Pages and editing (Button, Page, What is on it)"><table><thead><tr><th>Button</th><th>Page</th><th>What is on it</th></tr></thead><tbody><tr><td>HOME</td><td>Play</td><td>Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices</td></tr><tr><td>EDIT</td><td>Osc</td><td>Both oscillators, mix, pulse width, sync, ring, FM, detune, the sub, the mod envelope</td></tr><tr><td>SEL</td><td>Filter</td><td>Type, frequency, resonance, envelope amount, keyboard tracking, saturation</td></tr><tr><td>ENV</td><td>Env</td><td>The amp envelope, the filter envelope, gain and velocity</td></tr><tr><td>LFO</td><td>LFO</td><td>Both LFOs: destination, wave, speed, depth, tempo and key sync</td></tr><tr><td>FX</td><td>Effects</td><td>The effect, the equalizer, the delay and the chorus</td></tr><tr><td>ARP</td><td>Arp</td><td>The arpeggiator: on, type, range, beat, gate, tempo</td></tr><tr><td>GLO</td><td>Voice</td><td>Poly, mono or legato, portamento, bend range, unison, polyphony, pan</td></tr></tbody></table></div>
-<p>Press a page's button again for its next row, or turn SELECT to choose a row. KNOB1 to KNOB4 change the row's four values; a fast turn goes further.</p>
+<div class="table" tabindex="0" role="region" aria-label="Table: Pages and editing (Button, Page, What is on it)"><table><thead><tr><th>Button</th><th>Page</th><th>What is on it</th></tr></thead><tbody><tr><td>HOME</td><td>Play</td><td>Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices</td></tr><tr><td>EDIT</td><td>Osc</td><td>Both oscillators, mix, pulse width, sync, ring, FM, detune, the sub, the mod envelope</td></tr><tr><td>SEL</td><td>Filter</td><td>Type, frequency, resonance, envelope amount, keyboard tracking, saturation</td></tr><tr><td>ENV</td><td>Env</td><td>The amp envelope, the filter envelope, gain and velocity</td></tr><tr><td>LFO</td><td>LFO</td><td>Both LFOs: destination, wave, speed, depth, tempo and key sync</td></tr><tr><td>FX</td><td>Effects</td><td>The effect, the equalizer, the delay and the chorus</td></tr><tr><td>Hold ARP 0.5 s</td><td>Arp</td><td>The arpeggiator: on, type, range, beat, gate, tempo; Drone mode</td></tr><tr><td>GLO</td><td>Voice</td><td>Poly, mono or legato, portamento, bend range, unison, polyphony, pan</td></tr></tbody></table></div>
+<p>Press a page's button again for its next row (hold again for ARP), or turn SELECT to choose a row. KNOB1 to KNOB4 change the row's four values; a fast turn goes further.</p>
 <p>PLAY silences every note. OCT- and OCT+ move the keys by an octave.</p>
+<h3 id="arp-hold-and-drone">Arp, HOLD and Drone</h3>
+<ul><li><strong>Tap ARP:</strong> switch the arpeggiator on or off from any page. Its light shows on/off, including on the Arp page. Hold ARP for half a second to open its settings without toggling it. Hold again to advance the row.</li><li><strong>SEQ with arp on:</strong> toggle HOLD. Notes keep arpeggiating after key-up. Notes added while any key is down belong to the same chord; after all keys are up, the next gesture replaces it.</li><li><strong>SEQ with arp off:</strong> toggle Drone. In <strong>STACK</strong>, notes accumulate; play a droning note again to remove it. In <strong>REPLACE</strong>, the next gesture after all keys are up replaces the previous chord. The old chord uses its release envelope, and the new chord its attack; available polyphony still limits overlapping voices.</li><li><strong>Change Drone mode:</strong> Arp row 2, KNOB3, or Voice row 4, KNOB4. The setting is remembered.</li><li>Switching ARP while SEQ is lit changes the held chord between arpeggiation and Drone.</li><li>Toggle SEQ off to release latched notes; physical keys and the sustain pedal keep their own notes. PLAY, MIDI Stop, MIDI All Notes Off and MIDI All Sound Off clear the latch. Hold/drone never resumes at power-on.</li></ul>
+<p>These controls work with the FM-1 keys and incoming MIDI. A Drone keeps notes held, so a patch with zero amp sustain still decays naturally. There is no sequencer or note recording.</p>
 <p>VOICES, on the Play and Voice pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about seven. When the processor runs out of time, SY1 lowers it by one and says CPU FULL.</p>
 <h2 id="s5"><span class="num">5</span>Loading your own patches</h2>
 <p>Open the Patch Manager on SY1's site in Chrome or Edge, with the FM-1 connected by USB. Press Connect, drop your <code>.sy1</code> files, folders or <code>.zip</code> banks on the page, and send them. The page shows what is on the FM-1 and can remove a patch or erase them all.</p>
 <p>From a command line, <code>tools/sy1_send.py</code> in the source does the same.</p>
 <p>Patches made with old versions of Synth1 are converted as Synth1 itself converts them.</p>
 <h2 id="s6"><span class="num">6</span>MIDI</h2>
-<p>MIDI comes in over USB and the TRS jack. SY1 plays notes with velocity, pitch bend, the sustain pedal and channel pressure. The modulation wheel and other controllers do what the patch routes them to. A program change selects the patch of that number. A MIDI clock sets the tempo of the arpeggiator, the delay and the LFOs that are synced to the tempo.</p>
+<p>MIDI comes in over USB and the TRS jack. SY1 plays notes with velocity, pitch bend, the sustain pedal and channel pressure. The modulation wheel and other controllers do what the patch routes them to. A program change selects the patch of that number. A MIDI clock sets the tempo of the arpeggiator, the delay and the LFOs that are synced to the tempo. After two seconds without clock ticks SY1 returns to the internal tempo. MIDI Stop releases all notes and disables hold/drone. The arp follows the clock's measured tempo; it does not yet align its step phase to the external transport grid.</p>
 <p>The FM-1's own keys also go out as notes over USB.</p>
 <h2 id="s7"><span class="num">7</span>What differs from Synth1</h2>
 <p>SY1 follows Synth1's structure and its measured parameter laws, but it is a lighter engine made for the FM-1, not an exact copy:</p>
@@ -122,5 +129,6 @@ nav.contents li { break-inside: avoid; }
 <ul><li><strong>The sound breaks up on big chords.</strong> Lower VOICES on the Voice page.</li><li><strong>The Patch Manager finds no FM-1.</strong> Use Chrome or Edge, allow MIDI for the page, and check the USB cable carries data. Close other programs that hold the FM-1's MIDI port.</li><li><strong>A patch sounds different from Synth1.</strong> See section 7; reports with the patch are welcome at the source's issue tracker.</li><li><strong>To go back to another firmware,</strong> use that firmware's installer, or SY1's installer for M-VAVE's own.</li></ul>
 </main>
 </div>
+<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.1 · Open source · MIT</p></footer>
 </body>
 </html>

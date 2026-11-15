@@ -77,12 +77,13 @@ a { color: var(--accent); }
 .help ul { padding-left: 1.1rem; }
 kbd { font: 600 .85em ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 0 .3em; color: var(--ink); }
 </style>
+<link rel="stylesheet" href="../assets/site.css">
 </head>
-<body>
-<header>
-  <h1>SY1</h1>
-</header>
-<main>
+<body data-site-page="emu">
+<a class="site-skip" href="#content">Skip to content</a>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../manager/"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+<header class="page-heading"><p class="eyebrow">01 / PLAY</p><h1>Meet your next sound.</h1><p>The real SY1 engine, right in your browser. Switch on, play a few notes, and turn a knob.</p></header>
+<main id="content" tabindex="-1">
 <h2 class="sr">The FM-1</h2>
 <p class="turn">Turn your phone sideways for bigger controls.</p>
 <div class="devicebox">
@@ -787,5 +788,6 @@ $("reset").addEventListener("click", () => {
   }
 });
 </script>
+<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.1 · Open source · MIT</p></footer>
 </body>
 </html>
