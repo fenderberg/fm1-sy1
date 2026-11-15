@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "id": "sy1",
+  "name": "SY1",
+  "author": "fenderberg",
+  "license": "MIT",
+  "tagline": "A polysynth for the FM-1 that plays Synth1 patches",
+  "description": "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself.",
+  "tags": ["synth"],
+  "source": "https://github.com/fenderberg/fm1-sy1",
+  "hardware": {
+    "models": ["FM-1"],
+    "flash": ["856014", "B36014"],
+    "features": ["usb-audio-in", "usb-audio-out", "velocity", "pressure", "screen-reader"]
+  },
+  "credits": "Built on fm1-base and felucca-bsp. The parameter laws are oxo_synth2's measurements of Synth1 (MIT, Francois Chabloz). Not affiliated with Daichi Laboratory."
+}

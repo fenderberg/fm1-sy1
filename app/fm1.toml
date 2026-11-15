@@ -1,0 +1,21 @@
+# SY1's build settings (fm1-base's tools/build.py: ./build.sh)
+name = "SY1"                   # the build's files: sy1.fwsc, sy1-X.Y.fwsc
+id_prefix = "FM-1_47"          # package identity: dev FM-1_4700, releases FM-1_47XXYYZZ
+usb_manufacturer = "SY1"
+usb_product = "SY1 FM-1"
+include = ["dsp"]
+o2 = ["dsp/s1_synth.c", "dsp/s1_fx.c", "dsp/s1_patch.c", "dsp/s1_tables.c"]   # the engine, at -O2
+words = "words.tsv"
+font_full = ["M"]              # lower case in the medium font: the patches' names
+emu = ["midi"]                 # the emulator's MIDI and SysEx: the page's patch loader (web/emu/app.js) sends through it
+ble = false                    # no radio yet: nothing of JieLi's linked
+# the site
+tagline = "A polysynth for the FM-1 that plays Synth1 patches"
+repo = "https://github.com/fenderberg/fm1-sy1"
+licence = "MIT"
+credits = "Built on fm1-base and felucca-bsp. The parameter laws are oxo_synth2's measurements of Synth1 (MIT, Francois Chabloz). Not affiliated with Daichi Laboratory."
+# firmware.json, for firmware hubs (fm1-base docs/FIRMWARE-JSON.md): fill these in before a release
+author = "fenderberg"
+description = "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself."
+tags = ["synth"]
+screenshot = "docs/img/screen-play.png"

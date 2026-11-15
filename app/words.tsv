@@ -1,0 +1,8 @@
+# SY1's words for a screen reader (fm1-reader): the text on the screen <TAB> what to say.
+# url: https://example.invalid/sy1/words/
+SY1	S Y 1
+OSC	oscillators
+ENV	envelopes
+LFO	L F O
+ARP	arpeggiator
+CPU FULL	the processor is full

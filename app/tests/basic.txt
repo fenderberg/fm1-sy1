@@ -1,0 +1,61 @@
+# SY1 in fm1-base's host simulator: ./build.sh --host, then
+#   app/build/host/sy1_host app/tests/basic.txt app/build/host
+wait 600
+shot boot.png
+expect patch 0
+expect count 0
+# a key plays a voice, and lets it go
+key 7 down
+wait 100
+expect voices 1
+wav bass.wav
+wait 400
+key 7 up
+wait 1500
+wavstop
+expect voices 0
+# the next patch; a chord
+turn PRESET 1
+wait 50
+expect patch 1
+key 7 down
+key 11 down
+key 14 down
+wait 300
+expect voices 3
+shot pad.png
+key 7 up
+key 11 up
+key 14 up
+# pages and rows; K2 on the filter page is the cutoff
+tap SEL
+wait 30
+expect page 2
+turn K2 3
+wait 30
+expect dirty 1
+shot filter.png
+tap SEL
+wait 30
+expect row 1
+# MIDI in plays it too
+tap HOME
+midi 90 3C 64
+wait 50
+midi 80 3C 00
+# the octave
+tap OCT+
+wait 30
+expect octave 1
+# save: a built-in patch goes to the first free slot, and is there after a restart
+tap SAVE
+wait 100
+expect dirty 0
+expect count 1
+expect patch 8
+reboot
+wait 600
+expect patch 8
+expect count 1
+expect octave 1
+shot saved.png
