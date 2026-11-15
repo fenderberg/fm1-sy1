@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual · SY1</title>
+<meta name="description" content="The manual for SY1, a firmware for the M-VAVE FM-1.">
+<style>
+/* paper and ink: warm white paper, ink-blue type, vermilion for what is played, mustard for asides; a shade of the
+   paper for code and callouts (CTL-1's; a firmware may restyle its site) */
+:root {
+  --paper: #fbf8f1; --sheet: #efe9dc; --rule: #ddd4c2; --ink: #1e2b5a; --muted: #5d6585;
+  --hot: #e5482e; --hot-t: #f8d3c9; --cool: #d9a21b; --cool-t: #f5e4b8;
+  --hot-ink: #c23a22;                                 /* the vermilion as text: 4.5:1 on the paper */
+  color-scheme: light;
+}
+body {
+  background: var(--paper); color: var(--ink); margin: 0;
+  font: 400 17px/1.6 "Helvetica Neue", Helvetica, Arial, sans-serif;
+  padding-inline: 16px; padding-block: 32px 64px;
+}
+main { max-width: 46rem; margin: 0 auto; }
+.page > .site { max-width: 46rem; margin-inline: auto; }
+main:focus { outline: none; }
+h1, h2, h3 { font-family: inherit; text-wrap: balance; line-height: 1.2; }
+h1 { font-size: 2.2rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: .02em; }
+h2 { font-size: 1.3rem; font-weight: 700; margin: 3rem 0 .8rem; padding-top: .8rem; border-top: 2px solid var(--ink); }
+h2 .num { color: var(--hot); margin-right: .5em; font-variant-numeric: tabular-nums; }
+h3 { font-size: 1.1rem; font-weight: 700; margin: 2rem 0 .5rem; }
+p, li { max-width: 65ch; }
+p { margin: 0 0 1rem; }
+ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+li { margin: .2rem 0; }
+li::marker { color: var(--hot); }
+strong { font-weight: 700; }
+a { color: var(--ink); text-decoration-color: var(--hot); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+a:hover { background: var(--hot-t); }
+:focus-visible { outline: 3px solid var(--hot-ink); outline-offset: 2px; }
+.skip { position: absolute; left: 16px; top: -100px; background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 0 0 6px 6px; z-index: 1; }
+.skip:focus { top: 0; }
+code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .86em; }
+code { background: var(--sheet); padding: .08em .35em; border-radius: 3px; }
+pre { background: var(--sheet); border-radius: 6px; padding: 14px 16px; overflow-x: auto; line-height: 1.45; margin: 0 0 1.2rem; }
+pre code { background: none; padding: 0; font-size: inherit; }
+hr { display: none; }
+.table { overflow-x: auto; margin: 0 0 1.3rem; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .7rem .45rem 0; border-bottom: 1px solid var(--rule); }
+th { font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; color: var(--muted); border-bottom: 2px solid var(--ink); }
+td:first-child { white-space: nowrap; }
+.lede { margin-bottom: 1.6rem; }
+.status { background: var(--sheet); border-radius: 6px; padding: 12px 16px; }
+.status p { margin: 0; }
+.site { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1.2rem; margin: 0 0 1.6rem; padding-bottom: .5rem; border-bottom: 2px solid var(--ink); }
+.site .home { font-size: 1.1rem; font-weight: 700; letter-spacing: .04em; color: var(--ink); text-decoration: none; }
+.site .home:hover { color: var(--hot-ink); background: none; }
+.site nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-size: .92rem; }
+.site nav a { color: var(--ink); text-underline-offset: 3px; }
+.site nav a[aria-current] { text-decoration: none; color: var(--hot-ink); }
+a.home { color: inherit; text-decoration: none; }
+a.home:hover { background: none; color: var(--hot-ink); }
+main > a.home { display: inline-block; font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 .4rem; }
+.callout { border-left: 4px solid var(--cool); background: var(--cool-t); padding: 10px 16px; margin: 0 0 1.2rem; max-width: 65ch; border-radius: 0 6px 6px 0; }
+.callout p { margin: 0; }
+details { background: var(--sheet); border-radius: 6px; padding: 0 16px; margin: 0 0 1.2rem; }
+details > summary { cursor: pointer; padding: 10px 0; }
+details[open] > summary { margin-bottom: .4rem; }
+details > :last-child { margin-bottom: 1rem; }
+.swatch { display: inline-block; width: .7em; height: .7em; margin-right: .4em; vertical-align: .02em; }
+nav.contents ol { columns: 2 14rem; column-gap: 2rem; padding-left: 1.3rem; }
+.figs { display: flex; flex-wrap: wrap; gap: 20px; margin: .4rem 0 1.6rem; }
+figure { margin: 0; flex: 0 1 auto; }
+figure img { display: block; max-width: 100%; height: auto; }
+figure.shot img { width: 300px; image-rendering: pixelated; border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
+figure.wide { flex-basis: 100%; }
+figure.wide img { width: 100%; }
+figcaption { color: var(--muted); font-size: .88rem; margin-top: .4rem; max-width: 300px; }
+figure.wide figcaption { max-width: none; }
+nav.contents li { break-inside: avoid; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<div class="page">
+<header class="site"><a class="home" href="../">SY1</a><nav><a href="../emu/">Emulator</a><a href="../install/">Install</a><a href="../manual/" aria-current="page">Manual</a><a href="https://github.com/fenderberg/fm1-sy1">Source</a></nav></header>
+<main id="content" tabindex="-1"><h1>Manual</h1>
+<p class="lede">SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages, how to get patches into the FM-1, and MIDI.</p>
+<div class="figs"><figure class="shot"><img src="img/screen-play.png" alt="SY1&#x27;s Play page: the patch number P02 and its name Warm Pad at the top, two rows of four values, and at the bottom the voices, the processor load, the octave and the tempo" loading="lazy"><figcaption>SY1's Play page: the patch number P02 and its name Warm Pad at the top, two rows of four values, and at the bottom the voices, the processor load, the octave and the tempo</figcaption></figure></div>
+<hr>
+<nav class="contents" aria-label="Contents"><h2 id="contents">Contents</h2>
+<ol><li><a href="#s1">Install</a></li><li><a href="#s2">The screen</a></li><li><a href="#s3">Patches</a></li><li><a href="#s4">Pages and editing</a></li><li><a href="#s5">Loading your own patches</a></li><li><a href="#s6">MIDI</a></li><li><a href="#s7">What differs from Synth1</a></li><li><a href="#s8">Troubleshooting</a></li></ol>
+</nav>
+<hr>
+<h2 id="s1"><span class="num">1</span>Install</h2>
+<p>To try it first, open the emulator. It runs the same code in your browser, with sound.</p>
+<p>To install, open the installer in Chrome or Edge with the FM-1 connected by USB, and follow it. Back up what you want to keep from the firmware you have now: SY1 keeps its settings and patches in the same part of the flash, and overwrites what another firmware left there. The installer can put M-VAVE's own firmware back.</p>
+<h2 id="s2"><span class="num">2</span>The screen</h2>
+<p>The top shows the patch's number and name, and the page you are on. A patch you have changed says EDITED, and SAVE lights.</p>
+<p>The middle shows the page's rows. Each row has up to four values; the lit row is the one KNOB1 to KNOB4 turn.</p>
+<p>The bottom shows the voices sounding and the most allowed, the processor's load, the octave of the keys, the tempo (CLOCK while a MIDI clock sets it), and MIDI, which lights when notes come in.</p>
+<h2 id="s3"><span class="num">3</span>Patches</h2>
+<p>Turn PRESETS for the next or the previous patch, and ALGORITHM to go ten at a time.</p>
+<p><code>P01</code> to <code>P08</code> are built in. Your own patches follow them, numbered <code>001</code> to <code>1024</code>; empty slots are skipped.</p>
+<p>SAVE keeps the patch with your changes. A built-in patch is saved to the first free slot of your own. SEQ puts the patch back as it was saved.</p>
+<h2 id="s4"><span class="num">4</span>Pages and editing</h2>
+<div class="table" tabindex="0" role="region" aria-label="Table: Pages and editing (Button, Page, What is on it)"><table><thead><tr><th>Button</th><th>Page</th><th>What is on it</th></tr></thead><tbody><tr><td>HOME</td><td>Play</td><td>Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices</td></tr><tr><td>EDIT</td><td>Osc</td><td>Both oscillators, mix, pulse width, sync, ring, FM, detune, the sub, the mod envelope</td></tr><tr><td>SEL</td><td>Filter</td><td>Type, frequency, resonance, envelope amount, keyboard tracking, saturation</td></tr><tr><td>ENV</td><td>Env</td><td>The amp envelope, the filter envelope, gain and velocity</td></tr><tr><td>LFO</td><td>LFO</td><td>Both LFOs: destination, wave, speed, depth, tempo and key sync</td></tr><tr><td>FX</td><td>Effects</td><td>The effect, the equalizer, the delay and the chorus</td></tr><tr><td>ARP</td><td>Arp</td><td>The arpeggiator: on, type, range, beat, gate, tempo</td></tr><tr><td>GLO</td><td>Voice</td><td>Poly, mono or legato, portamento, bend range, unison, polyphony, pan</td></tr></tbody></table></div>
+<p>Press a page's button again for its next row, or turn SELECT to choose a row. KNOB1 to KNOB4 change the row's four values; a fast turn goes further.</p>
+<p>PLAY silences every note. OCT- and OCT+ move the keys by an octave.</p>
+<p>VOICES, on the Play and Voice pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about seven. When the processor runs out of time, SY1 lowers it by one and says CPU FULL.</p>
+<h2 id="s5"><span class="num">5</span>Loading your own patches</h2>
+<p>Open the Patch Manager on SY1's site in Chrome or Edge, with the FM-1 connected by USB. Press Connect, drop your <code>.sy1</code> files, folders or <code>.zip</code> banks on the page, and send them. The page shows what is on the FM-1 and can remove a patch or erase them all.</p>
+<p>From a command line, <code>tools/sy1_send.py</code> in the source does the same.</p>
+<p>Patches made with old versions of Synth1 are converted as Synth1 itself converts them.</p>
+<h2 id="s6"><span class="num">6</span>MIDI</h2>
+<p>MIDI comes in over USB and the TRS jack. SY1 plays notes with velocity, pitch bend, the sustain pedal and channel pressure. The modulation wheel and other controllers do what the patch routes them to. A program change selects the patch of that number. A MIDI clock sets the tempo of the arpeggiator, the delay and the LFOs that are synced to the tempo.</p>
+<p>The FM-1's own keys also go out as notes over USB.</p>
+<h2 id="s7"><span class="num">7</span>What differs from Synth1</h2>
+<p>SY1 follows Synth1's structure and its measured parameter laws, but it is a lighter engine made for the FM-1, not an exact copy:</p>
+<ul><li>The LPDL filter plays as the 24 dB filter, and the effect a.d.1 uses a.d.2's curve.</li><li>The delay is 0.74 seconds a side at most; a longer time plays an octave shorter.</li><li>With the delay and the chorus both on, the echoes also reach the output directly.</li><li>Osc1's detune does not thicken the sub.</li><li>It plays about seven voices, where Synth1 plays up to 32.</li></ul>
+<h2 id="s8"><span class="num">8</span>Troubleshooting</h2>
+<ul><li><strong>The sound breaks up on big chords.</strong> Lower VOICES on the Voice page.</li><li><strong>The Patch Manager finds no FM-1.</strong> Use Chrome or Edge, allow MIDI for the page, and check the USB cable carries data. Close other programs that hold the FM-1's MIDI port.</li><li><strong>A patch sounds different from Synth1.</strong> See section 7; reports with the patch are welcome at the source's issue tracker.</li><li><strong>To go back to another firmware,</strong> use that firmware's installer, or SY1's installer for M-VAVE's own.</li></ul>
+</main>
+</div>
+</body>
+</html>
