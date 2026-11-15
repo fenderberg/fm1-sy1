@@ -15,7 +15,7 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 SY1 is not affiliated with or endorsed by Daichi Laboratory. It contains nothing of Synth1 itself and ships
 no third-party patches.
 
-## Status: early, not yet run on an FM-1
+## Status: early
 
 | Part | State |
 | --- | --- |
@@ -23,9 +23,10 @@ no third-party patches.
 | `.sy1` reader, old versions too (ver < 109) | Works; tested in C and in JavaScript against each other |
 | App: screen, panel, keys, MIDI, patch storage | Passes in fm1-base's simulator (`app/tests/basic.txt`) and in `make test-app` |
 | Browser emulator with a patch loader | Works: drop `.sy1` files or a `.zip` bank on the page |
-| Firmware for the FM-1 (`./build.sh`) | **Not built yet** (needs the JieLi toolchain) |
-| On a real FM-1 | **Not tested.** The number of voices its CPU manages is an estimate |
-| Sound compared with the original Synth1 | **Not done yet** |
+| Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
+| Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. The second core is not used yet |
+| Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
+| Loading patches into a real FM-1 | **Not tested yet** |
 
 ## Try it in the browser
 

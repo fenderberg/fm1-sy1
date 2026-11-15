@@ -11,6 +11,7 @@
 #define APP_TOUCH                        /* velocity from the keys (lib/touch.h) */
 #define APP_SYSEX                        /* patches come in over USB SysEx (bank.h) */
 #define APP_OVERLOAD                     /* the render ran out of time: fewer voices */
+#define APP_LOG                          /* the development readout: the render's load (fm1_remote.py log) */
 
 /* the store: the settings, and the panel calibration (the platform's). The user patches are not store objects:
  * they fill the flash's data area from PLAT_DATA_LO (bank.h), under these */
@@ -27,6 +28,7 @@ void app_input_only(void);
 void app_say(const char *a, const char *b);
 int app_sysex(const uint8_t *p, uint32_t n);
 void app_overload(void);
+void app_log(void (*line)(const char *t));
 
 /* the host simulator's checks (base/host/plat_host.c "expect") */
 #define APP_HOST_EXPECT

@@ -8,6 +8,7 @@
   "description": "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself.",
   "tags": ["synth"],
   "source": "https://github.com/fenderberg/fm1-sy1",
+  "screenshot": "docs/img/screen-play.png",
   "hardware": {
     "models": ["FM-1"],
     "flash": ["856014", "B36014"],

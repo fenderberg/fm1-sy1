@@ -576,6 +576,32 @@ static void input(void)
 void app_input_only(void) { input(); }
 
 static uint32_t shown_voices, shown_cpu, shown_midi;
+static uint32_t peak_cpu, peak_voices, sheds;   /* since the last readout (app_log) */
+
+/* the development readout (tools/fm1_remote.py log): the render's load now and at its highest since the last
+ * readout, with the voices that were sounding, and how often an overload dropped a voice */
+void app_log(void (*line)(const char *t))
+{
+    char t[41], n[12];
+    t[0] = 0;
+    text_cat(t, "sy1 cpu ");
+    int_text((int32_t)plat_cpu_pct(), n);
+    text_cat(t, n);
+    text_cat(t, " peak ");
+    int_text((int32_t)peak_cpu, n);
+    text_cat(t, n);
+    text_cat(t, " voices ");
+    int_text((int32_t)peak_voices, n);
+    text_cat(t, n);
+    text_cat(t, "/");
+    int_text(set.voices, n);
+    text_cat(t, n);
+    text_cat(t, " shed ");
+    int_text((int32_t)sheds, n);
+    text_cat(t, n);
+    line(t);
+    peak_cpu = peak_voices = sheds = 0;
+}
 
 static void draw(void)
 {
@@ -754,6 +780,7 @@ void app_frame(void)
     }
     if (shed) {                              /* the render ran out of time: one voice fewer */
         shed = 0;
+        sheds++;
         if (set.voices > 2u) {
             set.voices--;
             set_dirty = 1;
@@ -764,6 +791,10 @@ void app_frame(void)
     if (now - last_stat >= 250u) {           /* the footer's numbers, four times a second */
         const uint32_t v = (uint32_t)s1_active_voices(&synth), cpu = plat_cpu_pct();
         last_stat = now;
+        if (cpu > peak_cpu)
+            peak_cpu = cpu;
+        if (v > peak_voices)
+            peak_voices = v;
         if (midi_notes != midi_seen) {
             midi_seen = midi_notes;
             midi_at = now;
