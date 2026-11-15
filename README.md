@@ -81,18 +81,30 @@ PRESETS past `P08` to reach them.
 
 | Control | What it does |
 | --- | --- |
-| PRESETS / ALGORITHM | Patch ±1 / ±10. `P01`–`P08` are built in, `001`–`1024` are yours |
-| HOME, EDIT, SEL, ENV, LFO, FX, ARP, GLO | Pages: Play, Osc, Filter, Env, LFO, Effects, Arp, Voice. Again: the next row |
+| PRESETS / ALGORITHM | Patch within category / category. Empty categories are skipped; both lists wrap |
+| HOME, EDIT, SEL, ENV, LFO, FX, GLO | Pages: Play, Osc, Filter, Env, LFO, Effects, Voice. Again: the next row |
+| ARP | Tap: arp on/off. Hold 0.5 s: Arp settings; hold again: next row |
+| SEQ | Arp on: chord HOLD. Arp off: DRONE. Tap again to release |
 | SELECT | Choose a row |
 | KNOB1–4 | The chosen row's four values |
 | SAVE | Save the patch (a built-in one goes to the first free slot) |
-| SEQ | Undo the edits |
+| REC | Undo the edits and release hold/drone |
 | PLAY | All notes off |
 | OCT− / OCT+ | Octave |
 
 MIDI in over USB and TRS: notes, pitch bend, the wheel and other controllers (as the patch routes them),
 sustain pedal, aftertouch, program change (the patch) and MIDI clock (the tempo of the arpeggiator, the delay
 and tempo-synced LFOs).
+
+HOLD replaces the latched chord when you play again after releasing every key. Drone has STACK (add notes;
+play one again to remove it) and REPLACE (new gesture replaces the chord), selected on Arp row 2 or Voice row 4.
+Both work with the panel and MIDI. PLAY and MIDI Stop clear all held notes. A patch change also clears hold.
+
+Categories: ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX, OTHER and USER (every stored patch).
+Imported names suggest a category; Voice row 4 lets you correct it and SAVE keeps it with the patch.
+The header shows the browser category; ARP/SEQ lights and the footer show ARP, HLD or DRN.
+
+See [performance ideas](docs/PERFORMANCE.md) for the next improvements, without adding a sequencer.
 
 ## How it differs from Synth1
 

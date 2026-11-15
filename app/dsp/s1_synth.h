@@ -91,6 +91,8 @@ typedef struct s1_synth {
     /* keys */
     uint8_t key_down[128], sustained[128], key_vel[128];
     uint8_t sustain;
+    uint8_t hold, drone_replace;
+    uint8_t latched[128];              /* 1: held by SEQ; 2: STACK note toggled off until key-up */
     uint8_t held[32];
     int held_n;
     int bend, pressure;
@@ -121,6 +123,7 @@ void s1_set_volume(s1_synth *s, float gain);
 
 void s1_note_on(s1_synth *s, int key, int velocity);
 void s1_note_off(s1_synth *s, int key);
+void s1_set_hold(s1_synth *s, int on);   /* arp: replace chord after key-up; otherwise drone */
 void s1_control_change(s1_synth *s, int cc, int value);
 void s1_pitch_bend(s1_synth *s, int value14);
 void s1_pressure(s1_synth *s, int value);

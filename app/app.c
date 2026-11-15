@@ -19,7 +19,7 @@ typedef struct {
     int8_t octave;                       /* -3 .. +3 */
     uint8_t voices;                      /* 1 .. S1_MAX_VOICES */
     uint16_t tempo;                      /* 30 .. 300 */
-    uint8_t rsv[2];
+    uint8_t category, drone_replace;     /* uses the old reserved bytes: settings stay compatible */
 } settings_t;
 static settings_t set;
 
@@ -30,6 +30,8 @@ static void settings_defaults(void)
     set.octave = 0;
     set.voices = MAX_VOICES_DEFAULT;
     set.tempo = 120;
+    set.category = CAT_ALL;
+    set.drone_replace = 0;
 }
 
 /* ----------------------------------------------------------------- engine --- */
@@ -40,22 +42,26 @@ static float buf_l[APP_BLOCK], buf_r[APP_BLOCK];
 static float gain_now;
 
 /* main loop -> audio interrupt: a ring of small events, and a whole patch at a time */
-enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES };
+enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE };
 typedef struct { uint8_t type, a; int16_t b; } ev_t;
 static ev_t evq[64];
 static volatile uint32_t ev_w, ev_r;
+static volatile uint8_t ev_overflow;
 static int32_t patch_next[S1_NPARAMS];
 static volatile uint8_t patch_ready;
 static volatile int32_t want_program = -1;   /* a program change from MIDI, for the main loop */
 static volatile uint32_t ext_tempo;          /* MIDI clock's tempo, 0 none yet */
 static volatile uint8_t shed;                /* the render ran out of time: the main loop lowers the voices */
 static volatile uint32_t midi_notes;         /* notes in from MIDI (the screen's activity mark) */
+static uint32_t clk_n, clk_t0, clk_last;
 
 static void ev_push(uint32_t type, uint32_t a, int32_t b)
 {
     const uint32_t w = ev_w;
-    if (w - ev_r >= 64u)
+    if (w - ev_r >= 64u) {
+        ev_overflow = 1;                 /* a dropped note-off must never leave a latched sound */
         return;
+    }
     evq[w & 63u].type = (uint8_t)type;
     evq[w & 63u].a = (uint8_t)a;
     evq[w & 63u].b = (int16_t)b;
@@ -68,6 +74,12 @@ static void events(void)                 /* audio interrupt */
         s1_set_patch(&synth, patch_next);
         patch_ready = 0;
     }
+    if (ev_overflow) {
+        ev_r = ev_w;
+        ev_overflow = 0;
+        s1_all_notes_off(&synth, 1);
+        return;
+    }
     while (ev_r != ev_w) {
         const ev_t e = evq[ev_r & 63u];
         ev_r++;
@@ -77,7 +89,9 @@ static void events(void)                 /* audio interrupt */
         case EV_PARAM: s1_set_param(&synth, e.a, e.b); break;
         case EV_PANIC: s1_all_notes_off(&synth, 1); break;
         case EV_TEMPO: s1_set_tempo(&synth, (float)e.b); break;
-        default:
+        case EV_HOLD: s1_set_hold(&synth, e.b); break;
+        case EV_DRONE_MODE: synth.drone_replace = (uint8_t)e.b; break;
+        case EV_VOICES:
             s1_all_notes_off(&synth, 1);
             synth.cfg.max_voices = clamp(e.b, 1, S1_MAX_VOICES);
             break;
@@ -87,7 +101,6 @@ static void events(void)                 /* audio interrupt */
 
 static void midi_in(void)                /* audio interrupt: USB, the TRS jack, Bluetooth */
 {
-    static uint32_t clk_n, clk_t0;
     uint32_t pkt;
     int port;
     while (plat_midi_in(&pkt, &port)) {
@@ -107,6 +120,7 @@ static void midi_in(void)                /* audio interrupt: USB, the TRS jack, 
         case 0xE0u: s1_pitch_bend(&synth, (int)(d1 | d2 << 7)); break;
         default:
             if (st == 0xF8u) {           /* MIDI clock: the tempo over each quarter note (24 ticks) */
+                clk_last = synth.now;
                 if (clk_n == 0u)
                     clk_t0 = synth.now;
                 else if (clk_n == 24u) {
@@ -122,10 +136,18 @@ static void midi_in(void)                /* audio interrupt: USB, the TRS jack, 
                     clk_n = 0u;
                 }
                 clk_n++;
-            } else if (st == 0xFAu || st == 0xFCu)
+            } else if (st == 0xFAu || st == 0xFCu) {
                 clk_n = 0u;
+                if (st == 0xFCu)
+                    s1_all_notes_off(&synth, 1);
+            }
             break;
         }
+    }
+    if (ext_tempo && synth.now - clk_last > 88200u) {  /* unplugged clock: return to the internal tempo */
+        ext_tempo = 0;
+        clk_n = 0;
+        s1_set_tempo(&synth, (float)set.tempo);
     }
 }
 
@@ -174,15 +196,30 @@ static struct {
     uint32_t keys, btn;
     uint8_t held_note[NKEYS];            /* the note each held key started (the octave may change under it) */
     uint32_t page, row;
+    uint32_t arp_ms;
+    uint8_t arp_down;                   /* tap toggles; hold opens/advances the settings page */
+    uint8_t status;
     uint8_t redraw;
 } ui;
 
 static s1_patch cur;                     /* the patch playing, with the player's edits */
 static uint32_t cur_index;
 static uint8_t cur_dirty, set_dirty;
+static uint8_t cur_category;
 
 static uint32_t list_count(void) { return NFACT + bank_count; }
 static int list_has(uint32_t i) { return i < NFACT || bank_used(i - NFACT); }
+
+static uint8_t patch_category(uint32_t i)
+{
+    return i < NFACT ? category_guess(FACT[i].name) : bank_category[i - NFACT];
+}
+
+static int category_matches(uint32_t i)
+{
+    return list_has(i) && (set.category == CAT_ALL ||
+        (set.category == CAT_USER ? i >= NFACT : patch_category(i) == set.category));
+}
 
 static void to_engine(void)
 {
@@ -202,6 +239,11 @@ static void patch_select(uint32_t i)
     else
         bank_load(i - NFACT, &cur);
     cur_index = i;
+    cur_category = patch_category(i);
+    if (!category_matches(i)) {
+        set.category = CAT_ALL;          /* a MIDI program change stays reachable in the browser */
+        set_dirty = 1;
+    }
     cur_dirty = 0;
     if (set.patch != i) {
         set.patch = (uint16_t)i;
@@ -217,12 +259,42 @@ static void patch_step(int32_t d)        /* to the next patch that exists, d of 
     uint32_t i = cur_index;
     int32_t left = d < 0 ? -d : d;
     while (left > 0) {
-        do
+        uint32_t tried = 0;
+        do {
             i = d > 0 ? (i + 1u) % n : (i + n - 1u) % n;
-        while (!list_has(i));
+            tried++;
+        } while (!category_matches(i) && tried < n);
+        if (!category_matches(i)) {
+            set.category = CAT_ALL;      /* the manager may have removed the last matching sound */
+            set_dirty = 1;
+            continue;
+        }
         left--;
     }
-    patch_select(i);
+    if (i != cur_index)
+        patch_select(i);
+}
+
+static void category_step(int32_t d)
+{
+    const uint32_t n = list_count();
+    uint32_t cat = set.category, tries, i;
+    int32_t left = d < 0 ? -d : d;
+    while (left-- > 0) {
+        for (tries = 0; tries < CAT_COUNT; tries++) {
+            cat = d > 0 ? (cat + 1u) % CAT_COUNT : (cat + CAT_COUNT - 1u) % CAT_COUNT;
+            set.category = (uint8_t)cat;
+            for (i = 0; i < n && !category_matches(i); i++) {}
+            if (i < n)
+                break;                  /* skip categories with no sounds */
+        }
+    }
+    set_dirty = 1;
+    if (!category_matches(cur_index)) {
+        for (i = 0; i < n && !category_matches(i); i++) {}
+        patch_select(i);
+    }
+    ui.redraw = 1;
 }
 
 /* ---------------------------------------------------------------- strings --- */
@@ -270,7 +342,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_NONE = 255 };   /* a cell that is not one of the patch's parameters */
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -318,12 +390,12 @@ static const uint8_t R_FX[][4] = {
     {S1P_CHORUS_RATE, S1P_CHORUS_FEEDBACK, S1P_CHORUS_LEVEL, X_NONE}};
 static const uint8_t R_ARP[][4] = {
     {S1P_ARP_ON, S1P_ARP_TYPE, S1P_ARP_OCT_RANGE, S1P_ARP_BEAT},
-    {S1P_ARP_GATE, X_TEMPO, X_NONE, X_NONE}};
+    {S1P_ARP_GATE, X_TEMPO, X_DRONE, X_NONE}};
 static const uint8_t R_VOICE[][4] = {
     {S1P_PLAY_MODE, S1P_PORTA_TIME, S1P_PORTA_AUTO, S1P_BEND_RANGE},
     {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
     {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, S1P_PAN},
-    {X_VOICES, X_TEMPO, X_NONE, X_NONE}};
+    {X_VOICES, X_TEMPO, X_CATEGORY, X_DRONE}};
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
@@ -346,6 +418,8 @@ static void value_text(uint32_t id, int32_t v, char *t)
     const char *s = 0;
     t[0] = 0;
     switch (id) {
+    case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_OTHER)]; break;
+    case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
     case S1P_OSC1_SHAPE: s = OSC1[v & 3]; break;
     case S1P_OSC2_SHAPE: s = OSC2[clamp(v - 1, 0, 3)]; break;
     case S1P_SUB_SHAPE: s = SUB[v & 3]; break;
@@ -372,11 +446,13 @@ static void value_text(uint32_t id, int32_t v, char *t)
 
 static const char *cell_name(uint32_t id)
 {
-    return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id < S1_NPARAMS ? PNAME[id] : "";
+    return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id == X_DRONE ? "DRONE" :
+        id == X_CATEGORY ? "CAT" : id < S1_NPARAMS ? PNAME[id] : "";
 }
 static int32_t cell_value(uint32_t id)
 {
-    return id == X_TEMPO ? (int32_t)set.tempo : id == X_VOICES ? (int32_t)set.voices : cur.values[id];
+    return id == X_TEMPO ? (int32_t)set.tempo : id == X_VOICES ? (int32_t)set.voices :
+        id == X_DRONE ? set.drone_replace : id == X_CATEGORY ? cur_category : cur.values[id];
 }
 
 /* --------------------------------------------------------------------- UI --- */
@@ -448,6 +524,19 @@ static void cell_edit(uint32_t id, int32_t d)
         set.voices = (uint8_t)v;
         set_dirty = 1;
         ev_push(EV_VOICES, 0, v);
+    } else if (id == X_DRONE) {
+        v = clamp(set.drone_replace + d, 0, 1);
+        set.drone_replace = (uint8_t)v;
+        set_dirty = 1;
+        ev_push(EV_DRONE_MODE, 0, v);
+    } else if (id == X_CATEGORY) {
+        v = clamp(cur_category + d, CAT_BASS, CAT_OTHER);
+        if (v == cur_category)
+            return;
+        cur_category = (uint8_t)v;
+        cur_dirty = 1;
+        set.category = CAT_ALL;
+        set_dirty = 1;
     } else {
         v = clamp(cur.values[id] + d, s1_param_min[id], s1_param_max[id]);
         if (v == cur.values[id])
@@ -471,6 +560,8 @@ static void save_patch(void)
         return;
     }
     bank_pack(&cur, rec);
+    rec[2] = cur_category;
+    rec[3] = CAT_MARK;
     ev_push(EV_PANIC, 0, 0);             /* the flash write stops the sound a moment */
     if (bank_write((uint32_t)slot, rec)) {
         app_say("SAVE", "FAILED");
@@ -504,6 +595,27 @@ static void input(void)
     int32_t e;
     touch_poll();
     keys = touch_keys();
+    if ((btn & (1u << B_ARP)) && !(ui.btn & (1u << B_ARP))) {
+        ui.arp_down = 1;
+        ui.arp_ms = plat_ms();
+    }
+    if (ui.arp_down == 1 && plat_ms() - ui.arp_ms >= 500u) {
+        ui.arp_down = 2;
+        if (ui.page == 6u)
+            ui.row = (ui.row + 1u) % PAGES[6].nrows;
+        else {
+            ui.page = 6;
+            ui.row = 0;
+        }
+        app_say("PAGE", "ARP SETTINGS");
+    }
+    if (!(btn & (1u << B_ARP)) && ui.arp_down) {
+        if (ui.arp_down == 1) {
+            cell_edit(S1P_ARP_ON, cur.values[S1P_ARP_ON] ? -1 : 1);
+            app_say("ARP", cur.values[S1P_ARP_ON] ? "ON" : "OFF");
+        }
+        ui.arp_down = 0;
+    }
     for (k = 0; k < NKEYS; k++) {            /* key 0 is F3 (MIDI 53) */
         const uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit)) {
@@ -521,6 +633,14 @@ static void input(void)
         uint32_t pg;
         if (!(btn & bit) || (ui.btn & bit))
             continue;
+        if (k == B_ARP)
+            continue;
+        if (k == B_SEQ) {
+            const int on = !synth.hold;
+            ev_push(EV_HOLD, 0, on);
+            app_say(cur.values[S1P_ARP_ON] ? "HOLD" : "DRONE", on ? "ON" : "OFF");
+            continue;
+        }
         for (pg = 0; pg < NPAGES && PAGES[pg].button != k; pg++) {}
         if (pg < NPAGES) {                   /* a page; again: its next row */
             if (ui.page == pg)
@@ -541,7 +661,7 @@ static void input(void)
         else if (k == B_PLAY) {              /* silence */
             ev_push(EV_PANIC, 0, 0);
             app_say("ALL NOTES", "OFF");
-        } else if (k == B_SEQ) {             /* the patch as it was saved */
+        } else if (k == B_REC) {             /* the patch as it was saved */
             patch_select(cur_index);
             app_say("REVERT", cur.name);
         } else
@@ -552,8 +672,8 @@ static void input(void)
         say_patch();
     }
     if ((e = plat_enc(EN_ALGO)) != 0) {
-        patch_step(e * 10);
-        say_patch();
+        category_step(e);
+        app_say(CATEGORY[set.category], cur.name);
     }
     if ((e = plat_enc(EN_SELECT)) != 0) {
         ui.row = (uint32_t)clamp((int32_t)ui.row + e, 0, (int32_t)PAGES[ui.page].nrows - 1);
@@ -566,7 +686,18 @@ static void input(void)
         ui.redraw = 1;
     ui.keys = keys;
     ui.btn = btn;
-    lit = btn | 1u << PAGES[ui.page].button;
+    lit = (btn | 1u << PAGES[ui.page].button) & ~((1u << B_ARP) | (1u << B_SEQ));
+    if (cur.values[S1P_ARP_ON])
+        lit |= 1u << B_ARP;
+    if (synth.hold)
+        lit |= 1u << B_SEQ;
+    {
+        const uint8_t status = (uint8_t)((synth.hold ? 2u : 0u) | (cur.values[S1P_ARP_ON] ? 1u : 0u));
+        if (ui.status != status) {
+            ui.status = status;
+            ui.redraw = 1;
+        }
+    }
     if (cur_dirty)
         lit |= 1u << B_SAVE;
     plat_glow(1);
@@ -619,6 +750,7 @@ static void draw(void)
         cv_text(8, 2, &FONT_XS, n, C_HI);
         if (cur_dirty)
             cv_text(40, 2, &FONT_XS, "EDITED", C_AMB);
+        cv_text(100, 2, &FONT_XS, CATEGORY[set.category], C_HI);
         cv_text(232 - text_w(&FONT_XS, pg->title), 2, &FONT_XS, pg->title, C_GRAY);
         cv_text(8, 18, &FONT_M, cur.name, C_WHITE);
     }
@@ -670,6 +802,8 @@ static void draw(void)
     int_text((int32_t)(ext_tempo ? ext_tempo : set.tempo), t);
     cv_text(160, 20, &FONT_XS, t, C_HI);
     cv_text(208, 6, &FONT_XS, "MIDI", shown_midi ? C_HI : C_DIM);
+    cv_text(208, 20, &FONT_XS, synth.hold ? (cur.values[S1P_ARP_ON] ? "HLD" : "DRN") :
+        cur.values[S1P_ARP_ON] ? "ARP" : "", C_HI);
     cv_blit(0, 198);
 }
 
@@ -771,6 +905,10 @@ void app_init(void)
         set.octave < -3 || set.octave > 3 || set.voices < 1u || set.voices > S1_MAX_VOICES || set.tempo < 30u ||
         set.tempo > 300u)
         settings_defaults();
+    if (set.category >= CAT_COUNT)
+        set.category = CAT_ALL;
+    if (set.drone_replace > 1)
+        set.drone_replace = 0;
     cfg.sample_rate = SR;
     cfg.max_voices = set.voices;
     cfg.delay_buf = delay_buf;
@@ -778,6 +916,10 @@ void app_init(void)
     cfg.chorus_buf = chorus_buf;
     cfg.chorus_len = CHORUS_LEN;
     s1_init(&synth, &cfg);
+    synth.drone_replace = set.drone_replace;
+    clk_n = clk_t0 = clk_last = ext_tempo = 0;
+    want_program = -1;
+    ev_overflow = 0;
     s1_set_tempo(&synth, (float)set.tempo);
     bank_scan();
     patch_select(set.patch);
@@ -833,7 +975,7 @@ void app_frame(void)
             ui.redraw = 1;
         }
     }
-    if (set_dirty && !ui.keys && now - last_save >= 5000u) {   /* the settings keep themselves, between notes */
+    if (set_dirty && !ui.keys && !s1_active_voices(&synth) && now - last_save >= 5000u) {
         last_save = now;
         if (plat_store_save(OBJ_SETTINGS, &set, sizeof set) == 0)
             set_dirty = 0;
@@ -869,6 +1011,10 @@ int app_expect(const char *what, int *got)
         *got = set.octave;
     else if (!strcmp(what, "tempo"))
         *got = (int)(ext_tempo ? ext_tempo : set.tempo);
+    else if (!strcmp(what, "hold"))
+        *got = synth.hold;
+    else if (!strcmp(what, "category"))
+        *got = set.category;
     else if (what[0] == 'p' && what[1] >= '0' && what[1] <= '9')   /* pN: the playing patch's parameter N */
         *got = (int)cur.values[atoi(what + 1) % S1_NPARAMS];
     else if (what[0] == 'e' && what[1] >= '0' && what[1] <= '9')   /* eN: the same as the engine has it */

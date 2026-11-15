@@ -3,7 +3,8 @@
  * data area. Part of the unity build (included by app.c).
  *
  * A user patch is a 256-byte record at PLAT_DATA_LO + slot * 256:
- *   [0] 0xA5 used (0xFF: empty)   [1] format 1   [2..3] spare   [4..27] name   [28..225] 99 values, int16 LE
+ *   [0] 0xA5 used (0xFF: empty)   [1] format 1   [2] category [3] 0xC1 if explicit
+ *   [4..27] name   [28..225] 99 values, int16 LE. Missing category: infer from name.
  *
  * SysEx, both ways, F0 7D 53 59 31 <cmd> ... F7 (7D: the non-commercial ID; "SY1"):
  *   01 <slot lo7> <slot hi7> <7-bit packed bytes 0..225 of the record>   write a slot  -> 41 <lo7> <hi7> <0 ok>
@@ -14,6 +15,7 @@
  * 7-bit packing: each 7 bytes as 8, first the 7 top bits (bit 0 = the first byte's), then the 7 low parts. */
 #pragma once
 #include "s1_patch.h"
+#include "category.h"
 
 #define BANK_SLOTS 1024u
 #define BANK_REC 256u
@@ -94,6 +96,7 @@ static void fact_load(uint32_t i, s1_patch *p)
 
 /* ------------------------------------------------------------------- user --- */
 static uint32_t bank_count;              /* slots up to the last used one */
+static uint8_t bank_category[BANK_SLOTS]; /* built at scan time, keeping panel browsing cheap */
 static uint8_t bank_sector[4096] PLAT_POOL;
 
 static const uint8_t *bank_rec(uint32_t slot) { return slot < BANK_SLOTS ? plat_data(BANK_BASE + slot * BANK_REC) : 0; }
@@ -108,8 +111,16 @@ static void bank_scan(void)
     uint32_t i;
     bank_count = 0;
     for (i = 0; i < BANK_SLOTS; i++)
-        if (bank_used(i))
+        if (bank_used(i)) {
+            const uint8_t *r = bank_rec(i);
+            char name[24];
+            uint32_t k;
+            for (k = 0; k < 23u; k++)
+                name[k] = (char)r[4u + k];
+            name[23] = 0;
+            bank_category[i] = r[3] == CAT_MARK && r[2] >= CAT_BASS && r[2] <= CAT_OTHER ? r[2] : category_guess(name);
             bank_count = i + 1u;
+        }
 }
 
 static int bank_load(uint32_t slot, s1_patch *p)

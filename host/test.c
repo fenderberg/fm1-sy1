@@ -278,6 +278,93 @@ static void test_fuzz(void)
     printf("  fuzz: worst peak %.2f over 400 random patches\n", (double)worst);
 }
 
+static int gated(void)
+{
+    int k, n = 0;
+    for (k = 0; k < S1_MAX_VOICES; k++)
+        n += synth.voice[k].active && synth.voice[k].gate;
+    return n;
+}
+
+static void test_performance_hold(void)
+{
+    int32_t v[S1_NPARAMS];
+    int k;
+    plain(v, 1);
+    setup(v);
+    s1_note_on(&synth, 60, 100);
+    s1_set_hold(&synth, 1);             /* capture a chord already under the fingers */
+    s1_note_on(&synth, 64, 80);
+    s1_note_off(&synth, 60);
+    s1_note_off(&synth, 64);
+    render(0, SR / 4);
+    CHECK(gated() == 2 && peak(0, SR / 4) > 0.05f, "STACK did not hold a sounding chord");
+    s1_note_on(&synth, 60, 100);        /* play a droning note again: remove it */
+    s1_note_off(&synth, 60);
+    CHECK(gated() == 1 && !synth.latched[60], "STACK did not toggle its note off");
+    s1_note_on(&synth, 67, 100);
+    s1_set_hold(&synth, 0);
+    CHECK(gated() == 1 && synth.key_down[67], "hold off released a physical key or kept a latch");
+    s1_note_off(&synth, 67);
+    render(0, SR);
+    CHECK(s1_active_voices(&synth) == 0, "drone off left a voice");
+
+    setup(v);
+    synth.drone_replace = 1;
+    s1_set_hold(&synth, 1);
+    s1_note_on(&synth, 60, 100);
+    s1_note_on(&synth, 64, 100);
+    s1_note_off(&synth, 60);
+    s1_note_off(&synth, 64);
+    s1_note_on(&synth, 65, 100);
+    s1_note_on(&synth, 69, 100);
+    CHECK(gated() == 2 && !synth.latched[60] && !synth.latched[64], "REPLACE kept the old chord");
+    s1_note_off(&synth, 65);
+    s1_note_on(&synth, 72, 100);        /* overlapping physical gestures add notes */
+    CHECK(gated() == 3 && synth.latched[65], "REPLACE replaced before all fingers were up");
+    s1_note_off(&synth, 69);
+    s1_note_off(&synth, 72);
+
+    s1_set_param(&synth, S1P_ARP_ON, 1);
+    CHECK(synth.arp_n == 3 && synth.hold, "drone -> arp lost the held chord");
+    render(0, SR / 4);
+    CHECK(synth.arp_playing >= 0, "held arp did not run");
+    s1_note_on(&synth, 48, 110);
+    s1_note_on(&synth, 55, 90);
+    s1_note_off(&synth, 48);
+    s1_note_off(&synth, 55);
+    CHECK(synth.arp_n == 2 && synth.arp_keys[0] == 48 && synth.arp_keys[1] == 55,
+          "arp hold did not replace the chord");
+    s1_set_param(&synth, S1P_ARP_ON, 0);
+    CHECK(gated() == 2 && synth.arp_n == 0 && synth.hold, "arp -> drone lost its chord");
+
+    /* Pedal-up must leave the latch; hold-off must leave the pedal. */
+    s1_control_change(&synth, 64, 127);
+    s1_note_on(&synth, 62, 100);
+    s1_note_off(&synth, 62);
+    s1_control_change(&synth, 64, 0);
+    CHECK(synth.latched[62] && gated() == 1, "pedal-up cancelled a drone");
+    s1_control_change(&synth, 64, 127);
+    s1_note_on(&synth, 70, 100);
+    s1_note_off(&synth, 70);
+    s1_set_hold(&synth, 0);
+    CHECK(gated() == 1 && synth.sustained[70], "hold-off cancelled the pedal");
+    s1_control_change(&synth, 64, 0);
+    CHECK(gated() == 0, "pedal-up after hold-off left a note");
+
+    /* Clearing is independent of polyphony and of how many STACK notes were stolen. */
+    s1_set_hold(&synth, 1);
+    synth.drone_replace = 0;
+    for (k = 36; k < 84; k++) {
+        s1_note_on(&synth, k, 100);
+        s1_note_off(&synth, k);
+    }
+    s1_control_change(&synth, 120, 0);
+    CHECK(!synth.hold && !synth.sustain && gated() == 0, "panic left hold, pedal or notes enabled");
+    for (k = 0; k < 128; k++)
+        CHECK(!synth.latched[k] && !synth.key_down[k], "panic left note %d latched", k);
+}
+
 int main(void)
 {
     test_math();
@@ -285,6 +372,7 @@ int main(void)
     test_tuning();
     test_levels_and_env();
     test_polyphony_and_modes();
+    test_performance_hold();
     test_fuzz();
     printf("%d checks, %d failed\n", checks, fails);
     return fails != 0;

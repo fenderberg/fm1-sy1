@@ -448,7 +448,7 @@ static void arp_switched(s1_synth *s)
                 voice_release(&s->voice[i]);
         s->held_n = 0;
         for (i = 0; i < 128; i++)
-            if (s->key_down[i] || s->sustained[i])
+            if ((s->key_down[i] && s->latched[i] != 2) || s->sustained[i] || s->latched[i] == 1)
                 arp_note_on(s, i, s->key_vel[i]);
         return;
     }
@@ -591,8 +591,25 @@ static void release_key(s1_synth *s, int key)
         voice_note_off(s, key);
 }
 
+void s1_set_hold(s1_synth *s, int on)
+{
+    int k;
+    s->hold = (uint8_t)(on != 0);
+    for (k = 0; k < 128; k++) {
+        if (on) {
+            if (s->key_down[k] || s->sustained[k])
+                s->latched[k] = 1;
+        } else if (s->latched[k] == 1) {
+            s->latched[k] = 0;
+            if (!s->key_down[k] && !s->sustained[k])
+                release_key(s, k);
+        }
+    }
+}
+
 void s1_note_on(s1_synth *s, int key, int velocity)
 {
+    int k, physical = 0;
     if (velocity <= 0) {
         s1_note_off(s, key);
         return;
@@ -600,6 +617,28 @@ void s1_note_on(s1_synth *s, int key, int velocity)
     key &= 127;
     if (s->dirty)
         cook(s);
+    if (s->hold) {
+        /* A gesture ends when every physical key is up. HOLD and REPLACE start a new chord;
+         * STACK lets each note ring until it is played again. Pedal ownership stays separate. */
+        if (P(ARP_ON) || s->drone_replace) {
+            for (k = 0; k < 128; k++)
+                physical |= s->key_down[k];
+            if (!physical)
+                for (k = 0; k < 128; k++)
+                    if (s->latched[k] == 1) {
+                        s->latched[k] = 0;
+                        if (!s->sustained[k])
+                            release_key(s, k);
+                    }
+        } else if (s->latched[key] == 1 && !s->key_down[key]) {
+            s->latched[key] = 2;
+            s->key_down[key] = 1;
+            s->sustained[key] = 0;
+            release_key(s, key);
+            return;
+        }
+        s->latched[key] = 1;
+    }
     s->key_down[key] = 1;
     s->key_vel[key] = (uint8_t)s1_clampi(velocity, 1, 127);
     s->sustained[key] = 0;
@@ -613,10 +652,16 @@ void s1_note_off(s1_synth *s, int key)
 {
     key &= 127;
     s->key_down[key] = 0;
+    if (s->latched[key] == 2) {
+        s->latched[key] = 0;
+        return;
+    }
     if (s->sustain) {
         s->sustained[key] = 1;
         return;
     }
+    if (s->latched[key] == 1)
+        return;
     release_key(s, key);
 }
 
@@ -633,6 +678,8 @@ void s1_all_notes_off(s1_synth *s, int immediate)
     }
     zero(s->sustained, sizeof s->sustained);
     zero(s->key_down, sizeof s->key_down);
+    zero(s->latched, sizeof s->latched);
+    s->hold = s->sustain = 0;
     s->held_n = 0;
     s->arp_n = 0;
     s->arp_playing = -1;
@@ -649,7 +696,7 @@ void s1_control_change(s1_synth *s, int cc, int value)
             for (k = 0; k < 128; k++)
                 if (s->sustained[k]) {
                     s->sustained[k] = 0;
-                    if (!s->key_down[k])
+                    if (!s->key_down[k] && s->latched[k] != 1)
                         release_key(s, k);
                 }
         s->sustain = (uint8_t)down;

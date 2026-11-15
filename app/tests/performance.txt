@@ -1,0 +1,40 @@
+# Panel, real screen and audio on fm1-base's simulator.
+wait 600
+turn ALGO 2
+wait 50
+expect category 2
+expect patch 1
+turn PRESET 1
+wait 50
+expect patch 6
+turn PRESET 1
+wait 50
+expect patch 1
+tap ARP
+wait 50
+expect p59 1
+expect page 0
+tap SEQ
+key 7 down
+key 11 down
+key 14 down
+wait 100
+key 7 up
+key 11 up
+key 14 up
+wait 1600
+expect hold 1
+shot hold.png
+tap ARP
+wait 1600
+expect p59 0
+expect hold 1
+shot drone.png
+tap PLAY
+wait 100
+expect hold 0
+expect voices 0
+# REC reverts; SEQ is reserved for hold/drone.
+tap REC
+wait 50
+expect dirty 0

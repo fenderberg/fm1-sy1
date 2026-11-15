@@ -152,6 +152,121 @@ static void power_on(void)
 }
 static void send_sysex(const uint8_t *f, uint32_t n) { sysex_n = 0; CHECK(app_sysex(f + 1, n - 2) == 1, "SysEx frame not taken"); run(50); }
 
+static void test_live_controls(void)
+{
+    uint8_t rec[BANK_REC];
+    uint32_t k;
+    patch_select(1);
+    tap(B_HOME);
+    tap(B_ARP);
+    CHECK(cur.values[S1P_ARP_ON] && ui.page == 0 && (leds_btn & 1u << B_ARP), "ARP tap did not toggle on from HOME");
+    tap(B_SEQ);
+    keys_held = 1u << 7 | 1u << 11 | 1u << 14;
+    run(100);
+    keys_held = 0;
+    run(300);
+    CHECK(synth.hold && synth.arp_n == 3 && peak > 1000.0f && (leds_btn & 1u << B_SEQ),
+          "panel chord was not held by SEQ");
+    keys_held = 1u << 9 | 1u << 12;
+    run(100);
+    keys_held = 0;
+    run(100);
+    CHECK(synth.arp_n == 2, "panel HOLD appended instead of replacing a chord");
+    tap(B_ARP);
+    CHECK(!cur.values[S1P_ARP_ON] && synth.hold && synth.held_n == 2, "ARP off did not become a drone");
+    tap(B_SEQ);
+    CHECK(!synth.hold && synth.held_n == 0, "SEQ off left the drone held");
+    btn_held = 1u << B_ARP;
+    run(600);
+    btn_held = 0;
+    run(60);
+    CHECK(ui.page == 6 && !cur.values[S1P_ARP_ON], "holding ARP toggled it instead of opening settings");
+    tap(B_REC);
+    CHECK(!cur_dirty && !synth.hold, "REC did not restore the saved sound");
+
+    tap(B_GLO);
+    turn(EN_SELECT, 3);
+    turn(EN_K4, 1);                    /* drone REPLACE */
+    tap(B_SEQ);
+    midi(0x90, 60, 100);
+    midi(0x90, 64, 100);
+    midi(0x80, 60, 0);
+    midi(0x90, 64, 0);                 /* velocity-zero note-off */
+    run(100);
+    CHECK(synth.latched[60] && synth.latched[64] && !synth.key_down[64], "MIDI drone was not latched");
+    midi(0x90, 67, 100);
+    midi(0x80, 67, 0);
+    run(100);
+    CHECK(synth.latched[67] && !synth.latched[60] && !synth.latched[64], "MIDI REPLACE kept the old chord");
+    midi(0xFC, 0, 0);
+    run(100);
+    CHECK(!synth.hold && !s1_active_voices(&synth) && !(leds_btn & 1u << B_SEQ), "MIDI Stop left a drone or LED");
+    tap(B_SEQ);
+    midi(0x90, 60, 100);
+    midi(0x80, 60, 0);
+    run(100);
+    tap(B_PLAY);
+    CHECK(!synth.hold && !s1_active_voices(&synth), "PLAY left a drone");
+    tap(B_SEQ);
+    for (k = 0; k < 70; k++)
+        ev_push(EV_NOTE_ON, 60, 100);
+    run(100);
+    CHECK(!synth.hold && !s1_active_voices(&synth), "event queue overflow left a held note");
+
+    /* External clock disconnect returns to the musician's internal tempo. */
+    for (k = 0; k < 50; k++) {
+        midi(0xF8, 0, 0);
+        run(18);
+    }
+    CHECK(ext_tempo > 130, "external clock was not acquired");
+    run(2200);
+    CHECK(!ext_tempo && synth.tempo == (float)set.tempo, "lost clock did not return to internal tempo");
+
+    set.category = CAT_ALL;
+    patch_select(0);
+    turn(EN_ALGO, 1);
+    CHECK(set.category == CAT_BASS && cur_index == 0, "ALGORITHM did not choose BASS");
+    turn(EN_ALGO, 1);
+    CHECK(set.category == CAT_PAD && cur_index == 1, "ALGORITHM did not choose first PAD");
+    turn(EN_PRESET, 1);
+    CHECK(cur_index == 6, "PAD browsing did not select Strings");
+    turn(EN_PRESET, 1);
+    CHECK(cur_index == 1, "PAD browsing did not wrap within category");
+    turn(EN_PRESET, -1);
+    CHECK(cur_index == 6, "PAD browsing backwards left category");
+    turn(EN_ALGO, 4);                   /* LEAD, KEYS, PLUCK, ARP */
+    CHECK(set.category == CAT_ARP && cur_index == 7, "category traversal gave %u patch %u", set.category, cur_index);
+    turn(EN_ALGO, 1);
+    CHECK(set.category == CAT_ALL, "empty FX/OTHER/USER categories were not skipped");
+    CHECK(category_guess("deep bass") == CAT_BASS && category_guess("STRINGS 1") == CAT_PAD &&
+          category_guess("unknown") == CAT_OTHER, "legacy names not classified");
+
+    bank_pack(&cur, rec);
+    memcpy(rec + 4, "Unknown", 8);
+    CHECK(!bank_write(20, rec), "could not create uncategorized legacy patch");
+    set.category = CAT_OTHER;
+    patch_select(NFACT + 20);
+    run(80);
+    CHECK(cur_category == CAT_OTHER, "legacy unknown patch was not OTHER");
+    tap(B_GLO);
+    turn(EN_SELECT, 3);
+    turn(EN_K3, -3);                   /* accelerate 9 steps: OTHER -> BASS */
+    CHECK(cur_category == CAT_BASS && cur_dirty, "manual category could not be edited");
+    tap(B_SAVE);
+    CHECK(bank_category[20] == CAT_BASS && bank_rec(20)[3] == CAT_MARK, "saved category missing");
+    power_on();
+    CHECK(cur_index == NFACT + 20 && cur_category == CAT_BASS && set.drone_replace == 1 && !synth.hold,
+          "restart lost category/mode or resumed a drone");
+    turn(EN_ALGO, -1);                 /* USER includes every stored patch */
+    CHECK(set.category == CAT_USER && cur_index == NFACT + 20, "USER filter did not keep its patch");
+    midi(0xC0, 2, 0);
+    run(100);
+    CHECK(cur_index == 2 && set.category == CAT_ALL, "MIDI program change was trapped by a category");
+    set.category = CAT_FX;             /* the last sound in a filter was removed by a manager */
+    turn(EN_PRESET, 1);
+    CHECK(set.category == CAT_ALL, "empty category did not recover");
+}
+
 int main(void)
 {
     static const char sy1[] = "Test Patch 7\ncolor=red\nver=112\n0,3\n14,2\n19,77\n9,-12\n38,1\n86,45057\n87,44\n";
@@ -208,8 +323,8 @@ int main(void)
     CHECK(cur.values[S1P_FILTER_TYPE] == 2 && strstr(screen, "HP12|"), "filter type: %d", (int)cur.values[S1P_FILTER_TYPE]);
     tap(B_SEL);
     CHECK(ui.row == 1, "SEL again: row %u", (unsigned)ui.row);
-    tap(B_SEQ);
-    CHECK(!cur_dirty && cur.values[S1P_FILTER_RES] == got, "SEQ did not revert");
+    tap(B_REC);
+    CHECK(!cur_dirty && cur.values[S1P_FILTER_RES] == got, "REC did not revert");
 
     /* MIDI in: notes, a program change, the clock's tempo */
     patch_select(1);
@@ -309,6 +424,7 @@ int main(void)
         n += flash[i] != 0xFF;
     CHECK(n == 0, "erase left %u bytes", (unsigned)n);
 
+    test_live_controls();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

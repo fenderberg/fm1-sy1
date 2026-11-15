@@ -5,6 +5,10 @@ FM, ring modulation and sync, four filter types, three envelopes, two LFOs, an a
 an equalizer, a tempo delay and a chorus: Synth1's 99 parameters under Synth1's own numbers, so `.sy1` patches
 load as they are. Every parameter can also be edited on the FM-1 itself.
 
+Built for playing: tap ARP to switch arpeggiation on, SEQ to hold the chord (or a Drone when the arp is off).
+Drone can stack notes or replace chords. ALGORITHM browses sound categories, PRESETS the sounds within them.
+The panel and MIDI use the same performance controls. There is no sequencer.
+
 ![SY1's Play page: the patch Warm Pad, with the filter's frequency, resonance and amount and the gain on the four knobs](manual/img/screen-play.png "SY1 on the FM-1's screen")
 
 This is version {{VERSION}}, an early one. It runs on an FM-1 with about seven voices, and its sound has not yet
