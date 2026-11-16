@@ -236,3 +236,21 @@ body[data-site-page="emu"] .sy1 .drop { border-radius: 3px; }
   body[data-site-page="install"] > footer:not(.site-footer) { padding: 25px 20px 0; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+/* Library uses the full rack width, with its own responsive transfer panel. */
+body[data-site-page="manager"] > .page-heading, body[data-site-page="manager"] main { max-width: 1248px; }
+body[data-site-page="manager"] .transfer-panel .transfer-inner { position: sticky; top: 110px; }
+body[data-site-page="manager"] button.preview-link { padding: 6px 2px; min-height: 36px; font-size: 10px; }
+.selection-jump { display: inline-block; margin-top: 15px; font-size: 12px; }
+@media(max-width:760px) { body[data-site-page="manager"] .transfer-panel .transfer-inner { position: static; } }
+body[data-site-page="manager"] .transfer-panel { position: sticky; top: 110px; max-height: calc(100dvh - 126px); overflow: auto; }
+body[data-site-page="manager"] .transfer-panel .transfer-inner { position: static; }
+@media(max-width:760px) { body[data-site-page="manager"] .transfer-panel { position: static; max-height: none; overflow: visible; } }
+/* Keep the first sounds close to the filters. */
+body[data-site-page="manager"] > .page-heading { padding-top: 30px; }
+body[data-site-page="manager"] .library-metrics { margin-top: 18px; }
+body[data-site-page="manager"] .library-metrics b { display: inline; font-size: 20px; margin-right: 6px; }
+body[data-site-page="manager"] .drop { padding: 14px 16px; margin-top: 14px; }
+body[data-site-page="manager"] .drop strong { display: inline; margin-right: 6px; }
+body[data-site-page="manager"] .drop .quiet { display: inline-block; margin: 8px 0 0; }
+body[data-site-page="manager"] section.library-browser h2 { margin-bottom: 0; }

@@ -105,31 +105,67 @@ export function nameText(patch) {
 }
 
 // ------------------------------------------------------------------ zip banks
-/** the .sy1 files in a zip, by name: [{ name, bytes }] (stored or deflated entries; others are skipped) */
-export async function unzipSy1(buf) {
+/** Read ZIP entries in memory. Only stored/deflated ZIPs; bounded to protect local imports. */
+export async function unzipEntries(buf, budget = { bytes: 0, entries: 0 }) {
   const b = new Uint8Array(buf), dv = new DataView(b.buffer, b.byteOffset, b.byteLength), out = [];
+  const MAX_BYTES = 64 * 1024 * 1024, MAX_ENTRIES = 30000;
   let eocd = -1;
   for (let i = b.length - 22; i >= 0 && i >= b.length - 65557; i--)
     if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
-  if (eocd < 0) throw new Error("not a zip file");
+  if (eocd < 0) throw new Error("Not a ZIP archive.");
   const count = dv.getUint16(eocd + 10, true);
+  if (budget.entries + count > MAX_ENTRIES) throw new Error("This archive contains too many entries.");
+  budget.entries += count;
   let at = dv.getUint32(eocd + 16, true);
-  for (let k = 0; k < count && at + 46 <= b.length && dv.getUint32(at, true) === 0x02014b50; k++) {
-    const method = dv.getUint16(at + 10, true), csize = dv.getUint32(at + 20, true);
+  for (let k = 0; k < count; k++) {
+    if (at + 46 > b.length || dv.getUint32(at, true) !== 0x02014b50) throw new Error("Damaged ZIP directory.");
+    const flags = dv.getUint16(at + 8, true), method = dv.getUint16(at + 10, true);
+    const csize = dv.getUint32(at + 20, true), size = dv.getUint32(at + 24, true);
     const nlen = dv.getUint16(at + 28, true), xlen = dv.getUint16(at + 30, true), clen = dv.getUint16(at + 32, true);
     const local = dv.getUint32(at + 42, true);
-    const name = String.fromCharCode(...b.subarray(at + 46, at + 46 + nlen));
+    if (at + 46 + nlen + xlen + clen > b.length) throw new Error("Damaged ZIP entry.");
+    const name = new TextDecoder(flags & 0x800 ? "utf-8" : "windows-1252").decode(b.subarray(at + 46, at + 46 + nlen));
     at += 46 + nlen + xlen + clen;
-    if (!/\.sy1$/i.test(name) || /(^|\/)\._/.test(name) || local + 30 > b.length) continue;
+    if (name.endsWith("/") || /(^|\/)\._|(^|\/)__MACOSX\//.test(name)) continue;
+    if (flags & 1) throw new Error("Password-protected ZIPs are not supported.");
+    if (size + budget.bytes > MAX_BYTES) throw new Error("The expanded collection is too large (64 MB maximum).");
+    if (local + 30 > b.length || dv.getUint32(local, true) !== 0x04034b50) throw new Error("Damaged ZIP header.");
     const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+    if (start + csize > b.length) throw new Error("Truncated ZIP data.");
     const raw = b.subarray(start, start + csize);
-    if (method === 0) out.push({ name, bytes: raw.slice() });
+    let bytes;
+    if (method === 0) bytes = raw.slice();
     else if (method === 8) {
-      const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-      out.push({ name, bytes: new Uint8Array(await new Response(stream).arrayBuffer()) });
+      const reader = new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+      const chunks = []; let length = 0;
+      for (;;) {
+        const {value, done} = await reader.read(); if (done) break;
+        length += value.length;
+        if (budget.bytes + length > MAX_BYTES || length > size) { await reader.cancel(); throw new Error("ZIP expansion exceeds its limit."); }
+        chunks.push(value);
+      }
+      bytes = new Uint8Array(length); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    } else throw new Error("This ZIP uses an unsupported compression method.");
+    if (bytes.length !== size) throw new Error("ZIP entry length does not match.");
+    budget.bytes += bytes.length;
+    out.push({name, bytes});
+  }
+  return out.sort((x,y)=>x.name.localeCompare(y.name, undefined, {numeric:true}));
+}
+
+/** Patches in a ZIP or a collection of nested bank ZIPs; the path preserves bank provenance. */
+export async function unzipSy1(buf, depth = 0, budget = {bytes:0, entries:0}) {
+  if (depth > 4) throw new Error("ZIP nesting is too deep.");
+  const out = [];
+  for (const entry of await unzipEntries(buf, budget)) {
+    if (/\.sy1$/i.test(entry.name)) out.push(entry);
+    else if (/\.zip$/i.test(entry.name)) {
+      for (const patch of await unzipSy1(entry.bytes, depth+1, budget))
+        out.push({name:entry.name+"/"+patch.name, bytes:patch.bytes});
     }
   }
-  return out.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
+  return out;
 }
 
 // ------------------------------------------------------------------ the page
@@ -264,12 +300,41 @@ export async function attach(ctx) {
     t.addEventListener("dragleave", (e) => { stop(e); drop.classList.remove("over"); });
     t.addEventListener("drop", (e) => { stop(e); drop.classList.remove("over"); load(e.dataTransfer.files); });
   }
-  // where the FM-1's own patches end: the first free slot (asked once the emulator runs)
-  setTimeout(async () => {
+  // Wait for the user's Switch on gesture and the worklet before sending SysEx.
+  const initialized = async () => {
+    if (!document.getElementById("start")?.hidden) { setTimeout(initialized, 100); return; }
     const n = await used();
     if (n !== null) {
       ui.first.value = String(Math.min(n + 1, SLOTS));
       if (n) say(`${n} slot${n === 1 ? "" : "s"} in use on this FM-1.`);
     }
-  }, 800);
+    const key = new URLSearchParams(location.search).get("preview");
+    if (!key || !/^sy1-preview-[a-f0-9-]+$/.test(key)) return;
+    try {
+      const preview = JSON.parse(localStorage.getItem(key) || "null");
+      localStorage.removeItem(key);
+      if (!preview || Date.now() - preview.created > 3600000) throw new Error("Preview expired; choose it again in the Patch Manager.");
+      const bytes = Uint8Array.from(atob(preview.bytes), c => c.charCodeAt(0));
+      const patch = parseSy1(bytes);
+      if (!patch.lines) throw new Error("Invalid preview patch.");
+      // Slot 1 is in the browser's separate emulated flash, never the USB hardware.
+      const answer = await ask(frameFor(patch, 0), 0x41);
+      if (!answer || answer[8] !== 0) throw new Error("The browser synth did not confirm the preview.");
+      midi.toDevice([0xc0, 8]);
+      say(`Preview: ${preview.name}. Play the keyboard below, or try a phrase.`);
+      const phrase = el("button", {type:"button"}, "Play preview phrase");
+      phrase.addEventListener("click", async () => {
+        phrase.disabled = true;
+        try {
+          for (const note of [48, 55, 60, 64]) {
+            midi.toDevice([0x90, note, 92]);
+            await new Promise(r => setTimeout(r, 350));
+            midi.toDevice([0x80, note, 0]);
+          }
+        } finally { phrase.disabled = false; }
+      });
+      row.append(phrase);
+    } catch (error) { say(error.message); }
+  };
+  initialized();
 }
