@@ -266,3 +266,19 @@ body[data-site-page="manager"] section.library-browser h2 { margin-bottom: 0; }
 
 .factory-note { margin: 0 0 22px; padding: 16px; border: 1px solid var(--rule); border-left: 3px solid var(--amber); color: var(--muted); font-size: 12px; line-height: 1.8; }
 .factory-note strong { color: var(--ink); }
+
+/* The Patch Manager is an app: it fills the window. The site's header becomes a slim bar, the footer goes,
+ * and only the two lists scroll. */
+body[data-site-page="manager"] { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+body[data-site-page="manager"] > .site-header { position: static; flex: none; border-top-width: 3px; }
+body[data-site-page="manager"] .site-header-inner { max-width: none; min-height: 44px; padding: 0 14px; flex-wrap: nowrap; gap: 16px; }
+body[data-site-page="manager"] .site-brand { font-size: 24px; }
+body[data-site-page="manager"] .site-brand .brand-caption { display: none; }
+body[data-site-page="manager"] .site-nav { width: auto; display: flex; flex-wrap: nowrap; gap: 2px; }
+body[data-site-page="manager"] .site-nav a { min-height: 30px; padding: 0 9px; font-size: 11px; }
+body[data-site-page="manager"] main { flex: 1; min-height: 0; width: 100%; max-width: none; margin: 0; padding: 10px 14px; }
+body[data-site-page="manager"] > footer.site-footer { display: none; }
+@media (max-width: 860px) {
+  body[data-site-page="manager"] .site-nav a:not([aria-current]) { display: none; }
+  body[data-site-page="manager"] main { padding: 8px 10px; }
+}

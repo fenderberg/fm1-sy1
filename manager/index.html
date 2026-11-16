@@ -1,21 +1,79 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SY1 · Find your next sound</title><meta name="description" content="Explore thousands of Synth1 presets and load your favourites into the FM-1."><link rel="stylesheet" href="manager.css"><link rel="stylesheet" href="../assets/site.css">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SY1 · Patch Manager</title><meta name="description" content="Explore thousands of Synth1 presets and arrange the 1,024 user slots of your FM-1: add, sort, rename and sync."><link rel="stylesheet" href="manager.css"><link rel="stylesheet" href="../assets/site.css">
 </head><body data-site-page="manager">
 <a class="site-skip" href="#content">Skip to content</a>
 <header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../manager/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
-<header class="page-heading"><p class="eyebrow">THE SY1 SOUND LIBRARY</p><h1>Thousands of sounds.<br>Find yours.</h1><p class="lede">Explore the community collection or bring your own Synth1 banks. Pick a few favourites or a whole bank, then send them straight to your FM-1.</p><div class="library-metrics"><span><b id="total-patches">—</b> sounds to explore</span><span><b id="total-banks">—</b> banks</span><span><b>1,024</b> user slots on your FM-1</span></div></header>
-<main id="content" tabindex="-1"><div class="manager-layout"><section class="library-browser" aria-labelledby="h-library">
-<p class="factory-note"><strong>500 sounds already inside.</strong> SY1 0.3.0 and later include the Factory 500 bank. On the FM-1, turn ALGORITHM left once from ALL to FACTORY and browse with PRESETS. No transfer needed. <a href="../library/factory500.zip" download>Download the selection</a> · <a href="../library/factory500-credits.txt">Full credits</a></p><div class="section-line"><h2 id="h-library">01 <span>Explore sounds</span></h2><button type="button" id="pick">Import your banks ↑</button></div>
-<input type="file" id="files" multiple accept=".sy1,.zip" hidden><input type="file" id="dir" webkitdirectory multiple hidden>
-<div class="drop" id="drop"><strong>Already have a Synth1 collection?</strong> Drop .sy1 files, bank ZIPs or a ZIP containing hundreds of banks. Your imports stay on your computer.<button id="pickdir" type="button" class="quiet">Choose a folder</button></div><p id="import-status" role="status" class="muted"></p>
-<div class="library-filters"><label class="search-label">Search sounds<input type="search" id="search" placeholder="Try bass, warm, organ…" autocomplete="off"></label><label>Bank<select id="bank"><option value="">All banks</option></select></label><label>Character<select id="category"><option value="">All sounds</option></select></label></div>
-<a class="selection-jump" href="#h-connect">Your selection ↓</a><div class="library-toolbar"><label class="favorite-filter"><input type="checkbox" id="favorites-only"> Favourites only</label><label class="favorite-filter"><input type="checkbox" id="factory-only" disabled> Factory 500</label><button id="select-bank" type="button">Select filtered sounds</button><span id="matches" role="status"></span></div>
-<p class="muted">Collection source: <a href="https://archive.org/details/synth1_202202">Internet Archive</a> · compilation credited to techno-addicts. Bank authors retain their own terms.</p><p id="selection-hint" class="muted" role="status"></p><details id="bank-info" hidden><summary>About this bank · credits and original notes</summary><p id="bank-credit"></p><a id="bank-download" download>Download original bank ZIP</a><pre id="bank-notes"></pre></details>
-<div class="patch-table-wrap"><table class="patch-table"><thead><tr><th><span class="sr">Select</span></th><th>Sound</th><th>Bank / Character</th><th><span class="sr">Favourite</span></th><th><span class="sr">Preview</span></th></tr></thead><tbody id="patches"></tbody></table><p id="empty" hidden>No sounds match yet. Try another search or bank.</p></div>
-<div class="pagination"><button type="button" id="previous">← Previous</button><span id="page-status"></span><button type="button" id="next">Next →</button></div><p class="muted">Character is suggested from patch names. Original notes and authors’ terms are kept with each included bank. <a href="../library/CREDITS.md">Collection credits</a></p></section>
-<aside class="transfer-panel" aria-labelledby="h-connect"><div class="transfer-inner"><h2 id="h-connect">02 <span>Load your FM-1</span></h2><div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span></div><p class="muted">Connect by USB. Use Chrome or Edge and allow MIDI when asked.</p><button type="button" class="primary" id="connect">Connect to the FM-1</button><p id="status" role="status" class="muted">Browse and select before connecting.</p>
-<div class="selection-heading"><h3><span id="selected-count">0</span> selected</h3><button type="button" id="clear" class="quiet" hidden>Clear</button></div><ol class="slots selection-list" id="queue" hidden></ol><p id="queued" class="muted" role="status">Pick sounds from the library to get started.</p>
-<label class="placement-label">Destination<select id="placement"><option value="append">Add after my last patch</option><option value="manual">Choose a starting slot</option></select></label><label class="slot-label">First slot<input type="number" id="first" min="1" max="1024" value="1" disabled></label><p id="capacity" class="muted"></p>
-<button type="button" class="primary send-button" id="send" disabled>Choose some sounds</button><button type="button" id="cancel" hidden>Stop after this patch</button><label for="progress" class="sr">Transfer progress</label><progress id="progress" max="1" value="0" hidden></progress><p id="result" role="status"></p><p class="tool-tip">Only selected sounds are sent. Anything unsent stays selected, ready to retry.</p>
-<details id="have" aria-disabled="true"><summary>Your user slots on the FM-1</summary><p id="count" class="muted">Not connected.</p><ol class="slots" id="slots" hidden></ol><button type="button" id="refresh" disabled>Read again</button><details class="danger-zone"><summary>Remove all imported patches</summary><p>All built-in sounds stay. Erasing imported patches cannot be undone.</p><button type="button" id="erase" disabled>Erase all loaded patches</button></details></details>
-</div></aside></div></main><script type="module" src="app.js"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.3.1 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
+<main id="content" tabindex="-1"><div id="pm" data-tab="lib">
+<div class="ptabs"><button type="button" id="tab-lib" aria-pressed="true">Library</button><button type="button" id="tab-dev" aria-pressed="false">My FM-1</button></div>
+<div class="panes">
+<section class="pane" id="lib" aria-labelledby="h-lib">
+  <div class="phead">
+    <div class="head"><h2 id="h-lib">Library</h2><span class="count" id="lcount"></span><span class="right">
+      <details class="menu" id="m-about"><summary>About ▾</summary><div class="pop">
+        <p><b id="total-patches">—</b> sounds in <b id="total-banks">—</b> banks to explore, and 1,024 user slots on your FM-1. Find sounds on the left, arrange your FM-1 on the right. Nothing is written until you press Sync.</p>
+        <p><strong>500 sounds are already inside.</strong> SY1 0.3.0 and later include the Factory 500 bank: on the FM-1, turn ALGORITHM left once from ALL to FACTORY. No transfer needed. <a href="../library/factory500.zip" download>Download the selection</a> · <a href="../library/factory500-credits.txt">Full credits</a></p>
+        <p>Collection source: <a href="https://archive.org/details/synth1_202202">Internet Archive</a> · compilation credited to techno-addicts. Bank authors retain their own terms. Character is suggested from patch names. <a href="../library/CREDITS.md">Collection credits</a></p>
+      </div></details>
+      <details class="menu" id="m-imp"><summary>Import ▾</summary><div class="pop">
+        <p>Bring your own Synth1 collection: .sy1 files, bank ZIPs or a ZIP of banks. You can also drop them on this page. Imports stay on your computer.</p>
+        <button type="button" id="pick">Choose files…</button><button type="button" id="pickdir">Choose a folder…</button>
+      </div></details>
+      <button type="button" class="primary" id="add" disabled>Add to FM-1 →</button></span></div>
+    <input type="file" id="files" multiple accept=".sy1,.zip" hidden><input type="file" id="dir" webkitdirectory multiple hidden>
+    <div class="pbar">
+      <input type="search" id="search" placeholder="Search name or bank…  ( / )" autocomplete="off" aria-label="Search the library">
+      <select id="bank" aria-label="Bank"><option value="">All banks</option></select>
+      <select id="lsort" aria-label="Sort the library"><option value="bank">Sort: Bank order</option><option value="name">Sort: Name A–Z</option><option value="cat">Sort: Character</option></select>
+    </div>
+    <div class="chips" id="lchips"></div>
+    <p id="import-status" role="status" class="muted" hidden></p>
+    <details id="bank-info" hidden><summary>About this bank · credits and original notes</summary><p id="bank-credit"></p><a id="bank-download" download>Download original bank ZIP</a><pre id="bank-notes"></pre></details>
+  </div>
+  <div class="plist" id="llist" tabindex="0" aria-label="Library sounds"><div></div></div>
+  <p class="pfoot muted"><span id="preview-status" role="status">▶ plays a sound here in the page. ↑ ↓ and Space audition quickly.</span></p>
+</section>
+
+<section class="pane" id="dev" aria-labelledby="h-dev">
+  <div class="phead">
+    <div class="head"><h2 id="h-dev">My FM-1</h2><span class="count" id="dcount"></span><span class="right">
+      <details class="menu" id="m-arr"><summary>Arrange ▾</summary><div class="pop">
+        <p>Reorders the real slots. Nothing is written until you sync.</p>
+        <button type="button" data-arr="gaps">Close gaps</button>
+        <button type="button" data-arr="cat">Group by character, then A–Z</button>
+        <button type="button" data-arr="name">Sort everything A–Z</button>
+        <button type="button" data-arr="bank">Group by bank</button>
+        <button type="button" data-arr="clear" class="danger">Remove everything</button>
+      </div></details>
+      <details class="menu" id="m-sets"><summary>Sets ▾</summary><div class="pop">
+        <p>A set is a saved layout of all your slots, kept in this browser. Load one to stage it, export it as a backup file.</p>
+        <div id="setlist"></div>
+        <div class="save"><input type="text" id="setname" placeholder="Name this layout" aria-label="Set name" maxlength="40"><button type="button" id="setsave">Save</button></div>
+        <button type="button" id="setimport">Import a set file…</button><input type="file" id="setfile" accept=".json,application/json" hidden>
+      </div></details></span></div>
+    <div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span><span id="status" role="status" class="muted">Connect by USB. Use Chrome or Edge and allow MIDI when asked.</span><button type="button" class="primary" id="connect">Connect to the FM-1</button></div>
+    <p id="legacy" class="notice" hidden>This FM-1 runs an older SY1 that cannot send its patches back. You can add and remove sounds; update SY1 to reorder, rename, sort and save sets.</p>
+    <div class="cap" aria-hidden="true"><i id="capfill"></i></div>
+    <div class="slotmap" id="map" aria-label="Map of all 1,024 slots"></div>
+    <div class="maplabel"><span>001</span><span>Each square is a slot. Click one to jump to it.</span><span>1024</span></div>
+    <div class="pbar">
+      <input type="search" id="dq" placeholder="Filter my FM-1…" autocomplete="off" aria-label="Filter slots">
+      <label class="chip"><input type="checkbox" id="dempty"> Show empty slots</label>
+      <label class="chip"><input type="checkbox" id="dpend"> Changes only</label>
+    </div>
+    <div class="chips" id="dchips"></div>
+  </div>
+  <div class="selbar" id="selbar">
+    <b id="selcount"></b>
+    <span id="movebox"><label for="moveto">Move to slot</label> <input type="number" id="moveto" min="1" max="1024" value="1"> <button type="button" id="move">Move</button></span>
+    <button type="button" id="remove">Remove</button><button type="button" class="quiet" id="desel">Clear selection</button>
+  </div>
+  <div class="plist" id="dlist" tabindex="0" aria-label="FM-1 slots"><div></div></div>
+</section>
+</div>
+
+<div class="syncbar">
+  <div class="what"><span id="syncmsg"></span><progress id="progress" max="1" value="0" hidden></progress><span id="result" role="status"></span></div>
+  <div class="acts"><button type="button" id="undo" disabled>Undo</button><button type="button" id="discard" disabled>Discard all</button><button type="button" id="cancel" hidden>Stop</button><button type="button" class="primary" id="sync" disabled>Sync to FM-1</button></div>
+</div>
+<div id="toast" role="status" hidden></div>
+</div></main><script type="module" src="app.js"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.3.1 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
 </body></html>
