@@ -88,7 +88,7 @@ nav.contents li { break-inside: avoid; }
 <div class="page">
 
 <main id="content" tabindex="-1"><h1>Manual</h1>
-<p class="lede">SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages, how to get patches into the FM-1, and MIDI. Version <strong>0.3.0</strong> includes 500 community factory presets plus NORD, GREEN LED and GREEN LCD display styles.</p>
+<p class="lede">SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages, how to get patches into the FM-1, and MIDI. Version <strong>0.3.1</strong> includes 500 community factory presets plus NORD, GREEN LED and GREEN LCD display styles.</p>
 <div class="figs"><figure class="shot"><img src="img/screen-play.png" alt="SY1&#x27;s Play page: Warm Pad, a filter diagram, four encoder values and the playing status" loading="lazy"><figcaption>SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status</figcaption></figure></div>
 <hr>
 <nav class="contents" aria-label="Contents"><h2 id="contents">Contents</h2>
@@ -98,6 +98,7 @@ nav.contents li { break-inside: avoid; }
 <h2 id="s1"><span class="num">1</span>Install</h2>
 <p>To try it first, open the emulator. It runs the same code in your browser, with sound.</p>
 <p>To install, open the installer in Chrome or Edge with the FM-1 connected by USB, and follow it. Back up what you want to keep from the firmware you have now: SY1 keeps its settings and patches in the same part of the flash, and overwrites what another firmware left there. The installer can put M-VAVE's own firmware back.</p>
+<p>After installation, this release reports the full USB identity <strong>FM-1_51000301</strong>.</p>
 <h2 id="s2"><span class="num">2</span>The screen</h2>
 <p>The patch number, browsing category and patch name stay at the top. EDIT and the SAVE light mean that the patch differs from the saved version. Turning every value and the patch category back to their saved settings clears EDIT again. Short save and error messages appear in the red strip without hiding the patch name.</p>
 <p>The red strip names the current subpage and its position, such as FILTER / MAIN 1/2. The large diagram below it shows that section's settings. Four fixed columns correspond left to right to KNOB1–KNOB4. The last encoder you turn lights amber; a small grey notch marks its saved value. A new subpage starts without encoder focus. Switches and choices use separate positions; a centred parameter has a centre mark.</p>
@@ -144,6 +145,6 @@ nav.contents li { break-inside: avoid; }
 <ul><li><strong>The sound breaks up on big chords.</strong> Lower VOICES on the Voice page.</li><li><strong>The Patch Manager finds no FM-1.</strong> Use Chrome or Edge, allow MIDI for the page, and check the USB cable carries data. Close other programs that hold the FM-1's MIDI port.</li><li><strong>A patch sounds different from Synth1.</strong> See section 7; reports with the patch are welcome at the source's issue tracker.</li><li><strong>To go back to another firmware,</strong> use that firmware's installer, or SY1's installer for M-VAVE's own.</li></ul>
 </main>
 </div>
-<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.3.0 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
+<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.3.1 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
 </body>
 </html>
