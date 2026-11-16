@@ -1,0 +1,32 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Engine
+        run: make test
+      - name: App against a stand-in for the FM-1
+        run: make test-app
+      - name: The page's patch reader against the C one
+        run: make test-web
+      - name: Tools
+        run: make all
+      - name: The app in fm1-base's simulator
+        run: |
+          pip install Pillow
+          ./build.sh --host
+          app/build/host/sy1_host app/tests/basic.txt app/build/host

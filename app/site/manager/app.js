@@ -1,242 +1,546 @@
-// Browser-local catalogue and imports. MIDI writes happen only through the explicit Send action.
-import { parseSy1, frameFor, unzipSy1 } from '../emu/app_own.js';
-import { CATEGORIES, category, fold, patchName, bankName, placement } from './library.js';
-const $ = id => document.getElementById(id);
-const HEAD = [0xf0,0x7d,0x53,0x59,0x31], SLOTS = 1024, PAGE = 48;
-const pad = n => String(n).padStart(3,'0');
-const element = (tag, text='', cls='') => { const e=document.createElement(tag); e.textContent=text; if(cls)e.className=cls; return e; };
-let access=null,input=null,output=null,waiting=null,busy=false,importing=false,cancelled=false,used=0,page=0,localNumber=0;
-let entries=[],filtered=[],queue=[],occupied=new Set(),banks=new Map();
-const bankCache=new Map();
-let factoryIds=new Set();
-let favorites;
-try { favorites=new Set(JSON.parse(localStorage.getItem('sy1-favorites')||'[]')); } catch { favorites=new Set(); }
-const favoriteSave=()=>{try{localStorage.setItem('sy1-favorites',JSON.stringify([...favorites]));}catch{}};
-function addEntry(p,bank) { entries.push({...p,bank:bank.id,search:fold(`${p.name} ${bank.name} ${bank.author} ${p.category}`)}); }
+// The Patch Manager: a library on the left, the FM-1's 1,024 user slots on the right.
+// Every edit is staged in the browser; MIDI writes happen only through the explicit Sync action.
+import { parseSy1, unzipSy1 } from '../emu/app_own.js';
+import { CATEGORIES, category, fold, patchName, bankName, asciiName, RECORD, PART, recordFrom, withMeta, recordName,
+  recordCategory, recordKey, fullKey, packFrame, unpack7, insertAt, appendSlots, arrange, changes } from './library.js';
 
+const $ = id => document.getElementById(id);
+const HEAD = [0xf0,0x7d,0x53,0x59,0x31], SLOTS = 1024, ROW = 36;
+const pad = n => String(n).padStart(3,'0'), num = n => n.toLocaleString('en-US');
+const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const b64 = u => btoa(String.fromCharCode(...u)), unb64 = t => Uint8Array.from(atob(t), c => c.charCodeAt(0));
+const stored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback; } catch { return fallback; } };
+const store = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } };
+
+// ---- state
+let entries = [], banks = new Map(), byId = new Map(), factoryIds = new Set(), localNumber = 0, importing = false;
+const bankCache = new Map();
+const favorites = new Set(stored('sy1-favorites', []));
+let known = stored('sy1-known', {});                 // a sound's key -> the library patch it came from
+let sets = stored('sy1-sets', []);
+// An item: {uid, name, cat, explicit, rec, entry, locked}. rec: the 226-byte record once known (read from the FM-1,
+// or written to it); entry: the library patch it came from; locked: on an older SY1, where only the name is known.
+let base = new Array(SLOTS).fill(null), slots = base.slice(), history = [], uid = 1;
+let baseSlot = new Map(), curSlot = new Map(), libSlot = new Map();
+let lview = [], dview = [], lsel = new Set(), dsel = new Set(), lanchor = 0, danchor = 0;
+let lcat = -1, dcat = -1, lfav = false, lnew = false, lfactory = false, drag = null;
+let access = null, input = null, output = null, waiting = null, busy = false, cancelled = false, legacy = false;
+
+const bankOf = it => it.entry ? banks.get(it.entry.bank).name : 'On the FM-1';
+const newItem = (name, cat, more) => ({uid: uid++, name, cat, explicit: false, rec: null, entry: null, locked: false, ...more});
+function fromRecord(rec) {
+  const c = recordCategory(rec);
+  return newItem(recordName(rec), c.cat, {explicit: c.explicit, rec, entry: byId.get(known[recordKey(rec)]) || null});
+}
+const sig = it => (it.rec ? fullKey(it.rec) : it.entry ? 'e:' + it.entry.id : 'n:') + '|' + it.name + '|' + (it.explicit ? it.cat : -1);
+
+function toast(text) { const t = $('toast'); t.textContent = text; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, 3600); }
+function say(text, bad = false) { $('status').textContent = text; $('status').className = bad ? 'bad' : 'muted'; }
+/** Stage a new layout (null: it did not fit). Undo brings the old one back. */
+function commit(next) {
+  if (busy) return false;
+  if (!next) { toast('That does not fit in the free slots. Pick an earlier slot or remove some patches first.'); return false; }
+  history.push(slots); if (history.length > 100) history.shift();
+  slots = next; refresh(); return true;
+}
+
+// ---- lists: only the rows in view exist
+function vlist(el, count, render) {
+  const sp = el.firstElementChild;
+  const draw = () => {
+    const n = count(), a = Math.max(0, Math.floor(el.scrollTop / ROW) - 5), b = Math.min(n, Math.ceil((el.scrollTop + el.clientHeight) / ROW) + 5);
+    sp.style.height = n * ROW + 'px'; let h = ''; for (let i = a; i < b; i++) h += render(i, i * ROW);
+    sp.innerHTML = n ? h : '<p class="none">' + esc(el.dataset.none || '') + '</p>';
+  };
+  el.addEventListener('scroll', () => { if (!el.querySelector('.rename')) draw(); }, {passive: true});
+  return draw;
+}
+const drawLib = vlist($('llist'), () => lview.length, (k, y) => {
+  const p = lview[k], on = libSlot.get(p.id), sel = lsel.has(p.id), fav = favorites.has(p.id), name = esc(p.name);
+  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}" draggable="true"><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${p.cat}" title="${CATEGORIES[p.cat]}"></i><span class="nm">${name}</span><span class="bk">${esc(banks.get(p.bank).name)}</span>${on === undefined ? '<span class="badge on" style="visibility:hidden"></span>' : `<span class="badge on" title="Already in slot ${pad(on + 1)}">${pad(on + 1)}</span>`}<button type="button" class="ic${fav ? ' on' : ''}" data-act="fav" aria-pressed="${fav}" aria-label="Favourite ${name}">${fav ? '★' : '☆'}</button><button type="button" class="ic" data-act="play" aria-label="Preview ${name}">▶</button></div>`;
+});
+function status(s) {
+  const it = slots[s], b = base[s];
+  if (it) { const from = baseSlot.get(it.uid); return from === undefined ? ['new', 'new'] : from !== s ? ['moved', 'from ' + pad(from + 1)] : b !== it ? ['edited', 'edited'] : null; }
+  return b && !curSlot.has(b.uid) ? ['removed', 'removed'] : null;
+}
+const drawDev = vlist($('dlist'), () => dview.length, (k, y) => {
+  const s = dview[k], it = slots[s], st = status(s), badge = st ? `<span class="badge ${st[0]}">${st[1]}</span>` : '<span class="badge"></span>';
+  if (!it) return `<div class="prow empty${st ? ' gone' : ''}" style="top:${y}px" data-k="${k}"><span class="no">${pad(s + 1)}</span><span class="nm">${st ? esc(base[s].name) : 'empty'}</span>${badge}</div>`;
+  const sel = dsel.has(it.uid), name = esc(it.name), fixed = it.locked || busy ? ' disabled' : '';
+  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORIES.map((c, i) => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${c}</option>`).join('')}</select><button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
+});
+$('llist').dataset.none = 'No sounds match. Try another search, bank or character.';
+
+function chips(el, counts, active, extra = '') {
+  el.innerHTML = `<button type="button" class="chip" data-cat="-1" aria-pressed="${active < 0}">All</button>` +
+    CATEGORIES.map((c, i) => `<button type="button" class="chip" data-cat="${i}" aria-pressed="${active === i}"><i class="dot c${i}"></i>${c} <b>${num(counts[i])}</b></button>`).join('') + extra;
+}
+function filterLib() {
+  const words = fold($('search').value).split(/\s+/).filter(Boolean), bank = $('bank').value, sort = $('lsort').value, counts = new Array(8).fill(0);
+  lview = [];
+  for (const p of entries) {
+    if (bank && p.bank !== bank || lfav && !favorites.has(p.id) || lnew && libSlot.has(p.id) || lfactory && !factoryIds.has(p.id) || !words.every(w => p.search.includes(w))) continue;
+    counts[p.cat]++; if (lcat < 0 || p.cat === lcat) lview.push(p);
+  }
+  const byName = (a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : a.n - b.n;
+  if (sort === 'name') lview.sort(byName); else if (sort === 'cat') lview.sort((a, b) => a.cat - b.cat || byName(a, b));
+  chips($('lchips'), counts, lcat, `<button type="button" class="chip" data-tog="fav" aria-pressed="${lfav}">★ Favourites</button><button type="button" class="chip" data-tog="new" aria-pressed="${lnew}">Not on my FM-1</button><button type="button" class="chip" data-tog="factory" id="factory-only" aria-pressed="${lfactory}"${factoryIds.size ? '' : ' disabled'}>Factory 500</button>`);
+  $('lcount').textContent = `${num(lview.length)} of ${num(entries.length)} sounds`;
+  const b = banks.get(bank); $('bank-info').hidden = !b;
+  if (b) { $('bank-credit').textContent = `${b.author} · ${b.terms}`; $('bank-notes').textContent = (b.notes || []).map(n => n.path + '\n\n' + n.text).join('\n\n');
+    $('bank-download').hidden = !b.file; if (b.file) $('bank-download').href = '../library/' + b.file; }
+  const fresh = [...lsel].filter(id => !libSlot.has(id)).length;
+  $('add').disabled = !fresh || busy; $('add').textContent = fresh ? `Add ${num(fresh)} to FM-1 →` : 'Add to FM-1 →';
+  drawLib();
+}
+function filterDev() {
+  const words = fold($('dq').value).split(/\s+/).filter(Boolean), empty = $('dempty').checked, pend = $('dpend').checked, counts = new Array(8).fill(0), filtering = words.length > 0 || dcat >= 0;
+  dview = []; let used = 0;
+  for (let s = 0; s < SLOTS; s++) {
+    const it = slots[s];
+    if (it) { used++; counts[it.cat]++; }
+    if (pend && it === base[s]) continue;
+    if (!it) { if (pend || !filtering && (empty || status(s))) dview.push(s); continue; }
+    if (dcat >= 0 && it.cat !== dcat || !words.every(w => fold(it.name + ' ' + bankOf(it)).includes(w))) continue;
+    dview.push(s);
+  }
+  chips($('dchips'), counts, dcat);
+  $('dcount').textContent = output ? `${num(used)} / ${num(SLOTS)} slots used · ${num(SLOTS - used)} free` : used ? `${num(used)} waiting for your FM-1` : 'not connected';
+  $('capfill').style.width = used / SLOTS * 100 + '%';
+  const shown = new Set(dview); let h = '';
+  for (let s = 0; s < SLOTS; s++) { const it = slots[s];
+    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}"></i>`; }
+  $('map').innerHTML = h;
+  // Always there, so the list does not jump under the pointer when the first patch is selected.
+  $('selcount').textContent = dsel.size ? `${dsel.size} selected` : 'Select patches to move or remove them'; $('movebox').hidden = legacy;
+  $('move').disabled = $('remove').disabled = $('moveto').disabled = busy || !dsel.size; $('desel').hidden = !dsel.size;
+  $('dlist').dataset.none = filtering || pend ? 'Nothing matches this filter.' : output ? 'No patches in the user slots yet. Add sounds from the library, then sync.'
+    : 'Connect your FM-1 to see its 1,024 slots. Sounds you add now wait here and go after your last patch when you connect.';
+  drawDev();
+}
+function syncBar() {
+  const ch = changes(base, slots);
+  const parts = [ch.added && `<b>${num(ch.added)}</b> added`, ch.moved && `<b>${num(ch.moved)}</b> moved`, ch.edited && `<b>${num(ch.edited)}</b> edited`, ch.removed && `<b>${num(ch.removed)}</b> removed`].filter(Boolean);
+  $('syncmsg').innerHTML = busy ? 'Working…' : !ch.total ? `<span class="muted">${output ? 'Your FM-1 matches this layout. Add sounds, reorder or tidy up, then sync once.' : 'Add sounds from the library. Connect your FM-1 to arrange its slots and sync.'}</span>`
+    : `${parts.join(' · ')} <span class="muted">· ${output ? `${num(ch.total)} slots to write. Your FM-1 is untouched until you sync.` : 'Connect your FM-1 to sync.'}</span>`;
+  $('sync').disabled = !ch.total || busy || !output; $('sync').textContent = ch.total && output ? `Sync ${num(ch.total)} slots to FM-1` : 'Sync to FM-1';
+  $('discard').disabled = !ch.total || busy; $('undo').disabled = !history.length || busy;
+}
+function refresh() {
+  baseSlot = new Map(); curSlot = new Map(); libSlot = new Map();
+  base.forEach((it, s) => { if (it) baseSlot.set(it.uid, s); });
+  slots.forEach((it, s) => { if (it) { curSlot.set(it.uid, s); if (it.entry) libSlot.set(it.entry.id, s); } });
+  for (const u of [...dsel]) if (!curSlot.has(u)) dsel.delete(u);
+  for (const id of ['m-arr', 'm-sets']) $(id).classList.toggle('off', legacy || busy);
+  $('legacy').hidden = !legacy;
+  filterLib(); filterDev(); syncBar();
+}
+
+// ---- the library: the hosted catalogue and local imports
+function addEntry(p, bank) {
+  const e = {...p, bank: bank.id, n: entries.length, cat: Math.max(0, CATEGORIES.indexOf(p.category)), k: fold(p.name), search: fold(`${p.name} ${bank.name} ${bank.author} ${p.category}`)};
+  entries.push(e); byId.set(e.id, e);
+}
 async function catalogue() {
   try {
-    const r=await fetch('../library/catalog.json'); if(!r.ok)throw new Error('Catalogue unavailable');
-    const data=await r.json();
+    const r = await fetch('../library/catalog.json'); if (!r.ok) throw new Error('Catalogue unavailable');
+    const data = await r.json();
     try {
-      const response=await fetch('../library/factory500.json');
-      if(response.ok){const factory=await response.json();factoryIds=new Set(factory.patches.map(p=>p.id));$('factory-only').disabled=false;}
-    }catch { /* The main library stays available when starter metadata cannot be reached. */ }
-    for(const bank of data.banks){ banks.set(bank.id,bank); for(const p of bank.patches)addEntry(p,bank); }
-    refreshBanks(); filter();
-  } catch { $('import-status').textContent='The online collection could not be loaded. Reload to try again, or import your own banks.'; }
+      const response = await fetch('../library/factory500.json');
+      if (response.ok) factoryIds = new Set((await response.json()).patches.map(p => p.id));
+    } catch { /* The main library stays available when the Factory 500 list cannot be reached. */ }
+    for (const bank of data.banks) { banks.set(bank.id, bank); for (const p of bank.patches) addEntry(p, bank); }
+    for (const it of new Set([...base, ...slots])) if (it && it.rec && !it.entry) it.entry = byId.get(known[recordKey(it.rec)]) || null;
+    refreshBanks(); refresh();
+  } catch { note('The online collection could not be loaded. Reload to try again, or import your own banks.'); }
 }
-function refreshBanks(){
-  const current=$('bank').value; $('bank').replaceChildren(new Option('All banks',''));
-  for(const local of [false,true]){
-    const group=element('optgroup');group.label=local?'Your local imports':'Community library';
-    for(const b of [...banks.values()].filter(b=>!!b.local===local).sort((a,b)=>a.name.localeCompare(b.name)))group.append(new Option(`${b.name} (${b.count})`,b.id));
-    if(group.children.length)$('bank').append(group);
+function note(text) { $('import-status').textContent = text; $('import-status').hidden = !text; }
+function refreshBanks() {
+  const current = $('bank').value; $('bank').replaceChildren(new Option('All banks', ''));
+  for (const local of [false, true]) {
+    const group = document.createElement('optgroup'); group.label = local ? 'Your local imports' : 'Community library';
+    for (const b of [...banks.values()].filter(b => !!b.local === local).sort((a, b) => a.name.localeCompare(b.name))) group.append(new Option(`${b.name} (${b.count})`, b.id));
+    if (group.children.length) $('bank').append(group);
   }
-  $('bank').value=current; $('total-patches').textContent=entries.length.toLocaleString('en-US'); $('total-banks').textContent=banks.size;
+  $('bank').value = current; $('total-patches').textContent = num(entries.length); $('total-banks').textContent = banks.size;
 }
-function filter(reset=true){
-  const words=fold($('search').value).split(/\s+/).filter(Boolean),bank=$('bank').value,cat=$('category').value;
-  filtered=entries.filter(p=>(!bank||p.bank===bank)&&(!cat||p.category===cat)&&(!$('favorites-only').checked||favorites.has(p.id))&&(!$('factory-only').checked||factoryIds.has(p.id))&&words.every(w=>p.search.includes(w)));
-  if(reset)page=0; page=Math.max(0,Math.min(page,Math.ceil(filtered.length/PAGE)-1));
-  const b=banks.get(bank); $('bank-info').hidden=!b;
-  if(b){$('bank-credit').textContent=`${b.author} · ${b.terms}`; $('bank-notes').textContent=(b.notes||[]).map(n=>n.path+'\n\n'+n.text).join('\n\n');
-    $('bank-download').hidden=!b.file; if(b.file)$('bank-download').href='../library/'+b.file;}
-  render(); showQueue();
+async function patchBytes(p) {
+  if (p.bytes) return p.bytes;
+  const bank = banks.get(p.bank);
+  if (!bankCache.has(bank.id)) bankCache.set(bank.id, (async () => {
+    const r = await fetch('../library/' + bank.file); if (!r.ok) throw new Error('Could not download ' + bank.name);
+    return new Map((await unzipSy1(await r.arrayBuffer())).map(f => [f.name, f.bytes]));
+  })().catch(e => { bankCache.delete(bank.id); throw e; }));
+  const bytes = (await bankCache.get(bank.id)).get(p.path); if (!bytes) throw new Error('Patch missing from ' + bank.name); return bytes;
 }
-function render(){
-  const body=$('patches'),selected=new Set(queue.map(p=>p.id)); body.replaceChildren();
-  for(const p of filtered.slice(page*PAGE,(page+1)*PAGE)){
-    const row=element('tr','',''+(selected.has(p.id)?'selected':''));
-    const check=element('input'); check.type='checkbox'; check.checked=selected.has(p.id); check.disabled=busy||(!check.checked&&queue.length>=SLOTS); check.setAttribute('aria-label','Select '+p.name);
-    check.addEventListener('change',()=>{if(check.checked){if(queue.length<SLOTS)queue.push(p);}else queue=queue.filter(q=>q.id!==p.id); render(); showQueue();});
-    const select=element('td');select.append(check);
-    const name=element('td',p.name,'sound-name'),bank=element('td');bank.append(element('span',banks.get(p.bank).name,'bank-name'),element('span',p.category,'category-name'));
-    const star=element('button',favorites.has(p.id)?'★':'☆','favorite');star.type='button';star.setAttribute('aria-label','Favourite '+p.name);star.setAttribute('aria-pressed',String(favorites.has(p.id)));
-    star.addEventListener('click',()=>{favorites.has(p.id)?favorites.delete(p.id):favorites.add(p.id); favoriteSave(); filter(false);});
-    const fav=element('td');fav.append(star);
-    const play=element('button','Play ↗','preview-link');play.type='button';play.setAttribute('aria-label','Preview '+p.name+' in the browser'); play.addEventListener('click',()=>preview(p,play));
-    const previewCell=element('td');previewCell.append(play);row.append(select,name,bank,fav,previewCell);body.append(row);
-  }
-  $('empty').hidden=!!filtered.length; $('matches').textContent=`${filtered.length.toLocaleString('en-US')} sounds`;
-  $('page-status').textContent=filtered.length?`${page*PAGE+1}–${Math.min((page+1)*PAGE,filtered.length)} of ${filtered.length.toLocaleString('en-US')}`:'0 sounds';
-  $('previous').disabled=page===0; $('next').disabled=(page+1)*PAGE>=filtered.length;
-  const fresh=filtered.filter(p=>!selected.has(p.id)).length;
-  $('select-bank').textContent=fresh?`Select ${fresh.toLocaleString('en-US')} sounds`:'All matching sounds selected';
-  $('select-bank').disabled=busy||!fresh||queue.length+fresh>SLOTS;
-  $('select-bank').title=queue.length+fresh>SLOTS?'Choose a bank or narrow your search to select up to 1,024 sounds.':'';
+async function entryFiles(entry, out) {
+  if (entry.isFile) out.push(await new Promise((ok, no) => entry.file(ok, no)));
+  else if (entry.isDirectory) { const r = entry.createReader(); for (;;) { const batch = await new Promise((ok, no) => r.readEntries(ok, no)); if (!batch.length) break; for (const e of batch) await entryFiles(e, out); } }
 }
-async function patchBytes(p){
-  if(p.bytes)return p.bytes;
-  const bank=banks.get(p.bank);
-  if(!bankCache.has(bank.id))bankCache.set(bank.id,(async()=>{
-    const r=await fetch('../library/'+bank.file);if(!r.ok)throw new Error('Could not download '+bank.name);
-    return new Map((await unzipSy1(await r.arrayBuffer())).map(f=>[f.name,f.bytes]));
-  })().catch(e=>{bankCache.delete(bank.id);throw e;}));
-  const bytes=(await bankCache.get(bank.id)).get(p.path);if(!bytes)throw new Error('Patch missing from '+bank.name);return bytes;
-}
-async function preview(p,button){
-  // Open immediately during the gesture, before fetching, to work with popup blockers.
-  const tab=window.open('about:blank','_blank'); if(tab)tab.opener=null;
-  button.disabled=true;button.textContent='…';
+async function addFiles(files) {
+  if (importing) return; importing = true; $('pick').disabled = $('pickdir').disabled = true; $('m-imp').open = false;
+  let added = 0, skipped = 0; const errors = [], localBanks = new Map();
+  const sorted = [...files].filter(f => !f.name.startsWith('._')).sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name, undefined, {numeric: true}));
   try {
-    const bytes=await patchBytes(p),key='sy1-preview-'+crypto.randomUUID();
-    localStorage.setItem(key,JSON.stringify({name:p.name,bytes:btoa(String.fromCharCode(...bytes)),created:Date.now()}));
-    const url='../emu/?preview='+encodeURIComponent(key);
-    if(tab)tab.location.href=url;else window.location.href=url;
-  }catch(e){if(tab)tab.close();$('import-status').textContent='Preview failed: '+e.message;}
-  finally{button.disabled=false;button.textContent='Play ↗';}
-}
-async function entryFiles(entry,out){
-  if(entry.isFile)out.push(await new Promise((ok,no)=>entry.file(ok,no)));
-  else if(entry.isDirectory){const r=entry.createReader();for(;;){const batch=await new Promise((ok,no)=>r.readEntries(ok,no));if(!batch.length)break;for(const e of batch)await entryFiles(e,out);}}
-}
-async function addFiles(files){
-  if(importing)return; importing=true; $('pick').disabled=$('pickdir').disabled=true;
-  let added=0,skipped=0;const errors=[],localBanks=new Map();
-  const sorted=[...files].filter(f=>!f.name.startsWith('._')).sort((a,b)=>(a.webkitRelativePath||a.name).localeCompare(b.webkitRelativePath||b.name,undefined,{numeric:true}));
-  try {
-    for(const f of sorted){
-      if(!/\.(zip|sy1)$/i.test(f.name)){skipped++;continue;}
-      $('import-status').textContent=`Reading ${f.name}…`;await new Promise(r=>setTimeout(r,0));
-      try{
-        const raw=await f.arrayBuffer(),zip=/\.zip$/i.test(f.name),parts=zip?await unzipSy1(raw):[{name:f.webkitRelativePath||f.name,bytes:new Uint8Array(raw)}];
-        if(!parts.length)skipped++;
-        for(const part of parts){
-          const patch=parseSy1(part.bytes);if(!patch.lines){skipped++;continue;}
-          const title=patchName(patch,part.name),bn=bankName(part.name,zip?f.name.replace(/\.zip$/i,''):'Your patches');
-          if(!localBanks.has(bn)){const b={id:'local-'+(++localNumber),local:true,name:bn,author:'Your local import',terms:'Use under the original author’s terms. Files stay in this browser tab.',count:0,notes:[]};localBanks.set(bn,b);banks.set(b.id,b);}
-          const bank=localBanks.get(bn);bank.count++;
-          addEntry({id:bank.id+':'+bank.count,name:title,path:part.name,category:category(title),bytes:part.bytes},bank);added++;
+    for (const f of sorted) {
+      if (!/\.(zip|sy1)$/i.test(f.name)) { skipped++; continue; }
+      note(`Reading ${f.name}…`); await new Promise(r => setTimeout(r, 0));
+      try {
+        const raw = await f.arrayBuffer(), zip = /\.zip$/i.test(f.name), parts = zip ? await unzipSy1(raw) : [{name: f.webkitRelativePath || f.name, bytes: new Uint8Array(raw)}];
+        if (!parts.length) skipped++;
+        for (const part of parts) {
+          const patch = parseSy1(part.bytes); if (!patch.lines) { skipped++; continue; }
+          const title = patchName(patch, part.name), bn = bankName(part.name, zip ? f.name.replace(/\.zip$/i, '') : 'Your patches');
+          if (!localBanks.has(bn)) { const b = {id: 'local-' + (++localNumber), local: true, name: bn, author: 'Your local import', terms: 'Use under the original author’s terms. Files stay in this browser tab.', count: 0, notes: []}; localBanks.set(bn, b); banks.set(b.id, b); }
+          const bank = localBanks.get(bn); bank.count++;
+          addEntry({id: bank.id + ':' + bank.count, name: title, path: part.name, category: category(title), bytes: part.bytes}, bank); added++;
         }
-      }catch(e){errors.push(f.name+': '+e.message);}
+      } catch (e) { errors.push(f.name + ': ' + e.message); }
     }
-    refreshBanks();$('bank').value=localBanks.size===1?[...localBanks.values()][0].id:'';
-    $('search').value='';$('category').value='';$('favorites-only').checked=false;$('factory-only').checked=false;filter();
-    $('import-status').textContent=`${added.toLocaleString('en-US')} sounds imported into ${localBanks.size} banks. Choose a bank or search, then select sounds.`+(skipped?` ${skipped} non-patch files skipped.`:'')+(errors.length?' '+errors.join(' · '):'');
-  }finally{importing=false;$('pick').disabled=$('pickdir').disabled=false;}
+    refreshBanks(); $('bank').value = localBanks.size === 1 ? [...localBanks.values()][0].id : '';
+    $('search').value = ''; lcat = -1; lfav = lnew = lfactory = false; $('llist').scrollTop = 0; refresh();
+    note(`${num(added)} sounds imported into ${localBanks.size} banks.` + (skipped ? ` ${skipped} non-patch files skipped.` : '') + (errors.length ? ' ' + errors.join(' · ') : ''));
+  } finally { importing = false; $('pick').disabled = $('pickdir').disabled = false; }
 }
-// One outstanding MIDI request, matched by command, input port and slot.
-const cmd=(c,...data)=>[...HEAD,c,...data,0xf7],slotBytes=s=>[s&127,(s>>7)&127];
-function onMessage(e){
-  const m=e.data,w=waiting;if(!w||m.length<8||HEAD.some((v,i)=>m[i]!==v)||m.at(-1)!==0xf7||m[5]!==w.cmd||(input&&e.target!==input))return;
-  const isSlot=[0x41,0x44,0x45].includes(w.cmd);
-  if(m.length<(isSlot?10:w.cmd===0x43?11:8)||isSlot&&(m[6]|m[7]<<7)!==w.slot)return;
-  waiting=null;clearTimeout(w.timer);w.done({data:m,port:e.target});
+
+// ---- preview: the browser synth in a hidden frame, switched on by the first Play
+let player = null, previewId = 0;
+const fromPlayer = (frame, test, ms) => new Promise((ok, no) => {
+  const done = e => { if (e.source !== frame.contentWindow || e.origin !== location.origin || !e.data || !test(e.data)) return; clearTimeout(timer); removeEventListener('message', done); ok(e.data); };
+  const timer = setTimeout(() => { removeEventListener('message', done); no(new Error('The browser synth did not answer.')); }, ms);
+  addEventListener('message', done);
+});
+function startPlayer() {
+  return new Promise((ok, no) => {
+    const frame = document.createElement('iframe'); frame.className = 'pm-player'; frame.title = 'SY1 preview synth'; frame.setAttribute('aria-hidden', 'true'); frame.tabIndex = -1;
+    frame.onload = () => { try { const ready = fromPlayer(frame, d => d.sy1 === 'ready', 30000); frame.contentDocument.getElementById('go').click(); ready.then(() => ok(frame), no); } catch (e) { no(e); } };
+    frame.onerror = () => no(new Error('The browser synth could not be loaded.'));
+    frame.src = '../emu/?embed=1'; document.body.append(frame);
+  });
 }
-function ask(out,frame,command,ms=3000){
-  if(waiting)throw new Error('Another MIDI request is still running');
-  return new Promise(done=>{const w={cmd:command,slot:frame[6]|frame[7]<<7,done,timer:setTimeout(()=>{if(waiting===w)waiting=null;done(null);},ms)};waiting=w;
-    try{out.send(frame);}catch{clearTimeout(w.timer);waiting=null;done(null);}});
+async function preview(p) {
+  const id = ++previewId, line = $('preview-status');
+  line.textContent = `Loading ${p.name}…`;
+  try {
+    const bytes = await patchBytes(p);
+    if (!player) { line.textContent = 'Switching on the browser synth…'; player = startPlayer().catch(e => { player = null; throw e; }); }
+    const frame = await player; if (id !== previewId) return;
+    const answer = fromPlayer(frame, d => d.sy1 === 'previewed' && d.id === id, 8000);
+    frame.contentWindow.postMessage({sy1: 'preview', id, name: p.name, bytes}, location.origin);
+    const a = await answer; if (!a.ok) throw new Error(a.error || 'The browser synth refused this patch.');
+    if (id === previewId) line.textContent = `▶ Playing ${p.name} · ${banks.get(p.bank).name}`;
+  } catch (e) { if (id === previewId) line.innerHTML = `Preview failed: ${esc(e.message)} <a href="../emu/">Open the browser synth ↗</a>`; }
 }
-function say(text,bad=false){$('status').textContent=text;$('status').className=bad?'bad':'muted';}
-function setConnected(){
-  const on=!!output;$('have').setAttribute('aria-disabled',String(!on));$('connection').dataset.state=on?'connected':'disconnected';
-  $('connection-label').textContent=on?'FM-1 CONNECTED':'FM-1 NOT CONNECTED';$('connect').textContent=on?'Connect again':'Connect to the FM-1';
-  if(!on){$('slots').hidden=true;$('count').textContent='Not connected.';}showQueue();
+
+// ---- MIDI: one outstanding request, matched by command, input port, slot and part
+const cmd = (c, ...data) => [...HEAD, c, ...data, 0xf7], slotBytes = s => [s & 127, (s >> 7) & 127];
+function onMessage(e) {
+  const m = e.data, w = waiting; if (!w || m.length < 8 || HEAD.some((v, i) => m[i] !== v) || m.at(-1) !== 0xf7 || m[5] !== w.cmd || (input && e.target !== input)) return;
+  const isSlot = [0x41, 0x44, 0x45, 0x47].includes(w.cmd);
+  if (m.length < (w.cmd === 0x43 || w.cmd === 0x47 ? 11 : isSlot ? 10 : 8) || isSlot && (m[6] | m[7] << 7) !== w.slot || w.cmd === 0x47 && m[8] !== w.part) return;
+  waiting = null; clearTimeout(w.timer); w.done({data: m, port: e.target});
 }
-async function connect(){
-  if(busy)return;busy=true;showQueue();
-  try{
-    if(!navigator.requestMIDIAccess)throw new Error('Use Chrome or Edge on a computer for USB MIDI. You can still browse, preview and import sounds.');
-    say('Allow MIDI with SysEx when the browser asks…');access=access||await navigator.requestMIDIAccess({sysex:true});
-    input=output=null;for(const i of access.inputs.values())i.onmidimessage=onMessage;
+function ask(out, frame, command, ms = 3000, part = 0) {
+  if (waiting) throw new Error('Another MIDI request is still running');
+  return new Promise(done => { const w = {cmd: command, slot: frame[6] | frame[7] << 7, part, done, timer: setTimeout(() => { if (waiting === w) waiting = null; done(null); }, ms)}; waiting = w;
+    try { out.send(frame); } catch { clearTimeout(w.timer); waiting = null; done(null); } });
+}
+function setConnected() {
+  const on = !!output; $('connection').dataset.state = on ? 'connected' : 'disconnected';
+  $('connection-label').textContent = on ? 'FM-1 CONNECTED' : 'FM-1 NOT CONNECTED'; $('connect').textContent = on ? 'Read again' : 'Connect to the FM-1';
+  $('connect').className = on ? '' : 'primary'; $('connect').disabled = busy;
+  if (!on) legacy = false;
+}
+async function connect() {
+  if (busy) return; busy = true; setConnected(); refresh();
+  try {
+    if (!navigator.requestMIDIAccess) throw new Error('Use Chrome or Edge on a computer for USB MIDI. You can still browse, preview and import sounds.');
+    say('Allow MIDI with SysEx when the browser asks…'); access = access || await navigator.requestMIDIAccess({sysex: true});
+    input = output = null; for (const i of access.inputs.values()) i.onmidimessage = onMessage;
     say('Looking for an FM-1 running SY1…');
-    for(const out of access.outputs.values()){const a=await ask(out,cmd(0x03),0x43,700);if(a){output=out;input=a.port;break;}}
-    if(!output)throw new Error('No FM-1 running SY1 answered. Connect it by USB, switch it on and install SY1.');
-    access.onstatechange=()=>{if(output?.state==='disconnected'||input?.state==='disconnected'){
-      output=input=null;cancelled=true; if(waiting){const w=waiting;waiting=null;clearTimeout(w.timer);w.done(null);}setConnected();say('FM-1 disconnected. Unsent sounds stay selected.',true);
-    }};
-    say(`Connected: ${output.name}.`);
-  }catch(e){say(e.message,true);}finally{busy=false;setConnected();}
-  if(output)await readDevice();
+    for (const out of access.outputs.values()) { const a = await ask(out, cmd(0x03), 0x43, 700); if (a) { output = out; input = a.port; break; } }
+    if (!output) throw new Error('No FM-1 running SY1 answered. Connect it by USB, switch it on and install SY1.');
+    access.onstatechange = () => { if (output?.state === 'disconnected' || input?.state === 'disconnected') {
+      output = input = null; cancelled = true; if (waiting) { const w = waiting; waiting = null; clearTimeout(w.timer); w.done(null); }
+      setConnected(); refresh(); say('FM-1 disconnected. Your staged changes are kept; connect again to sync.', true);
+    } };
+  } catch (e) { say(e.message, true); }
+  finally { busy = false; setConnected(); refresh(); }
+  if (output) await readDevice();
 }
-async function readDevice(){
-  if(!output||busy)return;busy=true;showQueue();
-  try{
-    const a=await ask(output,cmd(0x03),0x43,1500);if(!a)throw new Error('The FM-1 did not answer. Reconnect before sending.');
-    used=Math.min(SLOTS,a.data[6]|a.data[7]<<7);const known=new Set(),list=$('slots');list.replaceChildren();
-    for(let s=0;s<used;s++){
-      $('count').textContent=`Reading slot ${s+1} of ${used}…`;
-      const r=await ask(output,cmd(0x04,...slotBytes(s)),0x44,800);
-      if(!r)throw new Error('Could not read the patch slots. Install the latest SY1 and reconnect.');
-      if(!r.data[8])continue;known.add(s+1);
-      const name=String.fromCharCode(...r.data.slice(9,-1)),li=element('li'),del=element('button','Remove','quiet');del.type='button';del.disabled=busy;del.dataset.remove='';del.setAttribute('aria-label',`Remove ${pad(s+1)} ${name}`);del.addEventListener('click',()=>removeSlot(s,name));
-      li.append(element('span',pad(s+1),'n'),element('span',name||'(no name)','name'),del);list.append(li);
+async function readDevice() {
+  if (!output || busy) return; busy = true; setConnected(); refresh();
+  try {
+    const a = await ask(output, cmd(0x03), 0x43, 1500); if (!a) throw new Error('The FM-1 did not answer. Reconnect before syncing.');
+    const used = Math.min(SLOTS, a.data[6] | a.data[7] << 7), device = new Array(SLOTS).fill(null);
+    // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
+    const old = !(a.data.length >= 12 && a.data[10] & 1);
+    for (let s = 0; s < used; s++) {
+      if (!output) throw new Error('FM-1 disconnected.');
+      if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
+      if (old) {
+        const r = await ask(output, cmd(0x04, ...slotBytes(s)), 0x44, 800);
+        if (!r) throw new Error('Could not read the patch slots. Install the latest SY1 and reconnect.');
+        if (!r.data[8]) continue;
+        const name = String.fromCharCode(...r.data.slice(9, -1)) || '(no name)';
+        device[s] = newItem(name, Math.max(0, CATEGORIES.indexOf(category(name))), {locked: true});
+      } else {
+        const p0 = await ask(output, cmd(0x07, ...slotBytes(s), 0), 0x47, 800, 0);
+        if (!p0) throw new Error('Could not read the patch slots. Reconnect and try again.');
+        if (!p0.data[9]) continue;
+        const p1 = await ask(output, cmd(0x07, ...slotBytes(s), 1), 0x47, 800, 1);
+        const lo = unpack7(p0.data, 10, p0.data.length - 1, PART), hi = p1 && p1.data[9] ? unpack7(p1.data, 10, p1.data.length - 1, RECORD - PART) : null;
+        if (!lo || !hi) throw new Error(`Slot ${pad(s + 1)} came back incomplete. Reconnect and try again.`);
+        const rec = new Uint8Array(RECORD); rec.set(lo); rec.set(hi, PART); device[s] = fromRecord(rec);
+      }
     }
-    occupied=known;list.hidden=!known.size;$('count').textContent=`${known.size} imported patches · last slot ${used} / ${SLOTS}.`;
-  }catch(e){say(e.message,true);output=input=null;setConnected();}
-  finally{busy=false;showQueue();}
+    legacy = old; adopt(device);
+    say(`Connected: ${output.name}. ${num(device.filter(Boolean).length)} patches read.`);
+  } catch (e) { say(e.message, true); output = input = null; }
+  finally { busy = false; setConnected(); refresh(); }
 }
-async function removeSlot(slot,name){
-  if(busy||!output||!confirm(`Remove ${pad(slot+1)} ${name} from the FM-1?`))return;
-  busy=true;showQueue();const r=await ask(output,cmd(0x05,...slotBytes(slot)),0x45,5000);busy=false;
-  if(!r||r.data[8]!==0)say('Removal was not confirmed. Reading the device again.',true);await readDevice();
+/** The FM-1 as just read becomes the baseline. Staged work survives when the FM-1 is as we last knew it;
+ *  otherwise only the newly added sounds are kept, after its last patch. */
+function adopt(device) {
+  const same = device.every((d, s) => (d ? sig(d) : '') === (base[s] ? sig(base[s]) : ''));
+  if (same && !device.some((d, s) => d && d.locked !== base[s].locked)) return;
+  const fresh = slots.filter(it => it && !baseSlot.has(it.uid)), dropped = changes(base, slots).total > fresh.length;
+  base = device; slots = device.slice(); history = []; dsel.clear();
+  if (fresh.length) { const next = appendSlots(slots, fresh); if (next) slots = next; else toast(`Only ${SLOTS - device.filter(Boolean).length} slots are free: the sounds you added do not fit.`); }
+  if (dropped) toast('Your FM-1 holds other patches than before. Staged moves were dropped; the sounds you added are kept.');
 }
-async function eraseAll(){
-  if(busy||!output||!confirm('Erase all imported patches from the FM-1? This cannot be undone. All built-in sounds stay.'))return;
-  busy=true;showQueue();const r=await ask(output,cmd(0x02),0x42,15000);busy=false;
-  if(!r||r.data[6]!==0)say('Erasing was not confirmed. Reading the device again.',true);await readDevice();
+
+// ---- staging
+function fromLibrary(list) {
+  const fresh = list.filter(p => !libSlot.has(p.id));
+  if (fresh.length < list.length) toast(`${list.length - fresh.length} already on your FM-1, skipped.`);
+  return fresh.map(p => newItem(asciiName(p.name), p.cat, {entry: p}));
 }
-function target(){return placement($('placement').value==='append'?used+1:$('first').value,queue.length,occupied,$('placement').value==='append');}
-function showQueue(){
-  const t=target(),append=$('placement').value==='append';if(append)$('first').value=String(Math.min(used+1,SLOTS));$('first').disabled=append||busy;$('placement').disabled=busy;
-  const list=$('queue');list.replaceChildren();
-  for(const [i,p] of queue.entries()){
-    const li=element('li'),name=element('span',p.name,'name'),remove=element('button','×','quiet');remove.type='button';remove.disabled=busy;remove.setAttribute('aria-label','Unselect '+p.name);
-    name.append(element('span',banks.get(p.bank).name));remove.addEventListener('click',()=>{queue=queue.filter(q=>q.id!==p.id);render();showQueue();});
-    li.append(element('span',pad(t.start+i),'n'),name,remove);list.append(li);
+const selectedEntries = () => { const seen = new Set(lview.filter(p => lsel.has(p.id))); return [...seen, ...[...lsel].map(id => byId.get(id)).filter(p => p && !seen.has(p))]; };
+function addSelected() {
+  const items = fromLibrary(selectedEntries()); if (!items.length) return;
+  const next = appendSlots(slots, items);
+  if (!next) return toast(`Only ${SLOTS - slots.filter(Boolean).length} slots are free. Remove some patches first.`);
+  if (commit(next)) { lsel.clear(); refresh(); toast(`${items.length} staged${output ? '. Press Sync to write them.' : '. Connect your FM-1 to sync.'}`); }
+}
+const selectedSlots = () => [...dsel].map(u => curSlot.get(u)).sort((a, b) => a - b);
+const lastUsed = () => { let last = -1; slots.forEach((it, s) => { if (it) last = s; }); return last; };
+function edit(s, change) { const next = slots.slice(); next[s] = {...slots[s], ...change}; commit(next); }
+function pick(sel, keys, k, e, anchor) {
+  const key = keys[k]; if (key == null) return anchor;
+  if (e.shiftKey) { for (let i = Math.min(anchor, k); i <= Math.max(anchor, k); i++) if (keys[i] != null) sel.add(keys[i]); return anchor; }
+  if (e.target.dataset.act === 'pick' || e.ctrlKey || e.metaKey) sel.has(key) ? sel.delete(key) : sel.add(key);
+  else { sel.clear(); sel.add(key); }
+  return k;
+}
+const devKeys = () => dview.map(s => slots[s] ? slots[s].uid : null);
+
+$('llist').addEventListener('click', e => {
+  const row = e.target.closest('.prow'); if (!row) return; const k = +row.dataset.k, p = lview[k], act = e.target.dataset.act;
+  if (act === 'fav') { favorites.has(p.id) ? favorites.delete(p.id) : favorites.add(p.id); store('sy1-favorites', [...favorites]); return filterLib(); }
+  if (act === 'play') return preview(p);
+  lanchor = pick(lsel, lview.map(x => x.id), k, e, lanchor); filterLib();
+});
+$('llist').addEventListener('keydown', e => {
+  if (e.target !== $('llist') || !lview.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); lanchor = Math.max(0, Math.min(lview.length - 1, lsel.size ? lanchor + (e.key === 'ArrowDown' ? 1 : -1) : 0));
+    lsel.clear(); lsel.add(lview[lanchor].id);
+    const el = $('llist'), top = lanchor * ROW; if (top < el.scrollTop) el.scrollTop = top; else if (top + ROW > el.scrollTop + el.clientHeight) el.scrollTop = top + ROW - el.clientHeight;
+    filterLib();
+  } else if ((e.key === ' ' || e.key === 'Enter') && lsel.size === 1) { e.preventDefault(); preview(byId.get([...lsel][0])); }
+});
+$('dlist').addEventListener('click', e => {
+  const row = e.target.closest('.prow'); if (!row || e.target.matches('select, .rename')) return; const k = +row.dataset.k, s = dview[k];
+  if (e.target.dataset.act === 'del') { const next = slots.slice(); next[s] = null; return void commit(next); }
+  // The second click of a double-click: the row was redrawn by the first, so a dblclick event would hit a dead node.
+  if (e.detail === 2 && e.target.closest('.nm')) return rename(row, s);
+  danchor = pick(dsel, devKeys(), k, e, danchor); filterDev();
+});
+$('dlist').addEventListener('change', e => {
+  const row = e.target.closest('.prow'); if (!row || e.target.dataset.act !== 'cat') return;
+  edit(dview[+row.dataset.k], {cat: +e.target.value, explicit: true});
+});
+function rename(row, s) {
+  const nm = row.querySelector('.nm'); if (!nm || !slots[s] || slots[s].locked || busy) return;
+  const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'rename'; inp.maxLength = 23; inp.value = slots[s].name; inp.setAttribute('aria-label', 'Rename patch');
+  let done = false; const end = ok => { if (done) return; done = true; const v = asciiName(inp.value.trim()); if (ok && v && v !== slots[s].name) edit(s, {name: v}); else filterDev(); };
+  inp.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') end(true); if (ev.key === 'Escape') end(false); }; inp.onblur = () => end(true);
+  nm.replaceWith(inp); inp.focus(); inp.select();
+}
+for (const [el, set] of [[$('lchips'), v => { lcat = v; }], [$('dchips'), v => { dcat = v; }]]) el.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tog === 'fav') lfav = !lfav; else if (b.dataset.tog === 'new') lnew = !lnew; else if (b.dataset.tog === 'factory') lfactory = !lfactory; else set(+b.dataset.cat);
+  if (el === $('lchips')) { $('llist').scrollTop = 0; filterLib(); } else { $('dlist').scrollTop = 0; filterDev(); }
+});
+for (const id of ['search', 'bank', 'lsort']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { $('llist').scrollTop = 0; filterLib(); });
+for (const id of ['dq', 'dempty', 'dpend']) $(id).addEventListener(id === 'dq' ? 'input' : 'change', () => { $('dlist').scrollTop = 0; filterDev(); });
+$('add').onclick = addSelected;
+$('map').addEventListener('click', e => {
+  const s = e.target.dataset.s; if (s === undefined) return; const it = slots[+s];
+  if (!it) return toast(`Slot ${pad(+s + 1)} is empty.`);
+  dsel.clear(); dsel.add(it.uid); filterDev();
+  const k = dview.indexOf(+s); if (k >= 0) { $('dlist').scrollTop = Math.max(0, k * ROW - 72); danchor = k; drawDev(); }
+});
+$('remove').onclick = () => { const next = slots.slice(); for (const s of selectedSlots()) next[s] = null; commit(next); };
+$('desel').onclick = () => { dsel.clear(); filterDev(); };
+$('move').onclick = () => { if (legacy) return; const t = Math.min(SLOTS, Math.max(1, parseInt($('moveto').value, 10) || 1)) - 1, ss = selectedSlots(); commit(insertAt(slots, t, ss.map(s => slots[s]), ss)); };
+for (const b of document.querySelectorAll('[data-arr]')) b.onclick = () => {
+  $('m-arr').open = false; if (legacy) return;
+  if (commit(b.dataset.arr === 'clear' ? new Array(SLOTS).fill(null) : arrange(slots, b.dataset.arr, bankOf))) toast('Staged. Check the new layout, then sync.');
+};
+
+// ---- sets: saved layouts, kept in this browser and exportable as a file
+function snapshot(name, from) {
+  const list = []; let skipped = 0;
+  from.forEach((it, s) => { if (!it) return; const o = {s, n: it.name, c: it.explicit ? it.cat : -1};
+    if (it.rec) o.r = b64(it.rec); else if (it.entry && !banks.get(it.entry.bank).local) o.e = it.entry.id; else { skipped++; return; }
+    list.push(o); });
+  return {set: {sy1set: 1, name, when: Date.now(), slots: list}, skipped};
+}
+function stageSet(set) {
+  const pool = new Map(), out = new Array(SLOTS).fill(null), later = []; let missing = 0;
+  for (const it of new Set([...base, ...slots])) if (it && !it.locked) { const k = sig(it); pool.set(k, [...(pool.get(k) || []), it]); }
+  const take = (k, prefer) => { const a = pool.get(k); if (!a || !a.length) return null; const i = a.indexOf(prefer); return a.splice(i >= 0 ? i : 0, 1)[0]; };
+  for (const o of Array.isArray(set.slots) ? set.slots : []) {
+    if (!Number.isInteger(o.s) || o.s < 0 || o.s >= SLOTS || typeof o.n !== 'string') { missing++; continue; }
+    let rec = null, entry = null; try { if (o.r) { rec = unb64(o.r); if (rec.length !== RECORD) rec = null; } else entry = byId.get(o.e) || null; } catch { rec = null; }
+    if (!rec && !entry) { missing++; continue; }
+    const explicit = o.c >= 0 && o.c < 8, name = asciiName(o.n), it = {name, explicit, cat: explicit ? o.c : Math.max(0, CATEGORIES.indexOf(category(name))), rec, entry: entry || (rec && byId.get(known[recordKey(rec)])) || null, locked: false};
+    const k = sig(it), here = base[o.s] && sig(base[o.s]) === k ? take(k, base[o.s]) : null;
+    if (here) out[o.s] = here; else later.push([o.s, k, it]);
   }
-  list.hidden=!queue.length;$('clear').hidden=!queue.length;$('clear').disabled=busy;$('selected-count').textContent=queue.length;
-  $('queued').textContent=!queue.length?'Pick sounds from the library to get started.':!t.fits?'This selection does not fit. Choose fewer sounds or another starting slot.':`${queue.length} sounds → slots ${pad(t.start)}–${pad(t.end)}.`+(t.overlaps?` ${t.overlaps} existing patches will be replaced.`:'');
-  $('queued').className=t.overlaps||queue.length&&!t.fits?'bad':'muted';
-  $('capacity').textContent=output?`${SLOTS-used} slots available after your last patch. ${occupied.size} / ${SLOTS} occupied.`:'Connect to check your available slots.';
-  $('send').disabled=!output||busy||!t.fits;$('send').textContent=busy?'Working…':queue.length?`Send ${queue.length} to the FM-1`:'Choose some sounds';
-  $('connect').disabled=busy;$('refresh').disabled=$('erase').disabled=!output||busy;
-  for(const b of document.querySelectorAll('[data-remove]'))b.disabled=busy;
-  // Update selection controls without losing focus in the table.
-  const selected=new Set(queue.map(p=>p.id));for(const c of document.querySelectorAll('#patches input'))c.disabled=busy||(!c.checked&&queue.length>=SLOTS);
-  const fresh=filtered.filter(p=>!selected.has(p.id)).length;$('select-bank').disabled=busy||!fresh||queue.length+fresh>SLOTS;
-  $('selection-hint').textContent=queue.length+fresh>SLOTS?'Choose a bank or narrow your search. You can select up to 1,024 sounds at a time.':'';
+  for (const [s, k, it] of later) out[s] = take(k) || {...it, uid: uid++};
+  return {out, missing};
 }
-async function send(){
-  const t=target();if(busy||!output||!t.fits)return;
-  if(t.overlaps&&!confirm(`Replace ${t.overlaps} existing patches in slots ${pad(t.start)}–${pad(t.end)}?`))return;
-  busy=true;cancelled=false;showQueue();$('cancel').hidden=false;$('cancel').disabled=false;
-  const todo=queue.slice(),bar=$('progress');bar.hidden=false;bar.max=todo.length;bar.value=0;let stored=0,error='';
-  try{
-    // Resolve every selected patch before the first hardware write.
-    const prepared=[];
-    for(const p of todo){if(cancelled)break;$('result').textContent=`Preparing ${prepared.length+1} / ${todo.length}: ${p.name}`;const parsed=parseSy1(await patchBytes(p));if(!parsed.lines)throw new Error('Invalid patch: '+p.name);prepared.push(parsed);}
-    for(let i=0;i<prepared.length&&!cancelled;i++){
-      if(!output)throw new Error('FM-1 disconnected.');$('result').textContent=`Sending ${i+1} / ${todo.length}: ${todo[i].name}`;
-      const r=await ask(output,frameFor(prepared[i],t.start-1+i),0x41,5000);
-      if(!r||r.data[8]!==0)throw new Error('The FM-1 did not confirm this patch. Reconnect and check its slots before retrying.');
-      stored++;occupied.add(t.start+i);used=Math.max(used,t.start+i);bar.value=stored;
-      queue=queue.filter(p=>p.id!==todo[i].id);
+function drawSets() {
+  $('setlist').innerHTML = sets.map((s, i) => `<div class="setrow"><button type="button" class="load" data-set="${i}">${esc(s.name)}<span>${s.slots.length} patches · ${new Date(s.when).toLocaleDateString()}</span></button><button type="button" data-export="${i}" aria-label="Export ${esc(s.name)} as a file" title="Export as a file">⤓</button><button type="button" data-drop="${i}" aria-label="Delete ${esc(s.name)}" title="Delete">✕</button></div>`).join('') || '<p>No sets saved yet.</p>';
+}
+function keepSet(set, replace = false) {
+  const before = sets; sets = replace ? [set, ...sets.filter(s => s.name !== set.name)] : [...sets, set];
+  if (!store('sy1-sets', sets)) { sets = before; toast('This browser could not store the set. Export it as a file instead.'); return false; }
+  drawSets(); return true;
+}
+$('setsave').onclick = () => {
+  const {set, skipped} = snapshot($('setname').value.trim() || 'Layout ' + (sets.length + 1), slots);
+  if (keepSet(set)) { $('setname').value = ''; toast(`Saved “${set.name}”.` + (skipped ? ` ${skipped} unsynced local sounds are not in it; sync first to include them.` : '')); }
+};
+$('setlist').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.set !== undefined) { const s = sets[+b.dataset.set], {out, missing} = stageSet(s); $('m-sets').open = false;
+    if (commit(out)) toast(`“${s.name}” staged.` + (missing ? ` ${missing} patches could not be restored.` : '') + (output ? ' Sync to load it onto the FM-1.' : '')); }
+  else if (b.dataset.drop !== undefined) { sets = sets.filter((_, i) => i !== +b.dataset.drop); store('sy1-sets', sets); drawSets(); }
+  else if (b.dataset.export !== undefined) { const s = sets[+b.dataset.export], a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(s)], {type: 'application/json'})); a.download = 'sy1-set-' + s.name.replace(/[^\w-]+/g, '-').toLowerCase() + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+});
+$('setimport').onclick = () => $('setfile').click();
+$('setfile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { const s = JSON.parse(await f.text()); if (s.sy1set !== 1 || !Array.isArray(s.slots)) throw new Error();
+    if (keepSet({sy1set: 1, name: String(s.name || f.name).slice(0, 40), when: Number(s.when) || Date.now(), slots: s.slots})) toast('Set imported. Load it from the list to stage it.'); }
+  catch { toast('That file is not an SY1 set.'); }
+};
+document.addEventListener('click', e => { for (const m of document.querySelectorAll('#pm details.menu[open]')) if (!m.contains(e.target)) m.open = false; });
+
+// ---- sync: the staged layout onto the FM-1, each slot acknowledged
+async function finalRecord(it) {
+  let rec = it.rec;
+  if (!rec) { const parsed = parseSy1(await patchBytes(it.entry)); if (!parsed.lines) throw new Error('Invalid patch: ' + it.name); rec = recordFrom(parsed.values, it.name); }
+  if (it.name !== recordName(rec)) rec = withMeta(rec, it.name);
+  if (it.explicit && (rec[2] !== it.cat + 1 || rec[3] !== 0xc1)) rec = withMeta(rec, null, it.cat);
+  return rec;
+}
+function remember(it) {
+  if (!it.entry || banks.get(it.entry.bank).local) return;
+  known[recordKey(it.rec)] = it.entry.id; const keys = Object.keys(known); if (keys.length > 4000) delete known[keys[0]]; store('sy1-known', known);
+}
+async function sync() {
+  const ch = changes(base, slots); if (!ch.total || busy || !output) return;
+  if (ch.removed && !confirm(`${ch.removed} ${ch.removed === 1 ? 'patch' : 'patches'} will be removed from the FM-1. Built-in and Factory 500 sounds stay. Continue?`)) return;
+  busy = true; cancelled = false; refresh(); setConnected();
+  const bar = $('progress'), result = $('result'); bar.hidden = false; bar.max = ch.total; bar.value = 0; $('cancel').hidden = false; $('cancel').disabled = false; result.className = '';
+  let done = 0, error = '';
+  try {
+    if (!legacy && (ch.removed || ch.moved || ch.edited) && base.some(Boolean)) keepSet(snapshot('Auto-backup before last sync', base).set, true);
+    const recs = new Map();                     // every record resolved before the first hardware write
+    for (const s of ch.writes) { result.textContent = `Preparing ${recs.size + 1} / ${ch.writes.length}: ${slots[s].name}`; recs.set(s, await finalRecord(slots[s])); }
+    if (!slots.some(Boolean)) {
+      result.textContent = 'Erasing all user slots…';
+      const r = await ask(output, cmd(0x02), 0x42, 15000); if (!r || r.data[6] !== 0) throw new Error('The FM-1 did not confirm the erase. Read it again before retrying.');
+      base = new Array(SLOTS).fill(null); done = ch.total;
+    } else for (const s of [...ch.writes, ...ch.clears]) {
+      if (cancelled) break; if (!output) throw new Error('FM-1 disconnected.');
+      const it = slots[s]; result.textContent = `${it ? 'Writing' : 'Emptying'} slot ${pad(s + 1)} · ${done + 1} / ${ch.total}${it ? ': ' + it.name : ''}`;
+      const r = it ? await ask(output, packFrame(recs.get(s), s), 0x41, 5000) : await ask(output, cmd(0x05, ...slotBytes(s)), 0x45, 5000);
+      if (!r || r.data[8] !== 0) throw new Error(`The FM-1 did not confirm slot ${pad(s + 1)}. Read it again before retrying.`);
+      if (it) { it.rec = recs.get(s); remember(it); }
+      base = base.slice(); base[s] = it; bar.value = ++done;
     }
-  }catch(e){error=e.message;}
-  finally{
-    busy=false;bar.hidden=true;$('cancel').hidden=true;
-    // Advance manual placement too, so retry never replaces the patches just acknowledged.
-    if($('placement').value==='manual')$('first').value=String(Math.min(SLOTS,t.start+stored));
-    $('result').textContent=`${stored} sounds stored. ${queue.length} still selected.`+(cancelled?' Transfer stopped.':'')+(error?' '+error:'');$('result').className=error?'bad':'';
-    render();showQueue();if(output)await readDevice();
+  } catch (e) { error = e.message; }
+  finally {
+    busy = false; bar.hidden = true; $('cancel').hidden = true;
+    const left = changes(base, slots).total;
+    result.textContent = `${num(done)} slots written and confirmed.` + (left ? ` ${num(left)} still staged.` : '') + (cancelled && left ? ' Sync stopped.' : '') + (error ? ' ' + error : '');
+    result.className = error ? 'bad' : '';
+    if (!left) history = [];
+    setConnected(); refresh();
   }
 }
-for(const c of CATEGORIES)$('category').add(new Option(c,c));
-for(const id of ['search','bank','category','favorites-only','factory-only'])$(id).addEventListener(id==='search'?'input':'change',()=>filter());
-$('previous').onclick=()=>{page--;filter(false);};$('next').onclick=()=>{page++;filter(false);};
-$('select-bank').onclick=()=>{if(busy)return;const selected=new Set(queue.map(p=>p.id)),fresh=filtered.filter(p=>!selected.has(p.id));if(queue.length+fresh.length>SLOTS)return;queue.push(...fresh);render();showQueue();};
-$('clear').onclick=()=>{if(busy)return;queue=[];$('result').textContent='';render();showQueue();};
-$('placement').onchange=showQueue;$('first').oninput=showQueue;
-$('connect').onclick=connect;$('refresh').onclick=readDevice;$('erase').onclick=eraseAll;$('send').onclick=send;
-$('cancel').onclick=()=>{cancelled=true;$('cancel').disabled=true;$('result').textContent='Stopping after the current patch is confirmed…';};
-$('pick').onclick=()=>$('files').click();$('pickdir').onclick=()=>$('dir').click();
-for(const id of ['files','dir'])$(id).onchange=e=>{addFiles(e.target.files);e.target.value='';};
-const drop=$('drop'),stop=e=>{e.preventDefault();e.stopPropagation();};
-for(const t of [drop,document.body]){
-  t.addEventListener('dragover',e=>{stop(e);drop.classList.add('over');});t.addEventListener('dragleave',e=>{stop(e);drop.classList.remove('over');});
-  t.addEventListener('drop',async e=>{stop(e);drop.classList.remove('over');const es=[...e.dataTransfer.items].map(i=>i.webkitGetAsEntry?.()).filter(Boolean);if(!es.length)return addFiles(e.dataTransfer.files);const files=[];try{for(const en of es)await entryFiles(en,files);await addFiles(files);}catch(err){$('import-status').textContent=err.message;}});
+$('undo').onclick = () => { if (!history.length || busy) return; slots = history.pop(); refresh(); };
+$('discard').onclick = () => commit(base.slice());
+$('sync').onclick = sync;
+$('cancel').onclick = () => { cancelled = true; $('cancel').disabled = true; $('result').textContent = 'Stopping after the current slot is confirmed…'; };
+$('connect').onclick = () => output ? readDevice() : connect();
+
+// ---- drag: library sounds onto a slot, slots to reorder, files to import
+$('llist').addEventListener('dragstart', e => {
+  const row = e.target.closest('.prow'); if (!row || busy) return e.preventDefault(); const p = lview[+row.dataset.k];
+  // No redraw here: replacing the row being dragged would cancel the drag.
+  if (!lsel.has(p.id)) { lsel.clear(); lsel.add(p.id); for (const r of document.querySelectorAll('#llist .prow.sel')) r.classList.remove('sel'); row.classList.add('sel'); }
+  drag = 'lib'; e.dataTransfer.setData('text/plain', 'sy1'); e.dataTransfer.effectAllowed = 'copy';
+});
+$('dlist').addEventListener('dragstart', e => {
+  const row = e.target.closest('.prow'), it = row && slots[dview[+row.dataset.k]]; if (!it || busy || legacy) return e.preventDefault();
+  if (!dsel.has(it.uid)) { dsel.clear(); dsel.add(it.uid); }
+  drag = 'dev'; e.dataTransfer.setData('text/plain', 'sy1'); e.dataTransfer.effectAllowed = 'move';
+});
+let mark = null; const unmark = () => { if (mark) mark.classList.remove('dropat'); mark = null; };
+const dropSlot = e => { const row = e.target.closest('#dlist .prow'), cell = e.target.closest('#map i'); return row ? [dview[+row.dataset.k], row] : cell ? [+cell.dataset.s, cell] : null; };
+for (const el of [$('dlist'), $('map')]) {
+  el.addEventListener('dragover', e => { if (!drag) return; e.preventDefault(); e.stopPropagation(); const d = dropSlot(e); if (d && d[1] !== mark) { unmark(); mark = d[1]; mark.classList.add('dropat'); } });
+  el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) unmark(); });
+  el.addEventListener('drop', e => {
+    if (!drag) return; e.preventDefault(); e.stopPropagation(); const d = dropSlot(e), target = d ? d[0] : Math.min(SLOTS - 1, lastUsed() + 1); unmark();
+    if (drag === 'lib') { const items = fromLibrary(selectedEntries()); if (items.length && commit(insertAt(slots, target, items, [], !legacy))) { lsel.clear(); refresh(); } }
+    else { const ss = selectedSlots(); commit(insertAt(slots, target, ss.map(s => slots[s]), ss)); }
+    drag = null;
+  });
 }
-showQueue();catalogue();
+document.addEventListener('dragend', () => { drag = null; unmark(); });
+const hasFiles = e => !drag && [...(e.dataTransfer?.types || [])].includes('Files');
+document.body.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+document.body.addEventListener('drop', async e => {
+  if (!hasFiles(e)) return; e.preventDefault();
+  const es = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry?.()).filter(Boolean); if (!es.length) return addFiles(e.dataTransfer.files);
+  const files = []; try { for (const en of es) await entryFiles(en, files); await addFiles(files); } catch (err) { note(err.message); }
+});
+$('pick').onclick = () => $('files').click(); $('pickdir').onclick = () => $('dir').click();
+for (const id of ['files', 'dir']) $(id).onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, select, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  const mod = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
+  if (e.key === '/') { e.preventDefault(); ($('pm').dataset.tab === 'dev' ? $('dq') : $('search')).focus(); }
+  else if (mod && key === 'z') { e.preventDefault(); $('undo').click(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && dsel.size && $('dev').contains(document.activeElement)) { e.preventDefault(); $('remove').click(); }
+  else if (e.key === 'Escape') { lsel.clear(); dsel.clear(); refresh(); }
+  else if (mod && key === 'a' && $('pm').contains(document.activeElement)) { e.preventDefault();
+    if ($('dev').contains(document.activeElement)) { for (const u of devKeys()) if (u != null) dsel.add(u); filterDev(); } else { for (const p of lview) lsel.add(p.id); filterLib(); } }
+});
+function tab(t) { $('pm').dataset.tab = t; $('tab-lib').setAttribute('aria-pressed', t === 'lib'); $('tab-dev').setAttribute('aria-pressed', t === 'dev'); drawLib(); drawDev(); }
+$('tab-lib').onclick = () => tab('lib'); $('tab-dev').onclick = () => tab('dev');
+addEventListener('resize', () => { drawLib(); drawDev(); });
+addEventListener('beforeunload', e => { if (changes(base, slots).total && output) e.preventDefault(); });
+
+drawSets(); setConnected(); refresh(); catalogue();

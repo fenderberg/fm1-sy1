@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+**The Patch Manager becomes a librarian for the FM-1's 1,024 user slots.**
+
+- Two panes: the library on the left, **My FM-1** on the right, with a map of all 1,024 slots coloured by
+  character. Add sounds by drag or button, drag slots to reorder, rename, set a character, remove, close
+  gaps, sort A–Z, group by character or bank.
+- Every edit is staged in the browser with undo. The sync bar lists what will change; **Sync** writes only
+  the changed slots, each acknowledged, and can be stopped or retried. Removing patches asks first.
+- **Sets** save whole layouts in the browser, with file export and import, and an automatic backup of the
+  old layout before a sync that moves, changes or removes patches.
+- Preview plays inside the page through a hidden browser synth instead of a new tab; arrow keys and Space
+  audition quickly. The library shows which sounds are already on the FM-1 and in which slot.
+- Firmware: new read-only SysEx command `07` returns a slot's whole record in two parts, so the manager can
+  move and back up any patch, including ones saved on the FM-1. The manager detects an FM-1 without it
+  (0.3.1 and earlier) and then only adds and removes.
+
+Validation so far: library, record and layout checks in `host/library_test.mjs`; the manager in Chrome
+against a simulated FM-1 (`host/manager_browser_test.mjs`). **Not yet done:** the firmware change and its
+new check in `host/app_test.c` have not been compiled or run, and nothing was tested on a physical FM-1.
+
 ## 0.3.1 — 2026-11-16
 
 - Assign SY1 its own project prefix 51: package and full USB identity **FM-1_51000301**, replacing the prefix 47 range already used by FRASIL. The fm1-base submodule is unchanged.

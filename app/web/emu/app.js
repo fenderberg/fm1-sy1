@@ -247,6 +247,26 @@ async function eraseAll() {
   say(a && a[6] === 0 ? "All loaded patches erased." : "The FM-1 did not answer the erase.");
 }
 
+// A patch from the Patch Manager's page (this one in its hidden frame): into slot 1 of the browser's own emulated
+// flash, selected, then a short phrase. One at a time; a newer one cuts the phrase of the one before.
+let auditions = Promise.resolve(), phrase = 0;
+async function audition(name, bytes) {
+  const patch = parseSy1(bytes), run = ++phrase;
+  if (!patch.lines) throw new Error("Invalid preview patch.");
+  const answer = await ask(frameFor(patch, 0), 0x41);
+  if (!answer || answer[8] !== 0) throw new Error("The browser synth did not confirm the preview.");
+  midi.toDevice([0xc0, 8]);
+  say(`Preview: ${name}.`);
+  (async () => {
+    for (const note of [48, 55, 60, 64]) {
+      if (run !== phrase) return;
+      midi.toDevice([0x90, note, 92]);
+      await new Promise((r) => setTimeout(r, 350));
+      midi.toDevice([0x80, note, 0]);
+    }
+  })();
+}
+
 function el(tag, attrs = {}, text = "") {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -307,6 +327,16 @@ export async function attach(ctx) {
     if (n !== null) {
       ui.first.value = String(Math.min(n + 1, SLOTS));
       if (n) say(`${n} slot${n === 1 ? "" : "s"} in use on this FM-1.`);
+    }
+    if (window.parent !== window) {      // inside the Patch Manager: it sends the patches to audition
+      window.addEventListener("message", (e) => {
+        if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.sy1 !== "preview") return;
+        const { id, name, bytes } = e.data;
+        auditions = auditions.then(() => audition(name, bytes))
+          .then(() => ({ ok: true }), (error) => ({ ok: false, error: error.message }))
+          .then((answer) => window.parent.postMessage({ sy1: "previewed", id, ...answer }, location.origin));
+      });
+      window.parent.postMessage({ sy1: "ready" }, location.origin);
     }
     const key = new URLSearchParams(location.search).get("preview");
     if (!key || !/^sy1-preview-[a-f0-9-]+$/.test(key)) return;

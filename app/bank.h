@@ -9,10 +9,13 @@
  * SysEx, both ways, F0 7D 53 59 31 <cmd> ... F7 (7D: the non-commercial ID; "SY1"):
  *   01 <slot lo7> <slot hi7> <7-bit packed bytes 0..225 of the record>   write a slot  -> 41 <lo7> <hi7> <0 ok>
  *   02                                                                   erase all     -> 42 <0 ok>
- *   03                                                                   how many?     -> 43 <count lo7> <hi7> <slots lo7> <hi7>
+ *   03                                                                   how many?     -> 43 <count lo7> <hi7> <slots lo7> <hi7> <features>
+ *     (features, from 0.3.2: bit 0 = command 07 below. Older ones send none, and must not get 07: they do not know it)
  *   04 <slot lo7> <slot hi7>                                             a slot's name -> 44 <lo7> <hi7> <1 used> <name, ASCII>
  *   05 <slot lo7> <slot hi7>                                             empty a slot  -> 45 <lo7> <hi7> <0 ok>
  *   06 <offset lo7> <mid7> <hi7>                            bundled credits (read only) -> 46 <offset, 3 bytes> <up to 96 bytes as high/low nibbles>
+ *   07 <slot lo7> <slot hi7> <part 0|1>            a slot's record, to move or back up -> 47 <lo7> <hi7> <part> <1 used> <7-bit packed bytes:
+ *                                                                                          part 0: 0..118, part 1: 119..225; none if empty>
  * 7-bit packing: each 7 bytes as 8, first the 7 top bits (bit 0 = the first byte's), then the 7 low parts. */
 #pragma once
 #include "s1_patch.h"
@@ -23,6 +26,7 @@
 #define BANK_BASE PLAT_DATA_LO
 #define BANK_USED 0xA5u
 #define BANK_PAYLOAD 226u                /* the record's bytes that travel */
+#define BANK_PART 119u                   /* a read's first part (17 groups of 7); the rest is the second */
 _Static_assert(BANK_BASE + BANK_SLOTS * BANK_REC <= 0xDC000u, "the bank must stay under the store's objects");
 
 /* ---------------------------------------------------------------- built in --- */

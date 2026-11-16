@@ -26,6 +26,8 @@ def navigation(current, up):
     for route, label in PAGES:
         href = up + (route + "/" if route else "") or "./"
         active = ' aria-current="page"' if route == current.split("/")[0] else ""
+        if route == "manager" and not active:    # the manager is an app: it gets its own tab
+            active = ' target="_blank" rel="noopener"'
         links.append(f'<a href="{href}"{active}><span class="nav-led" aria-hidden="true"></span>{label}</a>')
     links.append(f'<a href="{SOURCE}" class="source-link">Source <span aria-hidden="true">↗</span></a>')
     return ('<a class="site-skip" href="#content">Skip to content</a>\n'
@@ -50,8 +52,6 @@ def decorate(document, current, version):
     elif current == "install":
         document = document.replace('<main>', '<main><p class="factory-note">Includes 500 community presets in program flash, plus 1,024 separate user slots. '
                                     '<a href="../library/factory500-credits.txt">Included preset credits and terms</a>.</p>', 1)
-    elif current == "manager":
-        document = document.replace('<header>', '<header class="page-heading">', 1)
     document = document.replace('</head>', f'<link rel="stylesheet" href="{up}assets/site.css">\n</head>', 1)
     document = document.replace('<body>', f'<body data-site-page="{current or "home"}">\n' + navigation(current, up), 1)
     # A single, predictable skip-link destination on every page.

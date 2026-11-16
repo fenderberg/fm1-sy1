@@ -875,7 +875,7 @@ static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n da
 
 int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0 and F7 (bank.h) */
 {
-    uint8_t d[4];
+    uint8_t d[5];
     if (n < 5u || p[0] != 0x7Du || p[1] != 0x53u || p[2] != 0x59u || p[3] != 0x31u)
         return 0;
     if (p[4] == 0x01u && n >= 7u) {          /* write a slot */
@@ -960,12 +960,36 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
             frame[at++]=byte>>4;frame[at++]=byte&15u;
         }
         frame[at++]=0xF7;plat_sysex_send(frame,at);return 1;
+    } else if (p[4] == 0x07u && n >= 8u) {   /* a slot's whole record, in two parts: read only */
+        const uint32_t slot = p[5] | (uint32_t)p[6] << 7;
+        const uint32_t from = p[7] ? BANK_PART : 0u, to = p[7] ? BANK_PAYLOAD : BANK_PART;
+        const uint8_t *r = bank_rec(slot);
+        const int used = bank_used(slot);
+        uint8_t f[10u + (BANK_PART + 6u) / 7u * 8u + 1u];
+        uint32_t k = 0, i, j;
+        f[k++] = 0xF0; f[k++] = 0x7D; f[k++] = 0x53; f[k++] = 0x59; f[k++] = 0x31; f[k++] = 0x47;
+        f[k++] = p[5] & 0x7Fu;
+        f[k++] = p[6] & 0x7Fu;
+        f[k++] = p[7] ? 1u : 0u;
+        f[k++] = (uint8_t)used;
+        for (i = from; used && i < to; i += 7u) {   /* 7 bytes as 8, as they came in; the last group padded */
+            uint8_t top = 0;
+            for (j = 0; j < 7u && i + j < to; j++)
+                top |= (uint8_t)((r[i + j] >> 7) << j);
+            f[k++] = top;
+            for (j = 0; j < 7u; j++)
+                f[k++] = i + j < to ? r[i + j] & 0x7Fu : 0u;
+        }
+        f[k++] = 0xF7;
+        plat_sysex_send(f, k);
+        return 1;                            /* (nothing changed: no redraw) */
     } else if (p[4] == 0x03u) {              /* user slots only; built-ins consume none of these */
         d[0] = (uint8_t)(bank_count & 0x7Fu);
         d[1] = (uint8_t)(bank_count >> 7);
         d[2] = (uint8_t)(BANK_SLOTS & 0x7Fu);
         d[3] = (uint8_t)(BANK_SLOTS >> 7);
-        sysex_reply(0x43, d, 4);
+        d[4] = 1u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read) */
+        sysex_reply(0x43, d, 5);
     } else
         return 0;
     ui.redraw = UX_ALL;

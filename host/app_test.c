@@ -649,7 +649,8 @@ int main(void)
     CHECK(sysex_n == 10 && sysex_last[5] == 0x41 && sysex_last[6] == 4 && sysex_last[8] == 0, "write not acknowledged");
     CHECK(bank_count == 5, "bank count %u after slot 5", (unsigned)bank_count);
     send_sysex(ask, sizeof ask);
-    CHECK(sysex_last[5] == 0x43 && sysex_last[6] == 5 && (sysex_last[8] | sysex_last[9] << 7) == 1024, "count answer");
+    CHECK(sysex_last[5] == 0x43 && sysex_last[6] == 5 && (sysex_last[8] | sysex_last[9] << 7) == 1024 &&
+          sysex_n == 12 && (sysex_last[10] & 1u), "count answer, with the record read announced");
     turn(EN_PRESET, -1);                 /* from built-in 4 down ... */
     patch_select(NFACT + 4);
     run(1400);                           /* (the name of the patch before leaves the header) */
@@ -689,6 +690,27 @@ int main(void)
               sysex_last[17] == 0xF7, "slot 5's name");
         send_sysex(name5, sizeof name5);
         CHECK(sysex_last[5] == 0x44 && sysex_last[8] == 0 && sysex_last[9] == 0xF7, "an empty slot's name");
+        {   /* a slot's whole record read back in two parts, byte for byte; an empty slot answers without one */
+            uint8_t part0[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x07, 4, 0, 0, 0xF7}, part1[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x07, 4, 0, 1, 0xF7};
+            uint8_t none[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x07, 5, 0, 0, 0xF7}, back[BANK_PAYLOAD];
+            uint32_t got = 0, g, b, before = ev_w;
+            send_sysex(part0, sizeof part0);
+            CHECK(sysex_n == 10u + 17u * 8u + 1u && sysex_last[5] == 0x47 && sysex_last[6] == 4 && sysex_last[8] == 0 &&
+                  sysex_last[9] == 1 && sysex_last[sysex_n - 1u] == 0xF7, "record part 0: %u bytes", (unsigned)sysex_n);
+            for (g = 10u; g + 8u < sysex_n && got < BANK_PART; g += 8u)
+                for (b = 0; b < 7u && got < BANK_PART; b++)
+                    back[got++] = (uint8_t)(sysex_last[g + 1u + b] | ((sysex_last[g] >> b & 1u) << 7));
+            send_sysex(part1, sizeof part1);
+            CHECK(sysex_n == 10u + 16u * 8u + 1u && sysex_last[5] == 0x47 && sysex_last[8] == 1 && sysex_last[9] == 1,
+                  "record part 1: %u bytes", (unsigned)sysex_n);
+            for (g = 10u; g + 8u < sysex_n && got < BANK_PAYLOAD; g += 8u)
+                for (b = 0; b < 7u && got < BANK_PAYLOAD; b++)
+                    back[got++] = (uint8_t)(sysex_last[g + 1u + b] | ((sysex_last[g] >> b & 1u) << 7));
+            CHECK(got == BANK_PAYLOAD && !memcmp(back, bank_rec(4), BANK_PAYLOAD), "slot 5's record did not read back whole");
+            send_sysex(none, sizeof none);
+            CHECK(sysex_n == 11 && sysex_last[5] == 0x47 && sysex_last[6] == 5 && sysex_last[9] == 0, "an empty slot's record");
+            CHECK(ev_w == before, "reading a record disturbed the sound");
+        }
         send_sysex(del6, sizeof del6);
         CHECK(sysex_last[5] == 0x45 && sysex_last[8] == 0 && !bank_used(6) && bank_used(4) && bank_count == 5, "slot 7 emptied");
         strcpy(p.name, "Second");

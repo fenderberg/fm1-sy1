@@ -145,28 +145,53 @@ seven. When the processor runs out of time, SY1 lowers it by one and says CPU FU
 
 ## 5. Loading your own patches
 
-The Patch Manager on SY1's website includes **3,174 community sounds in 27 banks**. Search by name,
-filter by bank or suggested sound character, and mark favourites. Character is inferred from names,
-so it is a starting point rather than a guarantee. Select individual sounds or all the filtered sounds.
-Click **Play** beside a sound, switch on the browser synth, and use its keyboard or preview phrase to
-hear it before loading hardware. Preview uses the separate emulator and stores the sound in its first
-imported slot; it never sends patches to USB hardware.
+The Patch Manager on SY1's website has two halves: the **Library** on the left, with **3,174 community
+sounds in 27 banks**, and **My FM-1** on the right, with your 1,024 user slots. Everything you do there is
+staged in the browser first. Nothing reaches the FM-1 until you press **Sync**.
 
-To bring your own collection, use **Import your banks**, choose a folder, or drop `.sy1` files and ZIPs.
-ZIPs containing other bank ZIPs work too. Even the complete supplied collection (175 banks / 16,698 patch
-entries) can be browsed locally. Select a bank or narrow the search before selecting sounds: the FM-1
-holds **1,024 imported patches**, in addition to the 500 community factory presets and eight original built-in patches. Imports remain in this tab
-until it is closed or reloaded; favourite IDs are remembered in this browser. Imported files are not uploaded.
+**Finding sounds.** Search by name or bank, pick a bank, and narrow by character with the coloured chips
+(the counts follow your search). Character is inferred from names, so it is a starting point rather than a
+guarantee. **★ Favourites** are remembered in this browser; **Not on my FM-1** hides what you already have,
+and a green slot number beside a sound shows where it already lives. Click **▶** to hear a sound: the
+browser synth switches on inside the page and plays a short phrase. With the list focused, **↑ ↓** move
+through it and **Space** plays. Preview uses the separate emulator; it never sends patches to USB hardware.
 
-Connect the FM-1 by USB, open the manager in Chrome or Edge, press **Connect**, and allow MIDI with SysEx.
-The manager reads existing slots and names. **Add after my last patch** is the default destination.
-**Choose a starting slot** lets you replace patches; the manager shows the overlap and asks before replacing
-occupied slots. A selection must fit in full. Press **Send** to transfer, with acknowledgement for every
-patch and visible progress. **Stop after this patch** stops between acknowledged writes. Unsent patches
-stay selected for retry. After a lost acknowledgement, reconnect and check the device's slots first.
+To bring your own collection, use **Import**, or drop `.sy1` files, folders and ZIPs on the page. ZIPs
+containing other bank ZIPs work too. Even the complete supplied collection (175 banks / 16,698 patch
+entries) can be browsed locally. Imports remain in this tab until it is closed or reloaded and are not
+uploaded.
 
-**On your FM-1** lists existing patches and offers individual removal. Erasing all imported patches requires
-confirmation; the built-in patches stay. Turn PRESETS past the built-in patches to play imported sounds.
+**Connecting.** Connect the FM-1 by USB, open the manager in Chrome or Edge, press **Connect**, and allow
+MIDI with SysEx. The manager reads every user slot whole, so it can move a patch you made on the FM-1 as
+easily as one from the library. Sounds you added before connecting wait, and go after your last patch.
+
+**Arranging your FM-1.** The map shows all 1,024 slots, one square each, coloured by character; click a
+square to jump to that slot. In the list below it you can:
+
+- drag sounds from the library onto a slot, or select them and press **Add to FM-1**;
+- drag slots to reorder them (later patches move down into the next gap), or select some and use **Move to slot**;
+- double-click a name to rename it (23 characters), and choose its character, which the FM-1 uses for
+  category browsing;
+- remove patches with **✕**, **Delete**, or **Arrange → Remove everything**;
+- tidy up with **Arrange**: close gaps, group by character, sort A–Z or group by bank.
+
+Shift-click and Ctrl-click select several; Ctrl+A selects all, Ctrl+Z undoes, `/` jumps to the search box.
+**Show empty slots** and **Changes only** filter the list.
+
+**Syncing.** The bar at the bottom says what will change: added, moved, edited and removed patches, and how
+many slots will be written. **Undo** and **Discard all** cost nothing, because the FM-1 has not been touched
+yet. **Sync** writes slot by slot, each acknowledged, with progress; **Stop** stops between acknowledged
+writes and leaves the rest staged. Removing patches asks for confirmation first. If a slot is not
+confirmed, press **Read again** before retrying. The 500 factory presets and the eight original sounds are
+never affected. Turn PRESETS past the built-in patches to play your slots.
+
+**Sets.** A set is a saved layout of all your slots, kept in this browser: one for the stage, one for the
+studio. Load a set to stage it, then sync. Before a sync that moves, changes or removes patches, the manager
+saves the old layout as **Auto-backup before last sync**. Export a set as a file to keep a backup outside
+the browser, and import it again later.
+
+An FM-1 running SY1 0.3.1 or earlier can only report patch names. The manager then still adds and removes
+sounds, but reordering, renaming, Arrange and Sets need a newer SY1.
 
 The collection comes from [Internet Archive](https://archive.org/details/synth1_202202); its metadata credits
 the compilation to techno-addicts. Our count of the supplied ZIP is 175 banks / 16,698 patch entries.

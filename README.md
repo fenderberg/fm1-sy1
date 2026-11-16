@@ -13,7 +13,7 @@ Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
 
-**Find a sound first:** the [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) includes **3,174 presets in 27 community banks**. Search names, filter banks and sound categories, save favourites, preview in the browser, then load a selection over USB. It also imports your own `.sy1` files, folders, bank ZIPs and ZIP collections containing bank ZIPs, entirely locally.
+**Find a sound first:** the [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) includes **3,174 presets in 27 community banks**. Search names, filter banks and sound categories, save favourites and preview in the page. Then arrange your FM-1's 1,024 slots like a set list: drag sounds in, reorder, rename, sort, tidy up, and sync the result over USB in one go. It also imports your own `.sy1` files, folders, bank ZIPs and ZIP collections containing bank ZIPs, entirely locally.
 
 <img src="docs/img/screen-play.png" width="240" alt="NORD: red strip, ivory text, Warm Pad"> <img src="docs/img/screen-green-play.png" width="240" alt="GREEN LED: green letters and segment numerals on black"> <img src="docs/img/screen-lcd-play.png" width="240" alt="GREEN LCD: dark letters and graphs on green">
 
@@ -38,7 +38,7 @@ The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.3.1 uses its
 | Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
 | Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. The second core is not used yet |
 | Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
-| Patch library and hardware manager | 3,174 hosted patches; local nested-ZIP import; search, favourites, browser preview and acknowledged USB transfer |
+| Patch library and hardware manager | 3,174 hosted patches; local nested-ZIP import; search, favourites, in-page preview; staged slot editing (add, move, rename, sort, sets) with acknowledged USB sync |
 
 ## Try it in the browser
 
@@ -80,6 +80,8 @@ Optional browser integration QA, with Playwright already installed and the compl
 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs SY1_TEST_COLLECTION=/path/to/zipbank.zip node host/manager_browser_test.mjs
 ```
 
+With `playwright-core` instead, add `SY1_TEST_CHANNEL=chrome` (or `msedge`) to drive an installed browser.
+
 It uses a simulated MIDI device and never writes to physical hardware. `SY1_TEST_URL` defaults to
 `http://127.0.0.1:8473`; omit `SY1_TEST_COLLECTION` to skip the external full-collection import check.
 
@@ -89,11 +91,13 @@ the FM-1 runs it.
 ## Patches on the FM-1
 
 The [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) works without hardware for browsing,
-local import and browser previews. Choose a bank or narrow the search, select individual sounds or all
-filtered sounds, then connect an FM-1 running SY1 in Chrome or Edge (allow MIDI with SysEx). The default
-destination adds after the last imported patch. Manual placement shows and confirms occupied-slot
-replacement. Selections must fit completely; unsent patches remain selected after Stop or a failure.
-The FM-1 holds 1,024 imported patches at a time, in addition to 500 community factory presets and eight original built-in patches.
+local import and in-page previews. Connect an FM-1 running SY1 in Chrome or Edge (allow MIDI with SysEx) and
+it reads all 1,024 user slots. Add sounds from the library, drag slots to reorder them, rename them, set
+their character, sort or close gaps, and save whole layouts as sets. Every edit is staged in the browser and
+can be undone; **Sync** then writes only the slots that changed, each acknowledged by the FM-1. Reading whole
+slots back uses SysEx command `07` (`app/bank.h`); an FM-1 on 0.3.1 or earlier reports names only, so the
+manager limits itself to adding and removing there.
+The FM-1 holds 1,024 user patches at a time, in addition to 500 community factory presets and eight original built-in patches.
 
 The supplied `zipbank.zip` matches the file in the [Internet Archive Synth1 collection](https://archive.org/details/synth1_202202),
 whose metadata credits the compilation to **techno-addicts**. Our inventory found 175 banks / 16,698 patch
