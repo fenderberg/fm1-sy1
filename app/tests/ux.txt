@@ -1,0 +1,85 @@
+# Saved reference and exact dirty state.
+wait 600
+turn PRESET 1
+wait 1400
+tap SEL
+turn K2 1
+expect dirty 1
+expect ux_focus 1
+turn K2 -1
+expect dirty 0
+expect p19 72
+shot revert-to-saved.png
+
+# Each page remembers its subpage during this session.
+tap SEL
+expect row 1
+tap ENV
+tap SEL
+expect page 2
+expect row 1
+expect ux_focus -1
+shot remembered-filter-row.png
+
+# Diagnostic encoders are read-only, with the raw value of the last edited parameter.
+tap GLO
+turn SELECT 4
+expect row 4
+turn K1 1
+turn K2 1
+turn K3 1
+turn K4 1
+expect dirty 0
+expect p19 72
+shot diagnostics.png
+
+# The plotted point follows the newest voice and disappears after panic.
+tap ENV
+key 7 down
+wait 150
+expect ux_note 60
+expect ux_live >0
+shot envelope-playing.png
+key 11 down
+wait 150
+expect ux_note 64
+shot envelope-new-note.png
+key 7 up
+key 11 up
+tap PLAY
+wait 150
+expect ux_note -1
+expect voices 0
+shot envelope-stopped.png
+
+# Actual LFO phase snapshots, sampled at 80 ms intervals.
+tap LFO
+wait 100
+shot lfo-motion-1.png
+wait 80
+shot lfo-motion-2.png
+wait 80
+shot lfo-motion-3.png
+wait 80
+shot lfo-motion-4.png
+wait 80
+shot lfo-motion-5.png
+wait 80
+shot lfo-motion-6.png
+
+# The tempo source is explicit and returns to internal after clock timeout.
+tap HOME
+clock 48 21
+expect tempo >118
+expect tempo <121
+shot external-clock.png
+wait 2200
+expect tempo 120
+shot internal-clock.png
+
+listen
+tap ENV
+where
+said Warm Pad
+where
+said PAGE ENV

@@ -2,3 +2,5 @@ build/
 app/build/
 app/web/words/
 .DS_Store
+
+__pycache__/

@@ -8,14 +8,17 @@ Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
 
+**Find a sound first:** the [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) includes **3,174 presets in 27 community banks**. Search names, filter banks and sound categories, save favourites, preview in the browser, then load a selection over USB. It also imports your own `.sy1` files, folders, bank ZIPs and ZIP collections containing bank ZIPs, entirely locally.
+
 <img src="docs/img/screen-play.png" width="240" alt="SY1's Play page: the patch Warm Pad with filter and gain values"> <img src="docs/img/screen-filter.png" width="240" alt="SY1's Filter page: type, frequency, resonance and amount">
 
 SY1 is built on [fm1-base](https://github.com/charlesvestal/fm1-base). Its parameter laws (envelope times,
 filter curves, FM index and the rest) are the measurements of the original Synth1 published by
 [oxo_synth2](https://github.com/chab/oxo_synth2) (MIT). See [THIRD_PARTY.md](THIRD_PARTY.md).
 
-SY1 is not affiliated with or endorsed by Daichi Laboratory. It contains nothing of Synth1 itself and ships
-no third-party patches.
+SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
+
+Latest release: [v0.2.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.2.0) · [What changed](CHANGELOG.md)
 
 ## Status: early
 
@@ -28,7 +31,7 @@ no third-party patches.
 | Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
 | Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. The second core is not used yet |
 | Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
-| Loading patches into a real FM-1 | Works with `tools/sy1_send.py` (tried with one patch) |
+| Patch library and hardware manager | 3,174 hosted patches; local nested-ZIP import; search, favourites, browser preview and acknowledged USB transfer |
 
 ## Try it in the browser
 
@@ -47,7 +50,9 @@ below.
 ```sh
 make test          # the engine: maths, tuning, envelopes, the patch reader, 400 random patches
 make test-app      # the app against a stand-in for the FM-1
-make test-web      # the page's patch reader against the C one (node)
+make test-web      # reader against C, nested ZIPs, library integrity and placement (Node >= 22.16)
+make test-site     # website navigation, local links and scripts (needs existing release and browser builds)
+make preview-nord  # the full Nord UX: simulator checks and screenshots of all 31 subpages
 make all           # build/s1render (a patch to a WAV file) and build/sy1pack (patches to a SysEx file)
 
 ./build.sh --host  # fm1-base's simulator, then:
@@ -55,12 +60,41 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
+Build the complete website with `make site VERSION=0.2.0` after building the matching release package and
+browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
+`python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
+The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
+`tools/publish_site.sh VERSION [--push]` builds the firmware, emulator and complete site, and optionally publishes it
+with a normal update to `gh-pages` (no history rewrite).
+
+Optional browser integration QA, with Playwright already installed and the complete site served locally:
+
+```sh
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs SY1_TEST_COLLECTION=/path/to/zipbank.zip node host/manager_browser_test.mjs
+```
+
+It uses a simulated MIDI device and never writes to physical hardware. `SY1_TEST_URL` defaults to
+`http://127.0.0.1:8473`; omit `SY1_TEST_COLLECTION` to skip the external full-collection import check.
+
 `build/s1render PATCH.sy1 out.wav -n 48,60,64,67 -hold 2 -tail 2` renders a patch with the engine exactly as
 the FM-1 runs it.
 
 ## Patches on the FM-1
 
-With the FM-1 running SY1 connected over USB:
+The [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) works without hardware for browsing,
+local import and browser previews. Choose a bank or narrow the search, select individual sounds or all
+filtered sounds, then connect an FM-1 running SY1 in Chrome or Edge (allow MIDI with SysEx). The default
+destination adds after the last imported patch. Manual placement shows and confirms occupied-slot
+replacement. Selections must fit completely; unsent patches remain selected after Stop or a failure.
+The FM-1 holds 1,024 imported patches at a time, in addition to its eight built-in patches.
+
+The supplied `zipbank.zip` was verified with 175 banks / 16,698 patch entries (16,376 byte-unique).
+Import the full collection locally and browse it a bank at a time. Only the 27 banks with explicit
+redistribution grants in their original notes are publicly hosted here; others stay local. Imports last
+for the current tab; favourite IDs are saved in this browser. No imported files are uploaded.
+Original Synth1 presets may sound different in this lighter engine; see the manual's limitations.
+
+For the command-line sender, with the FM-1 running SY1 connected over USB:
 
 ```sh
 make all                                     # once: builds build/sy1pack
@@ -95,6 +129,12 @@ PRESETS past `P08` to reach them.
 MIDI in over USB and TRS: notes, pitch bend, the wheel and other controllers (as the patch routes them),
 sustain pedal, aftertouch, program change (the patch) and MIDI clock (the tempo of the arpeggiator, the delay
 and tempo-synced LFOs).
+
+The firmware, host simulator and browser emulator share the Nord-style screen: a fixed patch header, red
+subpage strip, sound diagram, four encoder columns and a permanent playing-status footer. Amber shows the
+active control; grey notches show saved values. Pages remember their last subpage during the session.
+Envelope, LFO and arp feedback uses a compact engine snapshot. See the
+[complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
 HOLD replaces the latched chord when you play again after releasing every key. Drone has STACK (add notes;
 play one again to remove it) and REPLACE (new gesture replaces the chord), selected on Arp row 2 or Voice row 4.

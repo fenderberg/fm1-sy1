@@ -28,7 +28,10 @@ banken op weg; handmatig indelen blijft nodig bij namen als "Preset 037". De cat
 Synth1-parameters. Oude patches en bestaande importtools blijven werken.
 
 De ARP- en SEQ-leds tonen hun speelstand, ook op de instellingenpagina. Het scherm toont de actieve
-categorie en ARP/HLD/DRN. Een patchwissel, panic of herstart laat geen hold/drone achter. Automatisch
+categorie en expliciet ARP ON/OFF, HOLD ON/OFF of DRONE STACK/REPLACE. De Nord-achtige schermindeling heeft
+vier vaste encoderkolommen, opgeslagen markeringen, subpaginageheugen en passende grafieken op alle pagina's.
+Envelope-, LFO- en arp-beweging volgt een consistente momentopname uit de engine, maximaal 15 keer per seconde.
+Een patchwissel, panic of herstart laat geen hold/drone achter. Automatisch
 instellingen bewaren wacht tot er geen actieve stemmen zijn. Als een volle eventqueue een note-off zou
 verliezen, stopt de engine de noten. Zonder MIDI-clock keert het interne tempo na twee seconden terug.
 

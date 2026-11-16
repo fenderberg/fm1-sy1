@@ -22,7 +22,7 @@ build/s1test: host/test.c $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -o $@ host/test.c $(ENGINE) -lm
 
-build/apptest: host/app_test.c app/app.c app/app.h app/bank.h app/category.h $(ENGINE) $(HEADERS)
+build/apptest: host/app_test.c app/app.c app/app.h app/bank.h app/category.h $(wildcard app/ui/*.h) $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Wno-unused-function -Wno-unused-parameter -Iapp -I$(BASE)/include -o $@ host/app_test.c $(ENGINE) -lm
 
@@ -40,8 +40,21 @@ test-app: build/apptest
 clean:
 	rm -rf build
 
-.PHONY: all test test-app test-web clean check-float
+.PHONY: all test test-app test-web test-site site preview-nord test-ux clean check-float
 
 # the emulator page's patch reader against the C one (node)
 test-web: build/sy1pack
 	node host/web_loader_test.mjs
+	node host/library_test.mjs
+
+# Build the complete website from an existing release package and browser build.
+VERSION ?= 0.2.0
+site:
+	python3 tools/make_site.py app/build/sy1-$(VERSION).fwsc $(VERSION)
+
+test-site: site
+	python3 host/site_test.py
+
+# Rebuild the shared UI and check/capture all subpages in the real host simulator.
+preview-nord test-ux:
+	python3 tools/ux_review.py

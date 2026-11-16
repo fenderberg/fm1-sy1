@@ -43,5 +43,15 @@ unchanged as the `base/` git submodule. https://github.com/charlesvestal/fm1-bas
 ## Synth1
 
 Synth1 is the work of Daichi Laboratory. This project is not affiliated with or endorsed by Daichi Laboratory,
-contains no Synth1 code, binaries or artwork, and ships no third-party patches. `.sy1` files are read for
-compatibility only.
+contains no Synth1 code, binaries or artwork. `.sy1` files are read for compatibility.
+
+## Community preset banks
+
+`app/site/library/` contains 27 original bank ZIPs (3,174 presets), selected from a user-supplied collection
+where the accompanying notes explicitly allow redistribution. These presets are **separate from the MIT
+source-code license**. Each original ZIP and its readme are preserved unchanged. Some authors prohibit
+selling or including their patches in a paid library. See [bank credits](app/site/library/CREDITS.md),
+[provenance](app/site/library/IMPORT.md), and the complete original notes in the catalogue and ZIPs.
+
+Banks with absent, unclear or restrictive redistribution terms are not hosted. Users may import their
+own full collection locally in the browser; it is not uploaded or redistributed by SY1.

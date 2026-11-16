@@ -6,3 +6,11 @@ ENV	envelopes
 LFO	L F O
 ARP	arpeggiator
 CPU FULL	the processor is full
+CUTOFF	filter cutoff
+D.TAU	decay time constant
+R.TAU	release time constant
+M.TAU	modulation envelope decay time constant
+AMP ENV	amplifier envelope
+FILTER ENV	filter envelope
+INT BPM	internal tempo
+DIAGNOSTIC	diagnostics

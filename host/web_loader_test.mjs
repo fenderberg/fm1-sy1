@@ -1,6 +1,6 @@
 // The emulator page's patch reader (app/web/emu/app.js) against the C one: for a set of patch texts, the frames
 // it makes must be byte for byte what build/sy1pack writes. Also its zip reader.
-//   make test-web      (node 18 or later)
+//   make test-web      (node 22.16 or later: DecompressionStream deflate-raw)
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -99,6 +99,15 @@ check(got.length === 3 && Buffer.from(got[0].bytes).toString("latin1") === texts
 let threw = false;
 await unzipSy1(new Uint8Array(100).buffer).catch(() => { threw = true; });
 check(threw, "a file that is not a zip is refused");
+
+const nested = await unzipSy1(zip([{name:'Collection.zip',data:zip([{name:'Bank.zip',data:z,deflate:true}]),deflate:true}]));
+check(nested.length===3 && nested[0].name==='Collection.zip/Bank.zip/bank/001.sy1','nested banks preserve provenance and bytes');
+async function refuses(bytes,what){let refused=false;try{await unzipSy1(bytes);}catch{refused=true;}check(refused,what);}
+const damaged=Buffer.from(z);damaged.writeUInt32LE(0xffffffff,z.length-6);await refuses(damaged,'bad central directory rejected');
+const encrypted=Buffer.from(z),cd=encrypted.readUInt32LE(encrypted.length-6);encrypted.writeUInt16LE(1,cd+8);await refuses(encrypted,'password-protected ZIP rejected');
+const huge=Buffer.from(z);huge.writeUInt32LE(65*1024*1024,cd+24);await refuses(huge,'oversized expanded archive rejected before allocation');
+const mismatch=Buffer.from(z);mismatch.writeUInt32LE(1,cd+24);await refuses(mismatch,'wrong expanded length rejected');
+let deep=z;for(let i=0;i<6;i++)deep=zip([{name:'nested.zip',data:deep}]);await refuses(deep,'excessive ZIP nesting rejected');
 
 console.log(`web loader: ${checks} checks, ${fails} failed`);
 process.exit(fails ? 1 : 0);

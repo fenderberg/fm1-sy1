@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SY1 · Nord pixelproef A</title>
+<style>
+:root { color-scheme: dark; font: 15px/1.6 system-ui, sans-serif; background: #151718; color: #f3efdf; }
+* { box-sizing: border-box; }
+body { margin: 0; border-top: 4px solid #d83d31; }
+main { max-width: 1160px; margin: auto; padding: 40px 24px 64px; }
+.eyebrow { color: #ffc764; font: 11px/1.5 ui-monospace, monospace; letter-spacing: .12em; }
+h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.1; letter-spacing: -.04em; margin: 15px 0 20px; }
+h2 { margin: 42px 0 20px; font-size: 22px; }
+p { max-width: 75ch; color: #b8b8af; }
+a { color: #ffc764; text-underline-offset: 3px; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 25px 0; }
+button { min-height: 44px; padding: 8px 14px; border: 1px solid #5b5c55; background: #252829; color: #f3efdf; border-radius: 4px; font: inherit; cursor: pointer; }
+button[aria-pressed="true"] { color: #ffc764; border-color: #ffc764; }
+:focus-visible { outline: 3px solid #ffc764; outline-offset: 4px; }
+.toolbar span { color: #b8b8af; font-size: 12px; }
+.screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+figure { margin: 0; padding: 20px; background: #202324; border: 1px solid #3c403e; border-radius: 4px; overflow: auto; }
+figure img { display: block; width: 240px; height: 240px; margin: 0 auto; image-rendering: pixelated; }
+figcaption { color: #b8b8af; font-size: 12px; margin-top: 18px; max-width: 42ch; }
+figcaption strong { display: block; color: #f3efdf; font-size: 15px; margin-bottom: 4px; }
+body.zoom .screens { grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); }
+body.zoom figure img { width: 480px; height: 480px; }
+.note { padding: 15px 20px; border-left: 3px solid #d83d31; background: #232626; margin-top: 35px; }
+@media (max-width: 400px) { main { padding-inline: 16px; } figure { padding: 14px; } }
+</style>
+</head>
+<body>
+<main>
+<p class="eyebrow">SY1 / NORD UX / STAP A</p>
+<h1>Drie schermen. Vier encoders.</h1>
+<p class="note">Dit is de oorspronkelijke pixelproef A. <a href="../nord-redesign/index.html">Bekijk het volledige redesign met alle 31 subpagina’s.</a></p>
+<p>Echte schermuitvoer van de hostsimulator met de bestaande firmwarefonts en parameterkoppelingen.
+Elke afbeelding is 240 × 240 pixels. Amber volgt de laatst bediende encoder; de grafiek toont schematisch de instelling.</p>
+<div class="toolbar" aria-label="Weergavegrootte">
+  <button type="button" id="native" aria-pressed="true">1× · 240 pixels</button>
+  <button type="button" id="zoom" aria-pressed="false">2× · pixels bekijken</button>
+  <span>1× toont de oorspronkelijke resolutie; de fysieke grootte hangt af van je scherm.</span>
+</div>
+<div class="screens">
+  <figure><a href="01-home.png"><img src="01-home.png" width="240" height="240" alt="HOME met Warm Pad, filterdiagram en cutoff, resonance, envelope amount en gain."></a><figcaption><strong>HOME</strong>Patchidentiteit bovenaan, filtervorm in het midden en de bestaande vier speelparameters onderaan.</figcaption></figure>
+  <figure><a href="02-filter-edit.png"><img src="02-filter-edit.png" width="240" height="240" alt="Filterpagina met cutoff 73 en de tweede encoder in amber."></a><figcaption><strong>Filter · cutoff bewerken</strong>De tweede kolom en filtervorm kleuren amber. EDIT blijft herkenbaar naast de patchgegevens.</figcaption></figure>
+  <figure><a href="06-envelope-attack.png"><img src="06-envelope-attack.png" width="240" height="240" alt="AMP Envelope met attack 85; de eerste kolom en attacklijn zijn amber."></a><figcaption><strong>AMP Envelope · attack</strong>De actieve parameter en het bijbehorende ADSR-segment lichten samen op.</figcaption></figure>
+</div>
+<h2>Tijdens het spelen</h2>
+<div class="screens">
+  <figure><a href="04-filter-saved.png"><img src="04-filter-saved.png" width="240" height="240" alt="Filter na opslaan, met SAVED 001 in de modulestrook en Warm Pad nog zichtbaar."></a><figcaption><strong>Opgeslagen</strong>SAVED 001 verschijnt in de rode strook. De patchnaam en vier waarden blijven zichtbaar.</figcaption></figure>
+  <figure><a href="08-home-hold.png"><img src="08-home-hold.png" width="240" height="240" alt="HOME tijdens arpeggiator Hold; de statusregel toont ARP ON en HOLD ON."></a><figcaption><strong>ARP + Hold</strong>De speelstand heeft een vaste plek onderaan en blijft amber zolang hij actief is.</figcaption></figure>
+  <figure><a href="09-home-drone.png"><img src="09-home-drone.png" width="240" height="240" alt="HOME met DRONE STACK onderaan."></a><figcaption><strong>Drone</strong>ARP uitschakelen bij een vastgehouden akkoord laat de bestaande Drone-stand zien.</figcaption></figure>
+</div>
+<h2>Andere standen en uitersten</h2>
+<div class="screens">
+  <figure><img src="03-filter-resonance.png" width="240" height="240" alt="Filter met resonance als actieve derde encoder."><figcaption><strong>Resonance</strong>Focus volgt de derde encoder.</figcaption></figure>
+  <figure><img src="05-envelope.png" width="240" height="240" alt="Envelope zonder actieve encoder."><figcaption><strong>Nieuwe pagina</strong>Geen automatische encoderfocus bij openen.</figcaption></figure>
+  <figure><img src="07-envelope-release.png" width="240" height="240" alt="Envelope met release als actieve vierde encoder."><figcaption><strong>Release</strong>Vierde kolom en laatste segment reageren samen.</figcaption></figure>
+  <figure><img src="10-home-limit.png" width="240" height="240" alt="Cutoff op de maximale waarde 127."><figcaption><strong>Maximale waarde</strong>De kolom reageert ook wanneer de grens bereikt is.</figcaption></figure>
+  <figure><img src="11-home-minimum.png" width="240" height="240" alt="Cutoff op de minimale waarde nul."><figcaption><strong>Minimale waarde</strong>Waarde, balk en filtermarkering passen binnen het scherm.</figcaption></figure>
+  <figure><img src="12-envelope-extremes.png" width="240" height="240" alt="Envelope met hoge attack, decay en release en lage sustain."><figcaption><strong>ADSR-uitersten</strong>De schematische segmenten blijven op het kleine scherm leesbaar.</figcaption></figure>
+  <figure><img src="13-long-name.png" width="240" height="240" alt="Geïmporteerde patch met een zeer lange naam van brede W-tekens, ingekort met drie punten."><figcaption><strong>Lange patchnaam</strong>Een echt geïmporteerde naam wordt op fontbreedte ingekort, met ellipsis.</figcaption></figure>
+  <figure><img src="14-high-pass.png" width="240" height="240" alt="HP12-filter met een hoogdoorlaatdiagram."><figcaption><strong>Hoogdoorlaat</strong>Filtertype en schematische vorm veranderen samen.</figcaption></figure>
+  <figure><img src="15-band-pass.png" width="240" height="240" alt="BP12-filter met een banddoorlaatdiagram."><figcaption><strong>Banddoorlaat</strong>Een eigen schematische vorm.</figcaption></figure>
+  <figure><img src="16-ladder.png" width="240" height="240" alt="LPDL-filter met het bestaande laagdoorlaatschema."><figcaption><strong>LPDL</strong>Volgt de bestaande filterbenadering in de engine.</figcaption></figure>
+</div>
+<p class="note">Deze proef draait uitsluitend in een aparte hostbuild. Andere subpagina’s gebruiken nog de bestaande interface.
+De grafieken zijn instellingenbeelden; fase-animatie, opgeslagen referentiemarkeringen en fysieke eenheden volgen in latere stappen.</p>
+<p><a href="../../UX-NORD-PLAN.md">Het volledige UX-plan</a> · <a href="README.md">Bouwen en validatie</a></p>
+</main>
+<script>
+for (const id of ['native', 'zoom']) document.getElementById(id).addEventListener('click', () => {
+  document.body.classList.toggle('zoom', id === 'zoom');
+  for (const choice of ['native', 'zoom']) document.getElementById(choice).setAttribute('aria-pressed', String(choice === id));
+});
+</script>
+</body>
+</html>

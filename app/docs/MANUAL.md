@@ -3,7 +3,7 @@
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
 how to get patches into the FM-1, and MIDI.
 
-![SY1's Play page: the patch number P02 and its name Warm Pad at the top, two rows of four values, and at the bottom the voices, the processor load, the octave and the tempo](img/screen-play.png)
+![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
 ---
 
@@ -30,14 +30,28 @@ flash, and overwrites what another firmware left there. The installer can put M-
 
 ## 2. The screen
 
-The top shows the patch's number and name, and the page you are on. A patch you have changed says EDITED, and
-SAVE lights.
+The patch number, browsing category and patch name stay at the top. EDIT and the SAVE light mean that the
+patch differs from the saved version. Turning every value and the patch category back to their saved settings
+clears EDIT again. Short save and error messages appear in the red strip without hiding the patch name.
 
-The middle shows the page's rows. Each row has up to four values; the lit row is the one KNOB1 to KNOB4 turn.
+The red strip names the current subpage and its position, such as FILTER / MAIN 1/2. The large diagram below it
+shows that section's settings. Four fixed columns correspond left to right to KNOB1–KNOB4. The last encoder
+you turn lights amber; a small grey notch marks its saved value. A new subpage starts without encoder focus.
+Switches and choices use separate positions; a centred parameter has a centre mark.
 
-The bottom shows the voices sounding and the most allowed, the processor's load, the octave of the keys, the
-tempo (CLOCK while a MIDI clock sets it), and MIDI, which lights when notes come in. Below MIDI, ARP means
-arp running, HLD means arp HOLD, and DRN means Drone. The header shows the browsing category.
+Filter shapes, oscillator waveforms and effect diagrams are schematic setting views. The envelope's moving point
+follows the most recently started voice through its release, the LFO point follows its actual phase/value,
+and the arp shows the current step/note. Random LFOs show recent values. These are not audio oscilloscopes.
+
+Values use meaningful units where the engine supplies a reliable conversion: attack in ms or s, pitch in semitones
+and cents, sustain in percent and LFO speed in Hz or exact fractions of a beat. D.TAU, R.TAU and M.TAU are decay
+and release **time constants**, not the total duration of a note. Pulse width shows the duty of the low part
+(50% at its maximum). Other values keep their Synth1 numbers. GLO's last subpage, DIAGNOSTIC, shows CPU,
+peak CPU, voice-limit events and the raw value of the last edited Synth1 parameter. Its four encoders are read-only.
+
+The bottom always shows active/max voices, octave, tempo and its source: INT for internal, EXT for MIDI clock.
+MIDI lights briefly when a note arrives. The second line explicitly shows ARP ON/OFF, HOLD ON/OFF or
+DRONE / STACK or REPLACE. LIMIT means that the CPU has reduced the voice limit during this session.
 
 ## 3. Patches
 
@@ -68,8 +82,12 @@ MIDI program changes select their original patch number; if necessary the browse
 | Hold ARP 0.5 s | Arp | The arpeggiator: on, type, range, beat, gate, tempo; Drone mode |
 | GLO | Voice | Poly, mono or legato, portamento, bend range, unison, polyphony, pan |
 
-Press a page's button again for its next row (hold again for ARP), or turn SELECT to choose a row. KNOB1 to KNOB4 change the row's
-four values; a fast turn goes further.
+Press a page's button again for its next subpage (hold again for ARP), or turn SELECT to choose one. Each page
+remembers its last subpage during the session. KNOB1 to KNOB4 change the four displayed values; a fast turn goes
+further. This navigation memory is not written to flash. A restart begins on HOME.
+
+The screen reader announces the subpage and the same displayed value/unit when you turn a knob. Read whole
+screen also includes the four controls and the current playing state. Animations do not generate spoken updates.
 
 PLAY silences every note. OCT- and OCT+ move the keys by an octave.
 
@@ -95,13 +113,33 @@ seven. When the processor runs out of time, SY1 lowers it by one and says CPU FU
 
 ## 5. Loading your own patches
 
-Open the Patch Manager on SY1's site in Chrome or Edge, with the FM-1 connected by USB. Press Connect, drop your
-`.sy1` files, folders or `.zip` banks on the page, and send them. The page shows what is on the FM-1 and can
-remove a patch or erase them all.
+The Patch Manager on SY1's website includes **3,174 community sounds in 27 banks**. Search by name,
+filter by bank or suggested sound character, and mark favourites. Character is inferred from names,
+so it is a starting point rather than a guarantee. Select individual sounds or all the filtered sounds.
+Click **Play** beside a sound, switch on the browser synth, and use its keyboard or preview phrase to
+hear it before loading hardware. Preview uses the separate emulator and stores the sound in its first
+imported slot; it never sends patches to USB hardware.
 
-From a command line, `tools/sy1_send.py` in the source does the same.
+To bring your own collection, use **Import your banks**, choose a folder, or drop `.sy1` files and ZIPs.
+ZIPs containing other bank ZIPs work too. Even the complete supplied collection (175 banks / 16,698 patch
+entries) can be browsed locally. Select a bank or narrow the search before selecting sounds: the FM-1
+holds **1,024 imported patches**, in addition to the eight built-in patches. Imports remain in this tab
+until it is closed or reloaded; favourite IDs are remembered in this browser. Imported files are not uploaded.
 
-Patches made with old versions of Synth1 are converted as Synth1 itself converts them.
+Connect the FM-1 by USB, open the manager in Chrome or Edge, press **Connect**, and allow MIDI with SysEx.
+The manager reads existing slots and names. **Add after my last patch** is the default destination.
+**Choose a starting slot** lets you replace patches; the manager shows the overlap and asks before replacing
+occupied slots. A selection must fit in full. Press **Send** to transfer, with acknowledgement for every
+patch and visible progress. **Stop after this patch** stops between acknowledged writes. Unsent patches
+stay selected for retry. After a lost acknowledgement, reconnect and check the device's slots first.
+
+**On your FM-1** lists existing patches and offers individual removal. Erasing all imported patches requires
+confirmation; the built-in patches stay. Turn PRESETS past the built-in patches to play imported sounds.
+
+Each hosted bank keeps its original ZIP, readme, author credits and distribution terms in **About this bank**.
+These presets have their authors' own terms, separately from the code's MIT license. The full supplied
+collection contains banks that restrict redistribution; those can be imported locally but are not hosted.
+Patches from older Synth1 versions are converted as Synth1 itself converts them.
 
 ## 6. MIDI
 

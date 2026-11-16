@@ -4,6 +4,13 @@
 #include "s1_synth.h"
 #include "s1_patch.h"
 #include "bank.h"
+#include "s1_math.h"
+
+static int ux_equal(const char *a, const char *b)
+{
+    while (*a && *a == *b) { a++; b++; }
+    return *a == *b;
+}
 
 #define SR 44100.0f
 #define MAX_VOICES_DEFAULT 8             /* until measured on the FM-1; GLOBAL > VOICES changes it, an overload lowers it */
@@ -40,6 +47,7 @@ static int16_t delay_buf[2u * DELAY_LEN] PLAT_POOL;
 static float chorus_buf[2u * CHORUS_LEN] PLAT_POOL;
 static float buf_l[APP_BLOCK], buf_r[APP_BLOCK];
 static float gain_now;
+#include "ui/live.h"
 
 /* main loop -> audio interrupt: a ring of small events, and a whole patch at a time */
 enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE };
@@ -72,6 +80,10 @@ static void events(void)                 /* audio interrupt */
 {
     if (patch_ready) {
         s1_set_patch(&synth, patch_next);
+        ux_track = -1;
+        ux_track_age = 0;
+        ux_audio_frames = 2940u;
+        ux_render_generation = ux_wanted_generation;
         patch_ready = 0;
     }
     if (ev_overflow) {
@@ -179,6 +191,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         }
         gain_now = gain;
     }
+    ux_publish(n);
 }
 
 void app_panic(void)
@@ -200,12 +213,40 @@ static struct {
     uint8_t arp_down;                   /* tap toggles; hold opens/advances the settings page */
     uint8_t status;
     uint8_t redraw;
+    int8_t ux_focus;
+    uint8_t ux_page, ux_row, ux_rows[8], ux_last_id;
+    uint8_t msg_priority;
+    uint32_t ref_serial;
 } ui;
+
+enum { UX_HEAD = 1, UX_BAR = 2, UX_GRAPH = 4, UX_CELLS = 8, UX_FOOT = 16, UX_ALL = 31 };
+static uint32_t shown_voices, shown_cpu, shown_midi;
+static uint32_t cpu_high, cpu_sheds;
 
 static s1_patch cur;                     /* the patch playing, with the player's edits */
 static uint32_t cur_index;
 static uint8_t cur_dirty, set_dirty;
 static uint8_t cur_category;
+static int32_t saved_values[S1_NPARAMS];
+static uint8_t saved_category;
+static char saved_name[S1_NAME_LEN];
+
+static void patch_reference(void)
+{
+    uint32_t i;
+    for (i = 0; i < S1_NPARAMS; i++) saved_values[i] = cur.values[i];
+    for (i = 0; i < S1_NAME_LEN; i++) saved_name[i] = cur.name[i];
+    saved_category = cur_category;
+    ui.ref_serial++;
+    cur_dirty = 0;
+}
+
+static void refresh_dirty(void)
+{
+    uint32_t i;
+    cur_dirty = cur_category != saved_category || !ux_equal(cur.name, saved_name);
+    for (i = 0; i < S1_NPARAMS && !cur_dirty; i++) cur_dirty = cur.values[i] != saved_values[i];
+}
 
 static uint32_t list_count(void) { return NFACT + bank_count; }
 static int list_has(uint32_t i) { return i < NFACT || bank_used(i - NFACT); }
@@ -227,6 +268,7 @@ static void to_engine(void)
     patch_ready = 0;                     /* the interrupt leaves a half-written patch alone */
     for (i = 0; i < S1_NPARAMS; i++)
         patch_next[i] = cur.values[i];
+    ux_wanted_generation++;
     patch_ready = 1;
 }
 
@@ -244,13 +286,22 @@ static void patch_select(uint32_t i)
         set.category = CAT_ALL;          /* a MIDI program change stays reachable in the browser */
         set_dirty = 1;
     }
-    cur_dirty = 0;
+    patch_reference();
+    ui.ux_focus = -1;
+    ux_live.active = 0;
+    ux_live.stage[0] = ux_live.stage[1] = ux_live.stage[2] = 0;
+    ux_live.sequence = ux_audio.sequence;
+    {
+        uint32_t j;
+        for (j = 0; j < 32; j++) ux_lfo_history[0][j] = ux_lfo_history[1][j] = 0;
+        ux_lfo_position = 0;
+    }
     if (set.patch != i) {
         set.patch = (uint16_t)i;
         set_dirty = 1;
     }
     to_engine();
-    ui.redraw = 1;
+    ui.redraw = UX_ALL;
 }
 
 static void patch_step(int32_t d)        /* to the next patch that exists, d of them on, round the ends */
@@ -294,7 +345,7 @@ static void category_step(int32_t d)
         for (i = 0; i < n && !category_matches(i); i++) {}
         patch_select(i);
     }
-    ui.redraw = 1;
+    ui.redraw = UX_ALL;
 }
 
 /* ---------------------------------------------------------------- strings --- */
@@ -342,7 +393,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_NONE = 255 };
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -395,7 +446,8 @@ static const uint8_t R_VOICE[][4] = {
     {S1P_PLAY_MODE, S1P_PORTA_TIME, S1P_PORTA_AUTO, S1P_BEND_RANGE},
     {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
     {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, S1P_PAN},
-    {X_VOICES, X_TEMPO, X_CATEGORY, X_DRONE}};
+    {X_VOICES, X_TEMPO, X_CATEGORY, X_DRONE},
+    {X_CPU, X_PEAK, X_SHED, X_RAW}};
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
@@ -451,15 +503,33 @@ static const char *cell_name(uint32_t id)
 }
 static int32_t cell_value(uint32_t id)
 {
+    if (id == X_CPU) return (int32_t)shown_cpu;
+    if (id == X_PEAK) return (int32_t)cpu_high;
+    if (id == X_SHED) return (int32_t)cpu_sheds;
+    if (id == X_RAW) return ui.ux_last_id < S1_NPARAMS ? cur.values[ui.ux_last_id] : 0;
     return id == X_TEMPO ? (int32_t)set.tempo : id == X_VOICES ? (int32_t)set.voices :
         id == X_DRONE ? set.drone_replace : id == X_CATEGORY ? cur_category : cur.values[id];
 }
+
+#include "ui/values.h"
 
 /* --------------------------------------------------------------------- UI --- */
 void app_say(const char *a, const char *b)
 {
     uint32_t i;
     char t[48];
+    const uint8_t priority = a && (ux_equal(a, "CPU FULL") || ux_equal(a, "SAVE")) ? 2 :
+        a && (ux_equal(a, "SAVED") || ux_equal(a, "RECEIVED") || ux_equal(a, "REVERT") ||
+              ux_equal(a, "ALL NOTES") || ux_equal(a, "BANK")) ? 1 : 0;
+    /* Speak every event, but don't let a routine parameter update erase a warning. */
+    if (ann_on()) {
+        t[0] = 0;
+        if (a) text_cat(t, a);
+        if (b && b[0]) { text_cat(t, " "); text_cat(t, b); }
+        ann_say(t, 0, ANN_NOW | (priority == 2 ? ANN_KEEP : 0));
+    }
+    if (plat_ms() < ui.msg_until && priority < ui.msg_priority) return;
+    ui.msg_priority = priority;
     for (i = 0; i < 23u && a && a[i]; i++)
         ui.msg[0][i] = a[i];
     ui.msg[0][i] = 0;
@@ -467,16 +537,7 @@ void app_say(const char *a, const char *b)
         ui.msg[1][i] = b[i];
     ui.msg[1][i] = 0;
     ui.msg_until = plat_ms() + 1300u;
-    ui.redraw = 1;
-    if (ann_on()) {
-        t[0] = 0;
-        text_cat(t, ui.msg[0]);
-        if (ui.msg[1][0]) {
-            text_cat(t, " ");
-            text_cat(t, ui.msg[1]);
-        }
-        ann_say(t, 0, ANN_NOW);
-    }
+    ui.redraw |= UX_BAR;
 }
 
 static void say_patch(void)
@@ -486,10 +547,24 @@ static void say_patch(void)
     app_say(t, cur.name);
 }
 
-static void speak(void)                  /* a screen reader that has just started listening hears the screen */
+static const char *ux_row_title(void);
+static const char *ux_play_state(void);
+
+static void say_page(void)
 {
-    char t[96], n[8];
+    char text[40], n[8];
+    text[0] = 0; text_cat(text, ux_row_title()); text_cat(text," ");
+    int_text((int32_t)ui.row+1,n);text_cat(text,n);text_cat(text,"/");
+    int_text(PAGES[ui.page].nrows,n);text_cat(text,n);
+    app_say("PAGE",text);
+}
+
+static void speak(void)                  /* explicit WHERE: identity, subpage, values and playing state */
+{
+    char t[240], n[12], value[32];
     if (ann_on() && ann_where()) {
+        uint32_t c;
+        const char *unit;
         index_text(cur_index, n);
         t[0] = 0;
         text_cat(t, APP_NAME ". PATCH ");
@@ -498,6 +573,16 @@ static void speak(void)                  /* a screen reader that has just starte
         text_cat(t, cur.name);
         text_cat(t, ". PAGE ");
         text_cat(t, PAGES[ui.page].title);
+        ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_row_title());
+        ux_append(t,sizeof t," ");int_text((int32_t)ui.row+1,n);ux_append(t,sizeof t,n);
+        for(c=0;c<4;c++) {
+            const uint32_t id=PAGES[ui.page].rows[ui.row][c];
+            if(id==X_NONE) continue;
+            ux_value(id,cell_value(id),value,&unit);
+            ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_label(id));ux_append(t,sizeof t," ");
+            ux_append(t,sizeof t,value);ux_append(t,sizeof t," ");ux_append(t,sizeof t,unit);
+        }
+        ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_play_state());
         ann_say(t, 0, ANN_NOW);
     }
     ann_tick(plat_ms());
@@ -505,9 +590,10 @@ static void speak(void)                  /* a screen reader that has just starte
 
 static void cell_edit(uint32_t id, int32_t d)
 {
-    char t[12];
+    char t[32];
+    const char *unit;
     int32_t v;
-    if (id == X_NONE || d == 0)
+    if (id == X_NONE || (id >= X_CPU && id <= X_RAW) || d == 0)
         return;
     if (id == X_TEMPO) {
         v = clamp((int32_t)set.tempo + d, 30, 300);
@@ -534,7 +620,7 @@ static void cell_edit(uint32_t id, int32_t d)
         if (v == cur_category)
             return;
         cur_category = (uint8_t)v;
-        cur_dirty = 1;
+        refresh_dirty();
         set.category = CAT_ALL;
         set_dirty = 1;
     } else {
@@ -542,13 +628,13 @@ static void cell_edit(uint32_t id, int32_t d)
         if (v == cur.values[id])
             return;
         cur.values[id] = v;
-        cur_dirty = 1;
+        refresh_dirty();
         ev_push(EV_PARAM, id, v);
     }
-    value_text(id, v, t);
-    if (ann_on())
-        app_say(cell_name(id), t);
-    ui.redraw = 1;
+    ux_value(id, v, t, &unit);
+    if (unit[0]) { text_cat(t, " "); text_cat(t, unit); }
+    if (ann_on()) app_say(ux_label(id), t);
+    ui.redraw = UX_ALL;
 }
 
 static void save_patch(void)
@@ -568,7 +654,7 @@ static void save_patch(void)
         return;
     }
     cur_index = NFACT + (uint32_t)slot;
-    cur_dirty = 0;
+    patch_reference();
     set.patch = (uint16_t)cur_index;
     plat_store_save(OBJ_SETTINGS, &set, sizeof set);
     set_dirty = 0;
@@ -605,9 +691,10 @@ static void input(void)
             ui.row = (ui.row + 1u) % PAGES[6].nrows;
         else {
             ui.page = 6;
-            ui.row = 0;
+            ui.row = ui.ux_rows[6];
         }
-        app_say("PAGE", "ARP SETTINGS");
+        if (ann_on()) say_page();
+        ui.redraw = UX_ALL;
     }
     if (!(btn & (1u << B_ARP)) && ui.arp_down) {
         if (ui.arp_down == 1) {
@@ -647,11 +734,11 @@ static void input(void)
                 ui.row = (ui.row + 1u) % PAGES[pg].nrows;
             else {
                 ui.page = pg;
-                ui.row = 0;
+                ui.row = ui.ux_rows[pg];
             }
             if (ann_on())
-                app_say("PAGE", PAGES[pg].title);
-            ui.redraw = 1;
+                say_page();
+            ui.redraw = UX_ALL;
         } else if (k == B_OCTDN)
             octave_step(-1);
         else if (k == B_OCTUP)
@@ -676,14 +763,30 @@ static void input(void)
         app_say(CATEGORY[set.category], cur.name);
     }
     if ((e = plat_enc(EN_SELECT)) != 0) {
+        const uint32_t previous = ui.row;
         ui.row = (uint32_t)clamp((int32_t)ui.row + e, 0, (int32_t)PAGES[ui.page].nrows - 1);
-        ui.redraw = 1;
+        if (ui.row != previous && ann_on()) say_page();
+        ui.redraw = UX_ALL;
     }
-    for (k = 0; k < 4u; k++)                 /* K1..K4: the row's four values; a fast turn goes further */
-        if ((e = plat_enc((int)(EN_K1 + k))) != 0)
+    /* K1..K4: the row's four values; a fast turn goes further. */
+    if (ui.ux_page != ui.page || ui.ux_row != ui.row) {
+        ui.ux_focus = -1;
+        ui.ux_page = (uint8_t)ui.page;
+        ui.ux_row = (uint8_t)ui.row;
+    }
+    ui.ux_rows[ui.page] = (uint8_t)ui.row;
+    for (k = 0; k < 4u; k++)
+        if ((e = plat_enc((int)(EN_K1 + k))) != 0) {
+            if (PAGES[ui.page].rows[ui.row][k] != X_NONE) {
+                ui.ux_focus = (int8_t)k;
+                ui.ux_last_id = PAGES[ui.page].rows[ui.row][k] < S1_NPARAMS ?
+                    PAGES[ui.page].rows[ui.row][k] : ui.ux_last_id;
+                ui.redraw |= UX_GRAPH | UX_CELLS; /* also at a parameter's limit */
+            }
             cell_edit(PAGES[ui.page].rows[ui.row][k], e * (e < 0 ? -e : e));
+        }
     if (keys != ui.keys || btn != ui.btn)
-        ui.redraw = 1;
+        ui.redraw = UX_ALL;
     ui.keys = keys;
     ui.btn = btn;
     lit = (btn | 1u << PAGES[ui.page].button) & ~((1u << B_ARP) | (1u << B_SEQ));
@@ -695,7 +798,7 @@ static void input(void)
         const uint8_t status = (uint8_t)((synth.hold ? 2u : 0u) | (cur.values[S1P_ARP_ON] ? 1u : 0u));
         if (ui.status != status) {
             ui.status = status;
-            ui.redraw = 1;
+            ui.redraw = UX_ALL;
         }
     }
     if (cur_dirty)
@@ -706,7 +809,6 @@ static void input(void)
 
 void app_input_only(void) { input(); }
 
-static uint32_t shown_voices, shown_cpu, shown_midi;
 static uint32_t peak_cpu, peak_voices, sheds;   /* since the last readout (app_log) */
 
 /* the development readout (tools/fm1_remote.py log): the render's load now and at its highest since the last
@@ -734,78 +836,7 @@ void app_log(void (*line)(const char *t))
     peak_cpu = peak_voices = sheds = 0;
 }
 
-static void draw(void)
-{
-    const page_t *pg = &PAGES[ui.page];
-    const uint32_t now = plat_ms();
-    uint32_t r, c, first;
-    char t[40], n[12];
-    /* the header: the patch, or a message for a moment; the page */
-    cv_begin(240, 46, C_BLACK);
-    if (now < ui.msg_until) {
-        cv_text(8, 2, &FONT_XS, ui.msg[0], C_GRAY);
-        cv_text(8, 18, &FONT_M, ui.msg[1], C_WHITE);
-    } else {
-        index_text(cur_index, n);
-        cv_text(8, 2, &FONT_XS, n, C_HI);
-        if (cur_dirty)
-            cv_text(40, 2, &FONT_XS, "EDITED", C_AMB);
-        cv_text(100, 2, &FONT_XS, CATEGORY[set.category], C_HI);
-        cv_text(232 - text_w(&FONT_XS, pg->title), 2, &FONT_XS, pg->title, C_GRAY);
-        cv_text(8, 18, &FONT_M, cur.name, C_WHITE);
-    }
-    cv_rect(0, 44, 240, 1, C_LINE);
-    cv_blit(0, 0);
-    /* the page's rows, four at a time around the chosen one: each cell a name and its value; K1..K4 turn the
-     * chosen row's */
-    cv_begin(240, 152, C_BLACK);
-    first = ui.row >= 4u ? ui.row - 3u : 0u;
-    for (r = first; r < pg->nrows && r < first + 4u; r++) {
-        const int32_t y = (int32_t)(r - first) * 38;
-        const int sel = r == ui.row;
-        if (sel)
-            cv_rect(0, y, 240, 37, C_LINE);
-        for (c = 0; c < 4u; c++) {
-            const uint32_t id = pg->rows[r][c];
-            const int32_t x = 4 + (int32_t)c * 59;
-            if (id == X_NONE)
-                continue;
-            cv_text(x, y + 2, &FONT_XS, cell_name(id), sel ? C_GRAY : C_DIM);
-            value_text(id, cell_value(id), t);
-            cv_text(x, y + 15, &FONT_XS, t, sel ? C_HI : C_GRAY);
-        }
-    }
-    if (pg->nrows > 4u) {                    /* more rows than fit: where we are */
-        const int32_t h = 152 * 4 / (int32_t)pg->nrows;
-        cv_rect(237, (int32_t)first * 152 / (int32_t)pg->nrows, 3, h, C_DIM);
-    }
-    cv_blit(0, 46);
-    /* the footer: voices sounding, the render's load, the octave, the tempo */
-    cv_begin(240, 42, C_BLACK);
-    cv_rect(0, 0, 240, 1, C_LINE);
-    cv_text(8, 6, &FONT_XS, "VOICES", C_DIM);
-    int_text((int32_t)shown_voices, t);
-    text_cat(t, "/");
-    int_text(set.voices, n);
-    text_cat(t, n);
-    cv_text(8, 20, &FONT_XS, t, C_HI);
-    cv_text(68, 6, &FONT_XS, "CPU", C_DIM);
-    int_text((int32_t)shown_cpu, t);
-    text_cat(t, "%");
-    cv_text(68, 20, &FONT_XS, t, shown_cpu > 85u ? C_WHITE : C_HI);
-    cv_text(118, 6, &FONT_XS, "OCT", C_DIM);
-    t[0] = set.octave < 0 ? '-' : '+';
-    t[1] = (char)('0' + (set.octave < 0 ? -set.octave : set.octave));
-    t[2] = 0;
-    cv_text(118, 20, &FONT_XS, t, C_HI);
-    cv_text(160, 6, &FONT_XS, ext_tempo ? "CLOCK" : "TEMPO", C_DIM);
-    int_text((int32_t)(ext_tempo ? ext_tempo : set.tempo), t);
-    cv_text(160, 20, &FONT_XS, t, C_HI);
-    cv_text(208, 6, &FONT_XS, "MIDI", shown_midi ? C_HI : C_DIM);
-    cv_text(208, 20, &FONT_XS, synth.hold ? (cur.values[S1P_ARP_ON] ? "HLD" : "DRN") :
-        cur.values[S1P_ARP_ON] ? "ARP" : "", C_HI);
-    cv_blit(0, 198);
-}
+#include "ui/nord.h"
 
 /* -------------------------------------------------------------------- SysEx --- */
 static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n data bytes, 7 bits each */
@@ -848,8 +879,19 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
             char t[8];
             num3(slot + 1u, t);
             app_say("RECEIVED", t);
-            if (cur_index == NFACT + slot && !cur_dirty)
-                patch_select(cur_index);     /* the patch playing was replaced */
+            if (cur_index == NFACT + slot) {
+                if (!cur_dirty) patch_select(cur_index);
+                else {  /* keep the player's edits, compare them to what is now actually stored */
+                    s1_patch stored;
+                    uint32_t j;
+                    bank_load(slot, &stored);
+                    for (j = 0; j < S1_NPARAMS; j++) saved_values[j] = stored.values[j];
+                    for (j = 0; j < S1_NAME_LEN; j++) saved_name[j] = stored.name[j];
+                    saved_category = patch_category(cur_index);
+                    ui.ref_serial++;
+                    refresh_dirty();
+                }
+            }
         }
     } else if (p[4] == 0x02u) {              /* erase all */
         ev_push(EV_PANIC, 0, 0);
@@ -893,7 +935,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         sysex_reply(0x43, d, 4);
     } else
         return 0;
-    ui.redraw = 1;
+    ui.redraw = UX_ALL;
     return 1;
 }
 
@@ -901,6 +943,11 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
 void app_init(void)
 {
     s1_config cfg;
+    ux_live = (ux_live_t){0};
+    ux_audio = (ux_live_t){0};
+    ux_audio_frames = ux_track_age = 0;
+    ux_render_generation = ux_wanted_generation = 0;
+    ux_track = -1;
     if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC ||
         set.octave < -3 || set.octave > 3 || set.voices < 1u || set.voices > S1_MAX_VOICES || set.tempo < 30u ||
         set.tempo > 300u)
@@ -928,17 +975,41 @@ void app_init(void)
 
 void app_ui_init(void)
 {
+    ui.ux_focus = -1;
+    ui.ux_last_id = X_NONE;
+    ui.ux_page = (uint8_t)ui.page;
+    ui.ux_row = (uint8_t)ui.row;
+    ux_cache_valid = 0;
     touch_on(1);
     lcd_fill(0, 0, 240, 240, C_BLACK);
-    ui.redraw = 1;
+    ui.redraw = UX_ALL;
 }
 
 void app_frame(void)
 {
-    static uint32_t last_save, last_stat, midi_seen, midi_at;
+    static uint32_t last_save, last_stat, midi_seen, midi_at, displayed_tempo, displayed_clock;
     const uint32_t now = plat_ms();
     input();
     speak();
+    const int was_moving = ux_motion();
+    if (ux_read_live()) {
+        if (was_moving || ux_motion()) ui.redraw |= UX_GRAPH;
+        if (shown_voices != ux_live.voices) {
+            shown_voices = ux_live.voices;
+            ui.redraw |= UX_FOOT;
+        }
+    }
+    if (midi_notes != midi_seen) { midi_seen = midi_notes; midi_at = now; }
+    if (shown_midi != (uint32_t)(midi_at && now - midi_at < 150u)) {
+        shown_midi = midi_at && now - midi_at < 150u;
+        ui.redraw |= UX_FOOT;
+    }
+    const uint32_t tempo = ext_tempo ? ext_tempo : set.tempo;
+    if (tempo != displayed_tempo || (ext_tempo != 0) != displayed_clock) {
+        displayed_tempo = tempo;
+        displayed_clock = ext_tempo != 0;
+        ui.redraw |= UX_GRAPH | UX_CELLS | UX_FOOT;
+    }
     if (want_program >= 0) {                 /* a program change: the list's patch of that number, if there is one */
         const uint32_t i = (uint32_t)want_program;
         want_program = -1;
@@ -950,6 +1021,8 @@ void app_frame(void)
     if (shed) {                              /* the render ran out of time: one voice fewer */
         shed = 0;
         sheds++;
+        cpu_sheds++;
+        ui.redraw |= UX_FOOT | UX_GRAPH | UX_CELLS;
         if (set.voices > 2u) {
             set.voices--;
             set_dirty = 1;
@@ -962,17 +1035,13 @@ void app_frame(void)
         last_stat = now;
         if (cpu > peak_cpu)
             peak_cpu = cpu;
+        if (cpu > cpu_high) cpu_high = cpu;
         if (v > peak_voices)
             peak_voices = v;
-        if (midi_notes != midi_seen) {
-            midi_seen = midi_notes;
-            midi_at = now;
-        }
-        if (v != shown_voices || cpu != shown_cpu || (midi_at && now - midi_at < 600u) != shown_midi) {
+        if (v != shown_voices || cpu != shown_cpu) {
             shown_voices = v;
             shown_cpu = cpu;
-            shown_midi = midi_at && now - midi_at < 600u;
-            ui.redraw = 1;
+            ui.redraw = UX_ALL;
         }
     }
     if (set_dirty && !ui.keys && !s1_active_voices(&synth) && now - last_save >= 5000u) {
@@ -982,11 +1051,12 @@ void app_frame(void)
     }
     if (ui.msg_until && now >= ui.msg_until) {
         ui.msg_until = 0;
-        ui.redraw = 1;
+        ui.redraw = UX_ALL;
     }
     if (ui.redraw) {
+        const uint32_t areas = ui.redraw;
         ui.redraw = 0;
-        draw();
+        ux_draw(areas);
     }
 }
 
@@ -1005,6 +1075,11 @@ int app_expect(const char *what, int *got)
         *got = (int)ui.page;
     else if (!strcmp(what, "row"))
         *got = (int)ui.row;
+    else if (!strcmp(what, "ux_focus"))
+        *got = ui.ux_focus;
+    else if (!strcmp(what, "ux_note")) *got = ux_live.active ? ux_live.note : -1;
+    else if (!strcmp(what, "ux_stage")) *got = ux_live.stage[0];
+    else if (!strcmp(what, "ux_live")) *got = (int)ux_live.sequence;
     else if (!strcmp(what, "dirty"))
         *got = cur_dirty;
     else if (!strcmp(what, "octave"))

@@ -73,33 +73,41 @@ int plat_store_save(uint32_t obj, const void *src, uint32_t len)
 uint32_t plat_cpu_pct(void) { return 12; }
 
 typedef struct { int h; } felucca_font_t;
-static const felucca_font_t FONT_XS = {12}, FONT_M = {24};
+static const felucca_font_t FONT_T = {10}, FONT_XS = {12}, FONT_S = {16}, FONT_M = {24};
 #define RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define C_BLACK 0x0000u
 #define C_WHITE 0xFFFFu
-static uint16_t pal[5];
-#define C_LINE pal[0]
-#define C_DIM pal[1]
-#define C_GRAY pal[2]
-#define C_AMB pal[3]
-#define C_HI pal[4]
 static char screen[4096];                /* every text drawn in the last frame, one after another */
+static char screen_zones[5][768], drawing_text[768];
 static uint32_t draws;
+static uint32_t zone_draws[5];
 void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
-static void cv_begin(uint32_t w, uint32_t h, uint16_t bg) { (void)w; (void)bg; if (h == 46u) { screen[0] = 0; draws++; } }
-static void cv_blit(uint32_t x, uint32_t y) { (void)x; (void)y; }
+static void cv_begin(uint32_t w, uint32_t h, uint16_t bg) { (void)w; (void)h; (void)bg; drawing_text[0] = 0; }
+static void cv_blit(uint32_t x, uint32_t y)
+{
+    const uint32_t zone = y == 0 ? 0 : y == 40 ? 1 : y == 56 ? 2 : y == 136 ? 3 : 4;
+    uint32_t i;
+    (void)x;
+    strcpy(screen_zones[zone], drawing_text);
+    zone_draws[zone]++;
+    screen[0] = 0;
+    for (i = 0; i < 5; i++) strcat(screen, screen_zones[i]);
+    draws++;
+}
 static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
+static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c) { (void)x0; (void)y0; (void)x1; (void)y1; (void)c; }
 static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
 {
     (void)y; (void)f; (void)c;
-    if (strlen(screen) + strlen(s) + 2 < sizeof screen) {
-        strcat(screen, s);
-        strcat(screen, "|");
+    if (strlen(drawing_text) + strlen(s) + 2 < sizeof drawing_text) {
+        strcat(drawing_text, s);
+        strcat(drawing_text, "|");
     }
     return x + (int32_t)strlen(s) * 8;
 }
 static int32_t text_w(const felucca_font_t *f, const char *s) { (void)f; return (int32_t)strlen(s) * 8; }
 #define ANN_NOW 1
+#define ANN_KEEP 2
 static int ann_on(void) { return 0; }
 static int ann_where(void) { return 0; }
 static void ann_say(const char *t, int a, int how) { (void)t; (void)a; (void)how; }
@@ -249,6 +257,7 @@ static void test_live_controls(void)
     run(80);
     CHECK(cur_category == CAT_OTHER, "legacy unknown patch was not OTHER");
     tap(B_GLO);
+    turn(EN_SELECT, -10);              /* pages now remember their last row */
     turn(EN_SELECT, 3);
     turn(EN_K3, -3);                   /* accelerate 9 steps: OTHER -> BASS */
     CHECK(cur_category == CAT_BASS && cur_dirty, "manual category could not be edited");
@@ -267,6 +276,131 @@ static void test_live_controls(void)
     CHECK(set.category == CAT_ALL, "empty category did not recover");
 }
 
+static void test_nord_ux(void)
+{
+    uint32_t n, i, page, row, mode;
+    int32_t base;
+    uint8_t frame[SY1_FRAME_MAX];
+    s1_patch incoming;
+    char text[40];
+    const char *unit;
+    memset(flash, 0xFF, sizeof flash);
+    memset(store_len, 0, sizeof store_len);
+    cpu_sheds = cpu_high = 0;
+    power_on();
+    tap(B_SEL);
+    base = cur.values[S1P_FILTER_FREQ];
+    turn(EN_K2, 1);
+    CHECK(cur_dirty && ui.ux_focus == 1, "cutoff edit has no dirty/focus feedback");
+    turn(EN_K2, -1);
+    CHECK(!cur_dirty && !(leds_btn & (1u << B_SAVE)), "returning to saved cutoff left EDIT/SAVE lit");
+    tap(B_SEL);                        /* remember FILTER row 2 */
+    tap(B_ENV);
+    tap(B_SEL);
+    CHECK(ui.row == 1 && ui.ux_focus == -1, "return to FILTER lost its row or retained encoder focus");
+    tap(B_GLO);
+    turn(EN_SELECT, 3);
+    turn(EN_K3, 1);
+    CHECK(cur_dirty, "category edit was not dirty");
+    turn(EN_K3, -1);
+    CHECK(!cur_dirty, "returning to saved category left EDIT lit");
+    turn(EN_SELECT, 1);
+    incoming = cur;
+    for (i = 0; i < 4; i++) turn(EN_K1 + (int)i, 1);
+    CHECK(ui.row == 4 && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
+          "diagnostics changed patch values");
+
+    tap(B_SEL);
+    turn(EN_SELECT, -10);
+    turn(EN_K2, 1);
+    tap(B_SAVE);
+    CHECK(cur_index == NFACT && !cur_dirty && saved_values[S1P_FILTER_FREQ] == base + 1,
+          "SAVE did not refresh the stored reference");
+    CHECK(strstr(screen, "Saw Bass|") && strstr(screen, "SAVED 001|"), "save hid patch identity: %s", screen);
+    turn(EN_K2, 1);                    /* unsaved edit, then overwrite this slot from the manager */
+    incoming = cur;
+    incoming.values[S1P_FILTER_FREQ] = base + 4;
+    n = sy1_frame(&incoming, 0, frame);
+    send_sysex(frame, n);
+    CHECK(cur.values[S1P_FILTER_FREQ] == base + 2 && cur_dirty && saved_values[S1P_FILTER_FREQ] == base + 4,
+          "incoming patch discarded edits or kept the old reference");
+    turn(EN_K2, 1); turn(EN_K2, 1);
+    CHECK(!cur_dirty, "matching the newly imported patch did not clear EDIT");
+    incoming.values[S1P_FILTER_FREQ] = 42;
+    n = sy1_frame(&incoming, 0, frame);
+    send_sysex(frame, n);
+    CHECK(cur.values[S1P_FILTER_FREQ] == 42 && saved_values[S1P_FILTER_FREQ] == 42 && !cur_dirty,
+          "clean imported patch was not reloaded");
+
+    app_say("CPU FULL", "FEWER VOICES");
+    app_say("LFO1", "ON");
+    app_say("SAVED", "Saw Bass");
+    run(30);
+    CHECK(!strcmp(ui.msg[0], "CPU FULL"), "routine feedback erased the overload warning");
+    run(1400);
+    app_say("SAVED", "Saw Bass");
+    CHECK(!strcmp(ui.msg[0], "SAVED"), "expired warning prevented new feedback");
+
+    cur.values[S1P_LFO1_TEMPO_SYNC] = 1;
+    ux_value(S1P_LFO1_SPEED, 127, text, &unit);
+    CHECK(!strcmp(text,"1/24") && !strcmp(unit,"beat"), "fastest synced LFO displayed %s %s", text, unit);
+    ux_value(S1P_ARP_BEAT, 18, text, &unit);
+    CHECK(!strcmp(text,"1/24"), "small beat fraction rounded to zero");
+    ux_value(S1P_OSC_PULSE_WIDTH, 127, text, &unit);
+    CHECK(!strcmp(text,"50"), "pulse width disagrees with engine duty: %s", text);
+    ux_value(S1P_CHORUS_RATE, 0, text, &unit);
+    CHECK(!strcmp(text,"0.01") && !strcmp(unit,"Hz"), "slow chorus rate rounded to zero: %s",text);
+    ux_decimal(0.9999f,text);
+    CHECK(!strcmp(text,"1"), "decimal rounding around 1 is invalid: %s",text);
+
+    patch_select(1);
+    cell_edit(S1P_AMP_RELEASE, -127);   /* short release: newest voice ends while the old one still sounds */
+    tap(B_ENV);
+    turn(EN_SELECT,-10);
+    keys_held = 1u << 7;
+    run(150);
+    CHECK(ux_live.active && ux_live.note == 60 && !(ux_live.sequence & 1u), "no consistent envelope snapshot");
+    keys_held |= 1u << 11;
+    run(150);
+    CHECK(ux_live.note == 64, "snapshot did not follow the newest note");
+    keys_held = 1u << 7;
+    run(700);
+    CHECK(!ux_live.active && s1_active_voices(&synth) > 0, "envelope cursor jumped to an older held note");
+    tap(B_PLAY);
+    keys_held = 0;
+    run(150);
+    CHECK(!ux_live.active && !ux_motion(), "panic left envelope motion active");
+
+    tap(B_LFO);
+    turn(EN_SELECT,-10);
+    run(150);
+    const uint32_t graph_before = zone_draws[2], head_before = zone_draws[0], cells_before = zone_draws[3];
+    run(600);
+    CHECK(zone_draws[2] > graph_before && zone_draws[0] == head_before && zone_draws[3] == cells_before,
+          "LFO animation did not isolate its redraw to the graph");
+    turn(EN_K1,-1);
+    run(150);
+    n = zone_draws[2];
+    run(600);
+    CHECK(zone_draws[2] == n, "disabled LFO kept repainting its graph");
+    ux_audio.sequence |= 1u;
+    CHECK(!ux_read_live(), "reader accepted an incomplete audio snapshot");
+    ux_audio.sequence++;
+
+    /* Exercise all 31 subpages with genuine endpoint values, including every enum/table index. */
+    for (mode = 0; mode < 3; mode++) {
+        for (i = 0; i < S1_NPARAMS; i++) cur.values[i] = mode == 0 ? s1_param_def[i] :
+            mode == 1 ? s1_param_min[i] : s1_param_max[i];
+        to_engine();
+        for (page = 0; page < NPAGES; page++) for (row = 0; row < PAGES[page].nrows; row++) {
+            ui.page = page; ui.row = row; ui.redraw = UX_ALL;
+            run(32);
+            CHECK(screen_zones[1][0] && screen_zones[3][0], "empty UI on page %u row %u endpoint %u", page,row,mode);
+        }
+    }
+    patch_select(0);
+}
+
 int main(void)
 {
     static const char sy1[] = "Test Patch 7\ncolor=red\nver=112\n0,3\n14,2\n19,77\n9,-12\n38,1\n86,45057\n87,44\n";
@@ -278,7 +412,7 @@ int main(void)
     memset(flash, 0xFF, sizeof flash);
     power_on();
     CHECK(cur_index == 0 && !strcmp(cur.name, "Saw Bass"), "starts on '%s' (%u)", cur.name, (unsigned)cur_index);
-    CHECK(strstr(screen, "Saw Bass|") && strstr(screen, "PLAY|") && strstr(screen, "FREQ|"), "screen: %s", screen);
+    CHECK(strstr(screen, "Saw Bass|") && strstr(screen, "PLAY / FILTER|") && strstr(screen, "CUTOFF|"), "screen: %s", screen);
 
     /* a key plays and lets go; the bass is mono */
     keys_held = 1u << 7;
@@ -312,12 +446,12 @@ int main(void)
     CHECK(cur_index == NFACT - 1u, "PRESET wraps to %u", (unsigned)cur_index);
     run(1400);                           /* (the patch's name leaves the header) */
     tap(B_SEL);
-    CHECK(ui.page == 2 && strstr(screen, "FILTER|"), "SEL: page %u", (unsigned)ui.page);
+    CHECK(ui.page == 2 && strstr(screen, "FILTER / MAIN|"), "SEL: page %u", (unsigned)ui.page);
     got = cur.values[S1P_FILTER_RES];
     turn(EN_K3, 2);                      /* a fast turn: 2 detents in a frame = 4 steps */
     CHECK(cur.values[S1P_FILTER_RES] == got + 4 && cur_dirty, "K3 on FILTER: %d -> %d", got, (int)cur.values[S1P_FILTER_RES]);
     CHECK(s1_get_param(&synth, S1P_FILTER_RES) == got + 4, "the engine did not get the edit");
-    CHECK(strstr(screen, "EDITED|") != 0, "no EDITED mark");
+    CHECK(strstr(screen, "EDIT|") != 0, "no EDIT mark");
     CHECK(leds_btn >> B_SAVE & 1u, "SAVE not lit for an edited patch");
     turn(EN_K1, 1);
     CHECK(cur.values[S1P_FILTER_TYPE] == 2 && strstr(screen, "HP12|"), "filter type: %d", (int)cur.values[S1P_FILTER_TYPE]);
@@ -425,6 +559,7 @@ int main(void)
     CHECK(n == 0, "erase left %u bytes", (unsigned)n);
 
     test_live_controls();
+    test_nord_ux();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }
