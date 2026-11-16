@@ -246,6 +246,12 @@ function ask(out, frame, command, ms = 3000, part = 0) {
   return new Promise(done => { const w = {cmd: command, slot: frame[6] | frame[7] << 7, part, done, timer: setTimeout(() => { if (waiting === w) waiting = null; done(null); }, ms)}; waiting = w;
     try { out.send(frame); } catch { clearTimeout(w.timer); waiting = null; done(null); } });
 }
+/** The FM-1 drops about one SysEx exchange in fifty over USB. Every request asked this way reads, or writes one slot
+ *  with the same record, so asking again is safe; a late answer to the first try is just as good. */
+async function askAgain(out, frame, command, ms, part = 0, tries = 3) {
+  for (let t = 0; t < tries; t++) { const r = await ask(out, frame, command, ms, part); if (r || !output) return r; }
+  return null;
+}
 function setConnected() {
   const on = !!output; $('connection').dataset.state = on ? 'connected' : 'disconnected';
   $('connection-label').textContent = on ? 'FM-1 CONNECTED' : 'FM-1 NOT CONNECTED'; $('connect').textContent = on ? 'Read again' : 'Connect to the FM-1';
@@ -272,7 +278,7 @@ async function connect() {
 async function readDevice() {
   if (!output || busy) return; busy = true; setConnected(); refresh();
   try {
-    const a = await ask(output, cmd(0x03), 0x43, 1500); if (!a) throw new Error('The FM-1 did not answer. Reconnect before syncing.');
+    const a = await askAgain(output, cmd(0x03), 0x43, 1500); if (!a) throw new Error('The FM-1 did not answer. Reconnect before syncing.');
     const used = Math.min(SLOTS, a.data[6] | a.data[7] << 7), device = new Array(SLOTS).fill(null);
     // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
     const old = !(a.data.length >= 12 && a.data[10] & 1);
@@ -280,16 +286,16 @@ async function readDevice() {
       if (!output) throw new Error('FM-1 disconnected.');
       if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
       if (old) {
-        const r = await ask(output, cmd(0x04, ...slotBytes(s)), 0x44, 800);
+        const r = await askAgain(output, cmd(0x04, ...slotBytes(s)), 0x44, 800);
         if (!r) throw new Error('Could not read the patch slots. Install the latest SY1 and reconnect.');
         if (!r.data[8]) continue;
         const name = String.fromCharCode(...r.data.slice(9, -1)) || '(no name)';
         device[s] = newItem(name, Math.max(0, CATEGORIES.indexOf(category(name))), {locked: true});
       } else {
-        const p0 = await ask(output, cmd(0x07, ...slotBytes(s), 0), 0x47, 800, 0);
+        const p0 = await askAgain(output, cmd(0x07, ...slotBytes(s), 0), 0x47, 800, 0);
         if (!p0) throw new Error('Could not read the patch slots. Reconnect and try again.');
         if (!p0.data[9]) continue;
-        const p1 = await ask(output, cmd(0x07, ...slotBytes(s), 1), 0x47, 800, 1);
+        const p1 = await askAgain(output, cmd(0x07, ...slotBytes(s), 1), 0x47, 800, 1);
         const lo = unpack7(p0.data, 10, p0.data.length - 1, PART), hi = p1 && p1.data[9] ? unpack7(p1.data, 10, p1.data.length - 1, RECORD - PART) : null;
         if (!lo || !hi) throw new Error(`Slot ${pad(s + 1)} came back incomplete. Reconnect and try again.`);
         const rec = new Uint8Array(RECORD); rec.set(lo); rec.set(hi, PART); device[s] = fromRecord(rec);
@@ -472,7 +478,7 @@ async function sync() {
     } else for (const s of [...ch.writes, ...ch.clears]) {
       if (cancelled) break; if (!output) throw new Error('FM-1 disconnected.');
       const it = slots[s]; result.textContent = `${it ? 'Writing' : 'Emptying'} slot ${pad(s + 1)} · ${done + 1} / ${ch.total}${it ? ': ' + it.name : ''}`;
-      const r = it ? await ask(output, packFrame(recs.get(s), s), 0x41, 5000) : await ask(output, cmd(0x05, ...slotBytes(s)), 0x45, 5000);
+      const r = it ? await askAgain(output, packFrame(recs.get(s), s), 0x41, 5000) : await askAgain(output, cmd(0x05, ...slotBytes(s)), 0x45, 5000);
       if (!r || r.data[8] !== 0) throw new Error(`The FM-1 did not confirm slot ${pad(s + 1)}. Read it again before retrying.`);
       if (it) { it.rec = recs.get(s); remember(it); }
       base = base.slice(); base[s] = it; bar.value = ++done;
