@@ -84,8 +84,8 @@ body[data-site-page] .site-nav { margin: 0; display: flex; flex-wrap: wrap; alig
 .knob-unit { text-align: center; min-width: 0; }
 .knob-unit > span { font: 650 7px/1.3 sans-serif; letter-spacing: .07em; display: block; margin-bottom: 6px; }
 .knob-unit small { display: block; font: 500 5px/1.5 ui-monospace, monospace; letter-spacing: .08em; margin-top: 5px; }
-.knob { display: block; position: relative; width: 44px; height: 44px; margin: 0 auto; background: linear-gradient(140deg, #484b49, #191b1b 60%); border-radius: 50%; border: 3px solid #202120; outline: 2px solid #f3e6cd; outline-offset: 4px; box-shadow: 2px 5px 4px #581812aa, inset 0 1px 2px #999; }
-.knob::after { content: ""; position: absolute; top: 2px; left: 17px; height: 12px; width: 3px; background: #eee5cf; transform-origin: 1px 17px; }
+.rack .knob { display: block; position: relative; width: 44px; height: 44px; margin: 0 auto; background: linear-gradient(140deg, #484b49, #191b1b 60%); border-radius: 50%; border: 3px solid #202120; outline: 2px solid #f3e6cd; outline-offset: 4px; box-shadow: 2px 5px 4px #581812aa, inset 0 1px 2px #999; }
+.rack .knob::after { content: ""; position: absolute; top: 2px; left: 17px; height: 12px; width: 3px; background: #eee5cf; transform-origin: 1px 17px; }
 .knob-a::after { transform: rotate(45deg); }.knob-b::after { transform: rotate(-55deg); }.knob-c::after { transform: rotate(-20deg); }.knob-d::after { transform: rotate(30deg); }
 .rack-bottom { display: flex; justify-content: space-between; gap: 10px; margin-top: 20px; border-top: 1px solid #fce1bb77; padding-top: 10px; }
 .rack-model { font-weight: 800; }
@@ -191,8 +191,8 @@ body[data-site-page="emu"] .sy1 .drop { border-radius: 3px; }
   .rack { padding: 22px 23px 16px; }
   .rack-controls { gap: 15px; }
   .rack-knobs { gap: 17px 10px; }
-  .knob { width: 35px; height: 35px; }
-  .knob::after { left: 13px; height: 9px; transform-origin: 1px 13px; }
+  .rack .knob { width: 35px; height: 35px; }
+  .rack .knob::after { left: 13px; height: 9px; transform-origin: 1px 13px; }
   .patch-feature { gap: 40px; }
   .spec-strip { font-size: 7px; }.spec-strip b { font-size: 19px; }
 }
@@ -212,7 +212,7 @@ body[data-site-page="emu"] .sy1 .drop { border-radius: 3px; }
   .rack-link { max-width: 480px; width: calc(100% - 12px); margin: 0 auto; }
   .rack { padding: 22px 26px 17px; }
   .rack-brand { font-size: 38px; }.rack-topline { margin-bottom: 18px; }
-  .knob { width: 40px; height: 40px; }.knob::after { left: 15px; transform-origin: 1px 15px; }
+  .rack .knob { width: 40px; height: 40px; }.rack .knob::after { left: 15px; transform-origin: 1px 15px; }
   .rack-knobs { gap: 18px 10px; }
   .rack-caption { font-size: 8px; }
   .spec-strip { grid-template-columns: 1fr 1fr; padding: 22px 0; gap: 25px 15px; font-size: 8px; }
@@ -254,3 +254,12 @@ body[data-site-page="manager"] .drop { padding: 14px 16px; margin-top: 14px; }
 body[data-site-page="manager"] .drop strong { display: inline; margin-right: 6px; }
 body[data-site-page="manager"] .drop .quiet { display: inline-block; margin: 8px 0 0; }
 body[data-site-page="manager"] section.library-browser h2 { margin-bottom: 0; }
+
+.display-section { padding-bottom: 65px; }
+.display-styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.display-styles figure { margin: 0; min-width: 0; padding: 24px 18px 20px; border: 1px solid var(--rule); border-top: 3px solid var(--red); border-radius: 4px; background: var(--card); }
+.display-styles img { display: block; width: min(100%, 240px); height: auto; margin: 0 auto; image-rendering: pixelated; }
+.display-styles figcaption { margin: 20px auto 0; max-width: 240px; }
+.display-styles strong { display: block; font: 600 12px ui-monospace, monospace; color: var(--ink); }
+.display-styles figcaption span { display: block; margin-top: 8px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+@media(max-width:700px) { .display-styles { grid-template-columns: 1fr; gap: 18px; } .display-styles figure { padding: 24px; } .display-section { padding-bottom: 45px; } }

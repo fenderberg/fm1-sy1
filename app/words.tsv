@@ -14,3 +14,8 @@ AMP ENV	amplifier envelope
 FILTER ENV	filter envelope
 INT BPM	internal tempo
 DIAGNOSTIC	diagnostics
+DISPLAY	display
+STYLE	display style
+GREEN	green LED
+NORD	Nord
+LCD	green L C D

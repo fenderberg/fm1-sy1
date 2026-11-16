@@ -25,7 +25,7 @@ def navigation(current, up):
     links = []
     for route, label in PAGES:
         href = up + (route + "/" if route else "") or "./"
-        active = ' aria-current="page"' if route == current else ""
+        active = ' aria-current="page"' if route == current.split("/")[0] else ""
         links.append(f'<a href="{href}"{active}><span class="nav-led" aria-hidden="true"></span>{label}</a>')
     links.append(f'<a href="{SOURCE}" class="source-link">Source <span aria-hidden="true">↗</span></a>')
     return ('<a class="site-skip" href="#content">Skip to content</a>\n'
@@ -45,7 +45,8 @@ def decorate(document, current, version):
         document = re.sub(r'<header>.*?</header>',
                           '<header class="page-heading"><p class="eyebrow">01 / PLAY</p>'
                           '<h1>Meet your next sound.</h1><p>The real SY1 engine, right in your browser. '
-                          'Switch on, play a few notes, and turn a knob.</p></header>', document, count=1, flags=re.S)
+                          'Switch on, play a few notes, and turn a knob. Choose your screen style on '
+                          'GLO → DISPLAY with KNOB1: NORD, GREEN (LED), or LCD.</p></header>', document, count=1, flags=re.S)
     elif current == "manager":
         document = document.replace('<header>', '<header class="page-heading">', 1)
     document = document.replace('</head>', f'<link rel="stylesheet" href="{up}assets/site.css">\n</head>', 1)
@@ -66,6 +67,17 @@ def main(pkg, version, destination=None):
     shutil.copytree(SITE / "assets", out / "assets", dirs_exist_ok=True)
     shutil.copytree(SITE / "manager", out / "manager", dirs_exist_ok=True)
     shutil.copytree(SITE / "library", out / "library", dirs_exist_ok=True)
+    gallery = ROOT / "docs/mockups/nord-redesign"
+    screens = out / "manual/screens"
+    screens.mkdir(parents=True, exist_ok=True)
+    for source in gallery.glob("*.png"):
+        shutil.copy2(source, screens / source.name)
+    shutil.copy2(gallery / "validation.json", screens / "validation.json")
+    document = (gallery / "index.html").read_text(encoding="utf-8")
+    document = document.replace('href="README.md"', f'href="{SOURCE}/blob/main/docs/mockups/nord-redesign/README.md"')
+    document = document.replace('href="../nord-pixel/index.html"', 'href="../"')
+    document = document.replace("De eerdere pixelproef A", "Back to the manual")
+    (screens / "index.html").write_text(document, encoding="utf-8")
     catalog = json.loads((SITE / "library/catalog.json").read_text(encoding="utf-8"))
     landing = (SITE / "index.html").read_text(encoding="utf-8")
     landing = landing.replace("{{PRESET_COUNT}}", f'{catalog["patchCount"]:,}').replace("{{BANK_COUNT}}", str(catalog["bankCount"]))

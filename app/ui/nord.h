@@ -2,14 +2,7 @@
  * Diagrams show settings; moving points come only from the consistent audio snapshot. */
 #pragma once
 
-#define UX_BG RGB(17, 19, 20)
-#define UX_PANEL RGB(28, 31, 32)
-#define UX_RULE RGB(57, 61, 62)
-#define UX_TEXT RGB(244, 239, 223)
-#define UX_MUTED RGB(160, 162, 157)
-#define UX_RED RGB(195, 43, 35)
-#define UX_AMBER RGB(255, 199, 100)
-#define UX_FOCUS RGB(51, 43, 29)
+#include "display.h"
 
 /* Fit with the actual proportional font widths, reserving room for the ellipsis. */
 static void ux_fit(char *out, uint32_t cap, const char *text, const felucca_font_t *font, int32_t width)
@@ -20,9 +13,9 @@ static void ux_fit(char *out, uint32_t cap, const char *text, const felucca_font
         n++;
     }
     out[n] = 0;
-    if (text_w(font, out) <= width)
+    if (ux_display_width(font, out) <= width)
         return;
-    while (n && text_w(font, out) + text_w(font, "...") > width) out[--n] = 0;
+    while (n && ux_display_width(font, out) + ux_display_width(font, "...") > width) out[--n] = 0;
     if (n + 3u < cap) text_cat(out, "...");
 }
 
@@ -31,16 +24,16 @@ static void ux_center(int32_t x, int32_t y, int32_t width, const felucca_font_t 
 {
     char fitted[40];
     ux_fit(fitted, sizeof fitted, text, font, width);
-    cv_text(x + (width - text_w(font, fitted)) / 2, y, font, fitted, color);
+    ux_display_text(x + (width - ux_display_width(font, fitted)) / 2, y, font, fitted, color);
 }
 
 static int32_t ux_lo(uint32_t id)
 {
-    return id < S1_NPARAMS ? s1_param_min[id] : id == X_TEMPO ? 30 : id == X_CATEGORY ? CAT_BASS : id == X_DRONE ? 0 : 1;
+    return id < S1_NPARAMS ? s1_param_min[id] : id == X_TEMPO ? 30 : id == X_CATEGORY ? CAT_BASS : id == X_DRONE || id == X_DISPLAY ? 0 : 1;
 }
 static int32_t ux_hi(uint32_t id)
 {
-    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DRONE ? 1 : S1_MAX_VOICES;
+    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE ? 1 : S1_MAX_VOICES;
 }
 static int32_t ux_norm_value(uint32_t id, int32_t value)
 {
@@ -53,7 +46,7 @@ static void ux_indicator(uint32_t id, int32_t x, uint16_t color)
 {
     int32_t i;
     const int32_t norm = ux_norm(id), segment = (norm * 7 + 63) / 127;
-    if (id >= X_CPU) return;
+    if (id >= X_CPU && id <= X_RAW) return;
     if (id < S1_NPARAMS && s1_param_max[id] - s1_param_min[id] == 1) {
         cv_rect(x, 29, 20, 5, cell_value(id) ? UX_RULE : color);
         cv_rect(x+28, 29, 20, 5, cell_value(id) ? color : UX_RULE);
@@ -105,8 +98,8 @@ static void ux_filter(void)
         cv_line(cutoff + 9, 39, cutoff + (type == 0 ? 28 : 16), 59, line);
     }
     cv_rect(cutoff - 2, peak - 2, 5, 5, line);
-    cv_text(12, 64, &FONT_XS, "LOW", UX_MUTED);
-    cv_text(227 - text_w(&FONT_XS, "HIGH"), 64, &FONT_XS, "HIGH", UX_MUTED);
+    ux_display_text(12, 64, &FONT_XS, "LOW", UX_MUTED);
+    ux_display_text(227 - ux_display_width(&FONT_XS, "HIGH"), 64, &FONT_XS, "HIGH", UX_MUTED);
 }
 
 static void ux_envelope(int which)
@@ -172,10 +165,10 @@ static void ux_controls(void)
         ux_center(x + 3, 7, 54, &FONT_XS, ux_label(id), active ? UX_AMBER : UX_MUTED);
         ux_indicator(id, x + 7, color);
         ux_value(id, cell_value(id), text, &unit);
-        const felucca_font_t *font = text_w(&FONT_M,text) <= 52 ? &FONT_M :
-            text_w(&FONT_S,text) <= 52 ? &FONT_S : &FONT_XS;
+        const felucca_font_t *font = ux_display_width(&FONT_M,text) <= 52 ? &FONT_M :
+            ux_display_width(&FONT_S,text) <= 52 ? &FONT_S : &FONT_XS;
         ux_center(x + 3, 40, 54, font, text, color);
-        ux_center(x + 3, 66, 54, &FONT_T, id >= X_CPU ? "READ ONLY" : unit, UX_MUTED);
+        ux_center(x + 3, 66, 54, &FONT_T, id >= X_CPU && id <= X_RAW ? "READ ONLY" : unit, UX_MUTED);
     }
     cv_blit(0, 136);
 }
@@ -194,19 +187,19 @@ static void ux_status(void)
     cv_rect(0, 0, 240, 1, UX_RULE);
     int_text((int32_t)shown_voices, text); text_cat(text, "/");
     int_text(set.voices, n); text_cat(text, n);
-    cv_text(6, 1, &FONT_T, text, UX_TEXT);
+    ux_display_text(6, 1, &FONT_T, text, UX_TEXT);
     text[0] = 0; text_cat(text, "OCT ");
     text[4] = set.octave < 0 ? '-' : '+';
     text[5] = (char)('0' + (set.octave < 0 ? -set.octave : set.octave)); text[6] = 0;
-    cv_text(40, 1, &FONT_T, text, UX_MUTED);
+    ux_display_text(40, 1, &FONT_T, text, UX_MUTED);
     int_text((int32_t)(ext_tempo ? ext_tempo : set.tempo), text);
     text_cat(text, ext_tempo ? " EXT" : " INT");
-    cv_text(94, 1, &FONT_T, text, UX_TEXT);
-    cv_text(202, 1, &FONT_T, "MIDI", shown_midi ? UX_AMBER : UX_MUTED);
+    ux_display_text(94, 1, &FONT_T, text, UX_TEXT);
+    ux_display_text(202, 1, &FONT_T, "MIDI", shown_midi ? UX_AMBER : UX_MUTED);
     cv_rect(230, 5, 4, 4, shown_midi ? UX_AMBER : UX_RULE);
     const char *state = ux_play_state();
-    cv_text(6, 12, &FONT_T, state, (ui.status & 2u) || cur.values[S1P_ARP_ON] ? UX_AMBER : UX_MUTED);
-    if (cpu_sheds) cv_text(199, 12, &FONT_T, "LIMIT", UX_AMBER);
+    ux_display_text(6, 12, &FONT_T, state, (ui.status & 2u) || cur.values[S1P_ARP_ON] ? UX_AMBER : UX_MUTED);
+    if (cpu_sheds) ux_display_text(199, 12, &FONT_T, "LIMIT", UX_AMBER);
     cv_blit(0, 216);
 }
 
@@ -220,7 +213,7 @@ static const char *ux_row_title(void)
         {"LFO 1", "LFO 1 / MOD", "LFO 2", "LFO 2 / MOD"},
         {"FX / EFFECT", "FX / MIX", "FX / EQ", "FX / DELAY", "FX / DELAY MIX", "FX / CHORUS", "FX / CHORUS MOD"},
         {"ARP", "ARP / GATE"},
-        {"VOICE", "VOICE / UNISON", "VOICE / SPREAD", "VOICE / SETUP", "DIAGNOSTIC"}
+        {"VOICE", "VOICE / UNISON", "VOICE / SPREAD", "VOICE / SETUP", "DIAGNOSTIC", "DISPLAY"}
     };
     return titles[ui.page][ui.row];
 }
@@ -229,9 +222,9 @@ static void ux_caption(const char *left, const char *right)
 {
     char fitted[40];
     ux_fit(fitted, sizeof fitted, left, &FONT_T, 148);
-    cv_text(8, 65, &FONT_T, fitted, UX_MUTED);
+    ux_display_text(8, 65, &FONT_T, fitted, UX_MUTED);
     ux_fit(fitted, sizeof fitted, right, &FONT_T, 72);
-    cv_text(232 - text_w(&FONT_T,fitted), 65, &FONT_T, fitted, UX_MUTED);
+    ux_display_text(232 - ux_display_width(&FONT_T,fitted), 65, &FONT_T, fitted, UX_MUTED);
 }
 
 static void ux_big(const char *title, const char *value, const char *detail)
@@ -276,8 +269,8 @@ static void ux_osc(void)
     char text[40], n[16];
     const uint16_t selected = ui.ux_focus >= 0 ? UX_AMBER : UX_TEXT;
     if (ui.row == 0) {
-        cv_text(8, 6, &FONT_T, "OSC1", UX_MUTED);
-        cv_text(8, 39, &FONT_T, "OSC2", UX_MUTED);
+        ux_display_text(8, 6, &FONT_T, "OSC1", UX_MUTED);
+        ux_display_text(8, 39, &FONT_T, "OSC2", UX_MUTED);
         ux_wave(cur.values[S1P_OSC1_SHAPE], 49, 180, 22, 3+(127-cur.values[S1P_OSC_MIX])*11/127,
                 cur.values[S1P_OSC_PULSE_WIDTH] / 2,ui.ux_focus == 0 || ui.ux_focus >= 2 ? UX_AMBER : UX_TEXT);
         ux_wave(cur.values[S1P_OSC2_SHAPE] == 4 ? 4 : cur.values[S1P_OSC2_SHAPE], 49, 180, 53,
@@ -286,8 +279,8 @@ static void ux_osc(void)
         ux_caption("WAVEFORMS / SETTINGS", "OSC MIX");
     } else if (ui.row == 1) {
         text[0] = 0; value_text(S1P_OSC2_SHAPE, cur.values[S1P_OSC2_SHAPE], text);
-        cv_text(8, 3, &FONT_XS, "OSC 2", UX_MUTED);
-        cv_text(232-text_w(&FONT_XS,text),3,&FONT_XS,text,UX_TEXT);
+        ux_display_text(8, 3, &FONT_XS, "OSC 2", UX_MUTED);
+        ux_display_text(232-ux_display_width(&FONT_XS,text),3,&FONT_XS,text,UX_TEXT);
         int_text(s1_t_osc2_semis[cur.values[S1P_OSC2_PITCH]],text); text_cat(text," st  ");
         int_text(s1_t_fine_cents[cur.values[S1P_OSC2_FINE]],n); text_cat(text,n); text_cat(text," cent");
         ux_center(8,25,224,&FONT_M,text,selected);
@@ -303,7 +296,7 @@ static void ux_osc(void)
         ux_caption("SUB OSCILLATOR",cur.values[S1P_SUB_GAIN] ? "ON" : "OFF");
     } else {
         ux_envelope(2);
-        if (!cur.values[S1P_MOD_ENV_ON]) cv_text(180,0,&FONT_T,"ENV OFF",UX_MUTED);
+        if (!cur.values[S1P_MOD_ENV_ON]) ux_display_text(180,0,&FONT_T,"ENV OFF",UX_MUTED);
     }
 }
 
@@ -386,7 +379,7 @@ static void ux_arp(void)
         text_cat(text,"NOTE ");text_cat(text,notes[ux_live.arp_note%12]);
         int_text(ux_live.arp_note/12-1,n);text_cat(text,n);
     }
-    cv_text(8,2,&FONT_T,text,UX_MUTED);
+    ux_display_text(8,2,&FONT_T,text,UX_MUTED);
     text[0]=0;text_cat(text,"STEP ");int_text((int32_t)ux_live.arp_step+1,n);text_cat(text,n);
     text_cat(text,"/");int_text(total,n);text_cat(text,n);
     ux_caption(text,(ui.status&2u) ? "HOLD ON" : "HOLD OFF");
@@ -405,8 +398,10 @@ static void ux_voice(void)
         ux_caption(cur.values[S1P_UNISON_ON] ? "UNISON ON" : "UNISON OFF", "SPREAD / PITCH");
     } else if(ui.row==3) {
         ux_big("PATCH CATEGORY",CATEGORY[cur_category],set.drone_replace ? "DRONE / REPLACE" : "DRONE / STACK");
+    } else if(ui.row==5) {
+        ux_big("DISPLAY STYLE", UX_LCD ? "GREEN LCD" : UX_GREEN ? "GREEN LED" : "NORD", "KNOB 1 / CHOOSE YOUR DISPLAY");
     } else {
-        cv_text(8,2,&FONT_XS,"PROCESSOR",UX_MUTED);
+        ux_display_text(8,2,&FONT_XS,"PROCESSOR",UX_MUTED);
         cv_rect(12,25,216,12,UX_RULE);cv_rect(12,25,clamp((int32_t)shown_cpu,0,100)*216/100,12,shown_cpu>85?UX_AMBER:UX_TEXT);
         if(ui.ux_last_id<S1_NPARAMS) {
             char n[8];text[0]=0;text_cat(text,"P");int_text(ui.ux_last_id,n);text_cat(text,n);
@@ -448,10 +443,10 @@ static void ux_header(void)
 {
     char text[40];
     cv_begin(240,40,UX_BG);
-    index_text(cur_index,text);cv_text(6,0,&FONT_XS,text,UX_MUTED);
-    ux_fit(text,sizeof text,CATEGORY[set.category],&FONT_XS,90);cv_text(62,0,&FONT_XS,text,UX_MUTED);
-    if(cur_dirty) cv_text(205,0,&FONT_XS,"EDIT",UX_AMBER);
-    ux_fit(text,sizeof text,cur.name,&FONT_M,228);cv_text(6,14,&FONT_M,text,UX_TEXT);
+    index_text(cur_index,text);ux_display_text(6,0,&FONT_XS,text,UX_MUTED);
+    ux_fit(text,sizeof text,CATEGORY[set.category],&FONT_XS,90);ux_display_text(62,0,&FONT_XS,text,UX_MUTED);
+    if(cur_dirty) ux_display_text(205,0,&FONT_XS,"EDIT",UX_AMBER);
+    ux_fit(text,sizeof text,cur.name,&FONT_M,228);ux_display_text(6,14,&FONT_M,text,UX_TEXT);
     cv_blit(0,0);
 }
 
@@ -461,7 +456,7 @@ static void ux_module(void)
     const int message=plat_ms()<ui.msg_until && ui.msg_priority>0;
     cv_begin(240,16,UX_RED);
     ux_fit(fitted,sizeof fitted,message ? PAGES[ui.page].title : ux_row_title(),&FONT_XS,message?72:190);
-    cv_text(6,0,&FONT_XS,fitted,UX_TEXT);
+    ux_display_text(6,0,&FONT_XS,fitted,UX_TEXT);
     text[0]=0;
     if(message) {
         text_cat(text,ui.msg[0]);text_cat(text," ");
@@ -474,7 +469,7 @@ static void ux_module(void)
     }
     const felucca_font_t *font=message?&FONT_T:&FONT_XS;
     ux_fit(fitted,sizeof fitted,text,font,message?146:32);
-    cv_text(234-text_w(font,fitted),message?2:0,font,fitted,UX_TEXT);
+    ux_display_text(234-ux_display_width(font,fitted),message?2:0,font,fitted,UX_TEXT);
     cv_blit(0,40);
 }
 
@@ -486,6 +481,7 @@ static uint32_t ux_hash(uint32_t hash, uint32_t value) { return (hash^value)*167
 static void ux_draw(uint32_t areas)
 {
     uint32_t keys[5]={2166136261u,2166136261u,2166136261u,2166136261u,2166136261u},i;
+    for(i=0;i<5;i++) keys[i]=ux_hash(keys[i],set.display);
     keys[0]=ux_hash(ux_hash(ux_hash(keys[0],cur_index),set.category),cur_dirty);
     for(i=0;i<S1_NAME_LEN && cur.name[i];i++) keys[0]=ux_hash(keys[0],(uint8_t)cur.name[i]);
     for(i=1;i<4;i++) keys[i]=ux_hash(ux_hash(keys[i],ui.page),ui.row);

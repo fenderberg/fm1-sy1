@@ -1,0 +1,39 @@
+// Optional browser QA for the display preference. Uses the local emulator only.
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
+const base=(process.env.SY1_TEST_URL||'http://127.0.0.1:8473').replace(/\/$/,'');
+await mkdir('app/build/display-review',{recursive:true});
+const browser=await chromium.launch({headless:true});
+try{
+ const context=await browser.newContext({viewport:{width:1440,height:1300},deviceScaleFactor:1.5});
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const lit=()=>{const c=document.getElementById('screen');return c.getContext('2d').getImageData(0,0,c.width,c.height).data.some((v,i)=>i%4!==3&&v>100);};
+ const green=()=>{const c=document.getElementById('screen'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<p.length;i+=4)if(p[i+1]>150&&p[i+1]>p[i]*1.2&&p[i+1]>p[i+2]*1.2)n++;return n;};
+ const lcd=()=>{const c=document.getElementById('screen'),p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<p.length;i+=4)if(p[i]>120&&p[i+1]>150&&p[i+2]<140&&p[i+1]>p[i+2]*1.4)n++;return n>p.length/8;};
+ const button=name=>page.getByRole('button',{name,exact:true});
+ const turn=async(name,key)=>{await button(name).focus();await page.keyboard.press(key);await page.waitForTimeout(120);};
+ await page.goto(base+'/emu/',{waitUntil:'networkidle'});await page.locator('#go').click();await page.waitForFunction(lit,{},{timeout:20000});
+ assert.equal(await page.locator('#device g.knob').first().evaluate(e=>getComputedStyle(e).outlineStyle),'none','rack decoration must not affect real panel controls');
+ await button('GLO').press('Space');await page.waitForTimeout(120);await turn('SELECT','PageUp');
+ await page.waitForFunction(()=>/display/i.test(document.getElementById('said').textContent));
+ await turn('KNOB 1','ArrowUp');await page.waitForFunction(green);
+ assert.ok(await page.evaluate(green)>100,'green pixels are visible');
+ await button('HOME').press('Space');await page.waitForTimeout(180);await page.evaluate(()=>document.activeElement?.blur());
+ await page.locator('#device').screenshot({path:'app/build/display-review/browser-green.png'});
+ await page.waitForTimeout(5500);await page.reload({waitUntil:'networkidle'});await page.locator('#go').click();await page.waitForFunction(lit,{},{timeout:20000});await page.waitForFunction(green);
+ console.log('Green choice persisted through a real browser reload.');
+ await button('GLO').press('Space');await page.waitForTimeout(120);await turn('SELECT','PageUp');await turn('KNOB 1','ArrowUp');
+ await page.waitForFunction(lcd);await page.waitForFunction(()=>/lcd/i.test(document.getElementById('said').textContent));
+ await button('ENV').press('Space');await page.waitForTimeout(180);await page.evaluate(()=>document.activeElement?.blur());
+ await page.locator('#device').screenshot({path:'app/build/display-review/browser-lcd.png'});
+ await page.waitForTimeout(5500);await page.reload({waitUntil:'networkidle'});await page.locator('#go').click();await page.waitForFunction(lcd,{},{timeout:20000});
+ console.log('LCD choice persisted through a real browser reload.');
+ await button('GLO').press('Space');await page.waitForTimeout(120);await turn('SELECT','PageUp');await turn('KNOB 1','ArrowDown');
+ await page.waitForFunction(green);assert.equal(await page.evaluate(lcd),false,'LCD background cleared on return to LED');
+ await turn('KNOB 1','ArrowDown');
+ await page.waitForFunction(()=>/nord/i.test(document.getElementById('said').textContent));
+ assert.equal(await page.evaluate(green),0,'Nord palette restored after switching back');
+ assert.deepEqual(errors,[]);console.log('WASM browser: LED and LCD choices, controls, persisted reloads, screen-reader values and Nord restore passed.');
+ await context.close();
+}finally{await browser.close();}

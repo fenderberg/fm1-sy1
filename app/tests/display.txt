@@ -1,0 +1,81 @@
+# Green LED is a global preference, selected with ordinary panel controls.
+wait 600
+turn PRESET 1
+wait 1400
+expect display 0
+tap GLO
+turn SELECT 5
+expect page 7
+expect row 5
+shot nord-choice.png
+turn K1 1
+expect display 1
+expect dirty 0
+shot green-choice.png
+tap HOME
+wait 100
+shot green-home.png
+tap SEL
+turn K2 1
+expect dirty 1
+shot green-edited.png
+turn K2 -1
+expect dirty 0
+shot green-saved-reference.png
+tap ENV
+key 7 down
+wait 150
+expect voices 1
+shot green-envelope.png
+key 7 up
+tap PLAY
+tap LFO
+wait 160
+shot green-lfo.png
+wait 5500
+reboot
+wait 600
+expect display 1
+expect patch 1
+shot green-reboot.png
+listen
+tap GLO
+turn SELECT 5
+where
+said DISPLAY
+turn K1 1
+expect display 2
+expect dirty 0
+shot lcd-choice.png
+tap HOME
+wait 100
+shot lcd-home.png
+tap SEL
+turn K2 1
+expect dirty 1
+shot lcd-edited.png
+turn K2 -1
+expect dirty 0
+tap ENV
+key 7 down
+wait 150
+shot lcd-envelope.png
+key 7 up
+tap PLAY
+wait 5500
+reboot
+wait 600
+expect display 2
+expect patch 1
+shot lcd-reboot.png
+tap GLO
+turn SELECT 5
+where
+said LCD
+turn K1 -1
+expect display 1
+shot led-restored.png
+turn K1 -1
+expect display 0
+expect dirty 0
+shot nord-restored.png

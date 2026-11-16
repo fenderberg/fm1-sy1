@@ -85,6 +85,6 @@ if(process.env.SY1_TEST_COLLECTION){
 await page.setViewportSize({width:390,height:844});
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no mobile horizontal overflow');
 await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:'app/build/manager-qa/mobile.png',fullPage:true});
-assert.deepEqual(errors,[]);console.log('manager browser: catalogue, search, persisted favourites, bank selection, capacity, overwrite confirmation, MIDI failure/retry/stop, preview and local collection passed');
+assert.deepEqual(errors,[]);console.log('manager browser: catalogue, search, persisted favourites, bank selection, capacity, overwrite confirmation, MIDI failure/retry/stop and preview'+(process.env.SY1_TEST_COLLECTION?' plus full local collection':'')+' passed');
 await context.close();
 } finally {await browser.close();}

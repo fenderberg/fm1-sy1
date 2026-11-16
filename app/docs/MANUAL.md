@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI.
+how to get patches into the FM-1, and MIDI. Version **0.2.1** includes NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -46,12 +46,34 @@ and the arp shows the current step/note. Random LFOs show recent values. These a
 Values use meaningful units where the engine supplies a reliable conversion: attack in ms or s, pitch in semitones
 and cents, sustain in percent and LFO speed in Hz or exact fractions of a beat. D.TAU, R.TAU and M.TAU are decay
 and release **time constants**, not the total duration of a note. Pulse width shows the duty of the low part
-(50% at its maximum). Other values keep their Synth1 numbers. GLO's last subpage, DIAGNOSTIC, shows CPU,
+(50% at its maximum). Other values keep their Synth1 numbers. GLO's DIAGNOSTIC subpage shows CPU,
 peak CPU, voice-limit events and the raw value of the last edited Synth1 parameter. Its four encoders are read-only.
 
 The bottom always shows active/max voices, octave, tempo and its source: INT for internal, EXT for MIDI clock.
 MIDI lights briefly when a note arrives. The second line explicitly shows ARP ON/OFF, HOLD ON/OFF or
 DRONE / STACK or REPLACE. LIMIT means that the CPU has reduced the voice limit during this session.
+
+### Choosing a display style
+
+On **GLO → DISPLAY (6/6)**, turn **KNOB1** to choose **NORD**, **GREEN** (LED) or **LCD**. The change is immediate.
+NORD keeps the red section strip, ivory text and amber focus. GREEN LED uses a dark green background,
+uppercase 5×7 pixel lettering and seven-segment numerals. GREEN LCD reverses the contrast with dark
+characters and graphics on a soft green background; the focused control gets a lighter panel and dark
+underline. Units, patch names, saved-value marks,
+encoder focus, graphs, playing status and live envelope/LFO feedback remain available in all three styles.
+The screen reader keeps the original text and announces the style choice.
+
+![NORD display: Warm Pad with the red section strip and ivory labels](img/screen-play.png)
+
+![GREEN LED display: green pixel letters and segment numerals on black](img/screen-green-play.png)
+
+![GREEN LCD display: dark letters and graphs on a green background](img/screen-lcd-play.png)
+
+Compare every page in the [screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/): 32 subpages in all three styles.
+
+This is a global preference, separate from the sound. It is automatically saved when the synth is idle;
+existing patch edits and imported banks are preserved. Upgrading from older 12-byte settings keeps the
+selected patch, octave, voice limit, tempo, category and drone preference, and starts in NORD.
 
 ## 3. Patches
 

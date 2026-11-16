@@ -48,7 +48,7 @@ test-web: build/sy1pack
 	node host/library_test.mjs
 
 # Build the complete website from an existing release package and browser build.
-VERSION ?= 0.2.0
+VERSION ?= 0.2.1
 site:
 	python3 tools/make_site.py app/build/sy1-$(VERSION).fwsc $(VERSION)
 

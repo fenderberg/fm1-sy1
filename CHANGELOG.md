@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.1 — 2026-11-16
+
+Choose the display that suits your FM-1: **NORD**, **GREEN LED**, or **GREEN LCD**.
+
+- **Display choice:** GLO → DISPLAY (6/6), KNOB1. NORD keeps the red strip, ivory labels and amber focus.
+  GREEN LED uses green pixel letters and segment numerals on black. GREEN LCD puts dark lettering and
+  graphs on a soft green background, with a lighter focus panel.
+- **Same controls and feedback:** all 32 subpages retain saved-value marks, units, edit indication,
+  graphs, envelope/LFO/arp motion, and screen-reader text in every style.
+- **Remembered preference:** saved globally while idle. Older 12-byte settings migrate while retaining
+  the selected patch, octave, tempo, voice limit, category and drone choice. Changing style does not edit
+  the sound or send audio-engine events.
+- **Current screenshots:** 137 real simulator captures, plus a three-style comparison on the website,
+  updated manual and the [full screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/).
+- **Browser panel:** homepage knob styling is scoped to the decorative rack, keeping emulator controls
+  in their original positions and appearance.
+- **Patch library:** 3,174 presets / 27 original banks remain available with author credits and terms.
+
+Validation: 202 engine checks, 445 app checks, 62 JavaScript/C and ZIP checks, all 3,174 preset files,
+234 simulator checks, 32 subpages in three styles, and browser checks for style changes, persisted reloads
+and screen-reader values. The baseline WAV remains byte-identical. Firmware and WebAssembly build checks pass.
+The preceding 0.2.1-green candidate was installed on a physical FM-1: 513 slots and the selected patch were
+retained; LCD selection was confirmed and the device reported no crash. Screen readability and audio load
+during playing have not been fully assessed. This remains an early release.
+
 ## 0.2.0 — 2026-11-16
 
 SY1 now puts its Synth1 sound library first, with a complete Nord-inspired screen and website redesign.

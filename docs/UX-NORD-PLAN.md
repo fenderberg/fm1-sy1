@@ -1,10 +1,12 @@
 # Plan: SY1-firmware met een Nord-achtige bediening
 
-Status: het software-redesign is doorgevoerd voor alle 31 subpagina's in firmware, host en browseremulator.
+Status: het software-redesign is doorgevoerd voor alle 32 subpagina's in firmware, host en browseremulator.
 De gedeelde indeling, opgeslagen referenties, precieze EDIT-status, subpaginageheugen en enginegestuurde
 envelope-/LFO-/arp-feedback zijn geïmplementeerd. Beoordeling van fysieke leesbaarheid en timing op een
 echte FM-1 blijft nodig. Bekijk de [volledige schermgalerij](mockups/nord-redesign/index.html).
 De [oorspronkelijke pixelproef A](mockups/nord-pixel/index.html) blijft beschikbaar als ontwerpreferentie.
+Vanaf versie 0.2.1 is er daarnaast een globale keuze op GLO → DISPLAY tussen NORD,
+GREEN LED (groen op zwart) en GREEN LCD (donkere tekens op groen), met behoud van grafieken en live feedback.
 Hieronder staat het oorspronkelijke ontwerpplan.
 Gebaseerd op de bestaande SY1-firmware,
 de FM-1 met een scherm van 240 × 240 pixels en de gekozen richting: een compact hardwarepaneel

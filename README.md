@@ -10,7 +10,7 @@ patches load as they are. Every parameter can also be edited on the FM-1 itself.
 
 **Find a sound first:** the [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) includes **3,174 presets in 27 community banks**. Search names, filter banks and sound categories, save favourites, preview in the browser, then load a selection over USB. It also imports your own `.sy1` files, folders, bank ZIPs and ZIP collections containing bank ZIPs, entirely locally.
 
-<img src="docs/img/screen-play.png" width="240" alt="SY1's Play page: the patch Warm Pad with filter and gain values"> <img src="docs/img/screen-filter.png" width="240" alt="SY1's Filter page: type, frequency, resonance and amount">
+<img src="docs/img/screen-play.png" width="240" alt="NORD: red strip, ivory text, Warm Pad"> <img src="docs/img/screen-green-play.png" width="240" alt="GREEN LED: green letters and segment numerals on black"> <img src="docs/img/screen-lcd-play.png" width="240" alt="GREEN LCD: dark letters and graphs on green">
 
 SY1 is built on [fm1-base](https://github.com/charlesvestal/fm1-base). Its parameter laws (envelope times,
 filter curves, FM index and the rest) are the measurements of the original Synth1 published by
@@ -18,7 +18,7 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.2.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.2.0) · [What changed](CHANGELOG.md)
+Latest release: [v0.2.1](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.2.1) · [What changed](CHANGELOG.md)
 
 ## Status: early
 
@@ -52,7 +52,7 @@ make test          # the engine: maths, tuning, envelopes, the patch reader, 400
 make test-app      # the app against a stand-in for the FM-1
 make test-web      # reader against C, nested ZIPs, library integrity and placement (Node >= 22.16)
 make test-site     # website navigation, local links and scripts (needs existing release and browser builds)
-make preview-nord  # the full Nord UX: simulator checks and screenshots of all 31 subpages
+make preview-nord  # the full Nord UX: simulator checks and screenshots of all 32 subpages in all three display styles
 make all           # build/s1render (a patch to a WAV file) and build/sy1pack (patches to a SysEx file)
 
 ./build.sh --host  # fm1-base's simulator, then:
@@ -60,7 +60,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.2.0` after building the matching release package and
+Build the complete website with `make site VERSION=0.2.1` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -137,6 +137,17 @@ subpage strip, sound diagram, four encoder columns and a permanent playing-statu
 active control; grey notches show saved values. Pages remember their last subpage during the session.
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
+
+Version **0.2.1** offers **GREEN LED** and **GREEN LCD**: choose **GLO → DISPLAY (6/6) → KNOB1**.
+GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
+and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
+feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
+NORD remains the default. This is a global preference, saved while idle; old settings migrate without
+losing the selected patch or other controls. Build with `./build.sh --release 0.2.1` and
+`./build.sh --web --release 0.2.1`. Optional browser QA is `node host/display_browser_test.mjs`
+with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
+
+See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).
 
 HOLD replaces the latched chord when you play again after releasing every key. Drone has STACK (add notes;
 play one again to remove it) and REPLACE (new gesture replaces the chord), selected on Arp row 2 or Voice row 4.

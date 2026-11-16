@@ -1,6 +1,7 @@
 {
-  "subpages": 31,
-  "simulator_checks": 130,
-  "screenshots": 57,
+  "subpages": 32,
+  "display_styles": 3,
+  "simulator_checks": 234,
+  "screenshots": 137,
   "baseline_audio_identical": true
 }

@@ -20,6 +20,8 @@ static int ux_equal(const char *a, const char *b)
 
 /* --------------------------------------------------------------- settings --- */
 #define SET_MAGIC 0x53593131u            /* "SY11" */
+enum { DISPLAY_NORD, DISPLAY_GREEN, DISPLAY_LCD, DISPLAY_COUNT };
+#define SET_LEGACY_BYTES 12u
 typedef struct {
     uint32_t magic;
     uint16_t patch;                      /* the list's index: the built-in ones, then the user's slots */
@@ -27,11 +29,13 @@ typedef struct {
     uint8_t voices;                      /* 1 .. S1_MAX_VOICES */
     uint16_t tempo;                      /* 30 .. 300 */
     uint8_t category, drone_replace;     /* uses the old reserved bytes: settings stay compatible */
+    uint8_t display, reserved[3];         /* appended: old 12-byte settings migrate without losing patches */
 } settings_t;
 static settings_t set;
 
 static void settings_defaults(void)
 {
+    set = (settings_t){0};
     set.magic = SET_MAGIC;
     set.patch = 0;
     set.octave = 0;
@@ -393,7 +397,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_NONE = 255 };
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -447,7 +451,8 @@ static const uint8_t R_VOICE[][4] = {
     {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
     {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, S1P_PAN},
     {X_VOICES, X_TEMPO, X_CATEGORY, X_DRONE},
-    {X_CPU, X_PEAK, X_SHED, X_RAW}};
+    {X_CPU, X_PEAK, X_SHED, X_RAW},
+    {X_DISPLAY, X_NONE, X_NONE, X_NONE}};
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
@@ -470,6 +475,7 @@ static void value_text(uint32_t id, int32_t v, char *t)
     const char *s = 0;
     t[0] = 0;
     switch (id) {
+    case X_DISPLAY: s = v == DISPLAY_LCD ? "LCD" : v == DISPLAY_GREEN ? "GREEN" : "NORD"; break;
     case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_OTHER)]; break;
     case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
     case S1P_OSC1_SHAPE: s = OSC1[v & 3]; break;
@@ -499,10 +505,11 @@ static void value_text(uint32_t id, int32_t v, char *t)
 static const char *cell_name(uint32_t id)
 {
     return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id == X_DRONE ? "DRONE" :
-        id == X_CATEGORY ? "CAT" : id < S1_NPARAMS ? PNAME[id] : "";
+        id == X_CATEGORY ? "CAT" : id == X_DISPLAY ? "STYLE" : id < S1_NPARAMS ? PNAME[id] : "";
 }
 static int32_t cell_value(uint32_t id)
 {
+    if (id == X_DISPLAY) return set.display;
     if (id == X_CPU) return (int32_t)shown_cpu;
     if (id == X_PEAK) return (int32_t)cpu_high;
     if (id == X_SHED) return (int32_t)cpu_sheds;
@@ -615,6 +622,11 @@ static void cell_edit(uint32_t id, int32_t d)
         set.drone_replace = (uint8_t)v;
         set_dirty = 1;
         ev_push(EV_DRONE_MODE, 0, v);
+    } else if (id == X_DISPLAY) {
+        v = clamp(set.display + d, DISPLAY_NORD, DISPLAY_COUNT - 1);
+        if (v == set.display) return;
+        set.display = (uint8_t)v;
+        set_dirty = 1;
     } else if (id == X_CATEGORY) {
         v = clamp(cur_category + d, CAT_BASS, CAT_OTHER);
         if (v == cur_category)
@@ -943,12 +955,15 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
 void app_init(void)
 {
     s1_config cfg;
+    int loaded;
     ux_live = (ux_live_t){0};
     ux_audio = (ux_live_t){0};
     ux_audio_frames = ux_track_age = 0;
     ux_render_generation = ux_wanted_generation = 0;
     ux_track = -1;
-    if (plat_store_load(OBJ_SETTINGS, &set, sizeof set) != (int)sizeof set || set.magic != SET_MAGIC ||
+    set = (settings_t){0};
+    loaded = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
+    if ((loaded != (int)sizeof set && loaded != SET_LEGACY_BYTES) || set.magic != SET_MAGIC ||
         set.octave < -3 || set.octave > 3 || set.voices < 1u || set.voices > S1_MAX_VOICES || set.tempo < 30u ||
         set.tempo > 300u)
         settings_defaults();
@@ -956,6 +971,8 @@ void app_init(void)
         set.category = CAT_ALL;
     if (set.drone_replace > 1)
         set.drone_replace = 0;
+    if (set.display >= DISPLAY_COUNT)
+        set.display = DISPLAY_NORD;
     cfg.sample_rate = SR;
     cfg.max_voices = set.voices;
     cfg.delay_buf = delay_buf;
@@ -1077,6 +1094,7 @@ int app_expect(const char *what, int *got)
         *got = (int)ui.row;
     else if (!strcmp(what, "ux_focus"))
         *got = ui.ux_focus;
+    else if (!strcmp(what, "display")) *got = set.display;
     else if (!strcmp(what, "ux_note")) *got = ux_live.active ? ux_live.note : -1;
     else if (!strcmp(what, "ux_stage")) *got = ux_live.stage[0];
     else if (!strcmp(what, "ux_live")) *got = (int)ux_live.sequence;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the complete SY1 UX and export real simulator screens for all 31 subpages."""
+"""Build the complete SY1 UX and export real simulator screens for all 32 subpages in all three display styles."""
 import argparse
 import html
 import json
@@ -16,7 +16,7 @@ PAGES = (("play", "HOME", "Play", ("Filter", "Performance")),
          ("lfo", "LFO", "LFO", ("LFO 1", "LFO 1 routing", "LFO 2", "LFO 2 routing")),
          ("fx", "FX", "Effects", ("Insert", "Mix", "EQ", "Delay", "Delay mix", "Chorus", "Chorus modulation")),
          ("arp", "ARP", "Arpeggiator", ("Direction / Range", "Gate / Hold")),
-         ("voice", "GLO", "Voice", ("Mode", "Unison", "Spread", "Setup", "Diagnostics")))
+         ("voice", "GLO", "Voice", ("Mode", "Unison", "Spread", "Setup", "Diagnostics", "Display")))
 
 
 def checked(args, log=None):
@@ -50,7 +50,8 @@ body.zoom .screens{grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),
 section{scroll-margin-top:20px}@media(max-width:400px){main{padding-inline:16px}figure{padding:14px}}
 </style></head><body><main><p class="eyebrow">SY1 / NORD UX / ALLE PAGINA’S</p><h1>Eén instrument. Eén bediening.</h1>
 <p>De volledige firmware-UX op 240 × 240 pixels: vier vaste bedieningsvakken, opgeslagen referenties,
-encoderfocus en passende visualisaties. Dit zijn echte beelden uit de normale hostsimulator.</p>
+encoderfocus en passende visualisaties. Kies op GLO → DISPLAY met KNOB1 tussen NORD, GREEN LED en GREEN LCD.
+Dit zijn echte beelden uit de normale hostsimulator, in alle drie de schermstijlen.</p>
 <div class="toolbar"><button id="native" aria-pressed="true">1× · 240 pixels</button><button id="zoom" aria-pressed="false">2× · pixels bekijken</button></div>
 <p>De grafieken tonen instellingen. De punten in de envelope, LFO en arp komen uit de engine.
 Decay en release tonen hun tijdconstante (TAU); de ruwe Synth1-waarde is te bekijken op GLO → Diagnostics.</p>'''
@@ -73,29 +74,32 @@ def main():
     host = ROOT / "app/build/host/sy1_host"
     checks = 0
     sections = []
-    for case in ("basic", "performance", "nord-preview", "ux"):
+    for case in ("basic", "performance", "nord-preview", "ux", "display"):
         out = work / case
         out.mkdir(exist_ok=True)
         checks += checked([host, ROOT / f"app/tests/{case}.txt", out], work / f"{case}.log")
     script = ["wait 600", "turn PRESET 1", "wait 1400"]
-    for page, (slug, button, title, rows) in enumerate(PAGES):
-        if button == "ARP":
-            script += ["press ARP", "wait 550", "release ARP", "tap ARP", "tap SEQ",
-                       "key 7 down", "key 11 down", "key 14 down", "wait 120",
-                       "key 7 up", "key 11 up", "key 14 up"]
-        elif button != "HOME":
-            script += [f"tap {button}"]
-        script += ["turn SELECT -20", f"expect page {page}"]
-        if slug == "env": script += ["key 7 down", "wait 120"]
-        images = []
-        for row, label in enumerate(rows):
-            if row: script += ["turn SELECT 1"]
-            file = f"{slug}-{row+1:02d}.png"
-            script += [f"expect row {row}", "wait 80", f"shot {file}"]
-            images.append((file, f"{title} · {label}"))
-        if slug == "env": script += ["key 7 up", "tap PLAY", "wait 100"]
-        if slug == "arp": script += ["tap SEQ", "tap PLAY", "wait 100"]
-        sections.append((slug, title, images))
+    for style, prefix in (("Nord", ""), ("Green LED", "green-"), ("Green LCD", "lcd-")):
+        if prefix:
+            script += ["tap REC", "tap GLO", "turn SELECT -20", "turn SELECT 5", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
+        for page, (slug, button, title, rows) in enumerate(PAGES):
+            if button == "ARP":
+                script += ["press ARP", "wait 550", "release ARP", "tap ARP", "tap SEQ",
+                           "key 7 down", "key 11 down", "key 14 down", "wait 120",
+                           "key 7 up", "key 11 up", "key 14 up"]
+            elif button != "HOME":
+                script += [f"tap {button}"]
+            script += ["turn SELECT -20", f"expect page {page}"]
+            if slug == "env": script += ["key 7 down", "wait 120"]
+            images = []
+            for row, label in enumerate(rows):
+                if row: script += ["turn SELECT 1"]
+                file = f"{prefix}{slug}-{row+1:02d}.png"
+                script += [f"expect row {row}", "wait 80", f"shot {file}"]
+                images.append((file, f"{title} · {label}"))
+            if slug == "env": script += ["key 7 up", "tap PLAY", "wait 100"]
+            if slug == "arp": script += ["tap SEQ", "tap PLAY", "wait 100"]
+            sections.append((prefix+slug, style+" · "+title, images))
     all_pages = work / "all-pages.txt"
     all_pages.write_text("\n".join(script) + "\n", encoding="utf-8")
     out = work / "all-pages"
@@ -104,7 +108,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     from PIL import Image
     exports = []
-    for group in ("all-pages", "nord-preview", "ux"):
+    for group in ("all-pages", "nord-preview", "ux", "display"):
         items = []
         for source in sorted((work / group).glob("*.png")):
             with Image.open(source) as screenshot:
@@ -113,9 +117,16 @@ def main():
             shutil.copy2(source, args.output / name)
             exports.append(name)
             items.append((name, source.stem.replace("-", " ")))
-        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "Referenties en live feedback", items))
+        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "Displaykeuze en herstart" if group == "display" else "Referenties en live feedback", items))
     gallery(args.output, sections)
-    report = {"subpages": sum(len(page[3]) for page in PAGES), "simulator_checks": checks,
+    # Keep the manual, README and homepage tied to the actual current renderer.
+    if args.output.resolve() == (ROOT / "docs/mockups/nord-redesign").resolve():
+        for prefix, name in (("", ""), ("green-", "green-"), ("lcd-", "lcd-")):
+            for source, target in (("play-01.png", "play.png"), ("filter-01.png", "filter.png")):
+                for directory in (ROOT / "app/docs/img", ROOT / "docs/img"):
+                    directory.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(args.output / (prefix + source), directory / ("screen-" + name + target))
+    report = {"subpages": sum(len(page[3]) for page in PAGES), "display_styles": 3, "simulator_checks": checks,
               "screenshots": len(exports), "baseline_audio_identical": None}
     baseline = ROOT / "app/build/ux-baseline/sy1_host"
     if baseline.exists():

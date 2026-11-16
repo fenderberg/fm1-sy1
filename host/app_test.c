@@ -81,14 +81,16 @@ static char screen[4096];                /* every text drawn in the last frame, 
 static char screen_zones[5][768], drawing_text[768];
 static uint32_t draws;
 static uint32_t zone_draws[5];
+static uint16_t drawing_bg, zone_bg[5];
 void lcd_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
-static void cv_begin(uint32_t w, uint32_t h, uint16_t bg) { (void)w; (void)h; (void)bg; drawing_text[0] = 0; }
+static void cv_begin(uint32_t w, uint32_t h, uint16_t bg) { (void)w; (void)h; drawing_bg = bg; drawing_text[0] = 0; }
 static void cv_blit(uint32_t x, uint32_t y)
 {
     const uint32_t zone = y == 0 ? 0 : y == 40 ? 1 : y == 56 ? 2 : y == 136 ? 3 : 4;
     uint32_t i;
     (void)x;
     strcpy(screen_zones[zone], drawing_text);
+    zone_bg[zone] = drawing_bg;
     zone_draws[zone]++;
     screen[0] = 0;
     for (i = 0; i < 5; i++) strcat(screen, screen_zones[i]);
@@ -96,13 +98,18 @@ static void cv_blit(uint32_t x, uint32_t y)
 }
 static void cv_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { (void)x; (void)y; (void)w; (void)h; (void)c; }
 static void cv_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t c) { (void)x0; (void)y0; (void)x1; (void)y1; (void)c; }
-static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
+static void record_text(const char *s)
 {
-    (void)y; (void)f; (void)c;
     if (strlen(drawing_text) + strlen(s) + 2 < sizeof drawing_text) {
         strcat(drawing_text, s);
         strcat(drawing_text, "|");
     }
+}
+#define SY1_TEST_PIXEL_TEXT(s) record_text(s)
+static int32_t cv_text(int32_t x, int32_t y, const felucca_font_t *f, const char *s, uint16_t c)
+{
+    (void)y; (void)f; (void)c;
+    record_text(s);
     return x + (int32_t)strlen(s) * 8;
 }
 static int32_t text_w(const felucca_font_t *f, const char *s) { (void)f; return (int32_t)strlen(s) * 8; }
@@ -387,7 +394,7 @@ static void test_nord_ux(void)
     CHECK(!ux_read_live(), "reader accepted an incomplete audio snapshot");
     ux_audio.sequence++;
 
-    /* Exercise all 31 subpages with genuine endpoint values, including every enum/table index. */
+    /* Exercise all 32 subpages with genuine endpoint values, including every enum/table index. */
     for (mode = 0; mode < 3; mode++) {
         for (i = 0; i < S1_NPARAMS; i++) cur.values[i] = mode == 0 ? s1_param_def[i] :
             mode == 1 ? s1_param_min[i] : s1_param_max[i];
@@ -399,6 +406,91 @@ static void test_nord_ux(void)
         }
     }
     patch_select(0);
+}
+
+static void test_display_styles(void)
+{
+    uint32_t page, row, i, mode, previous[5];
+    settings_t old;
+    s1_patch before;
+    CHECK(sizeof(settings_t)==16 && (uint32_t)((uint8_t *)&set.display-(uint8_t *)&set)==SET_LEGACY_BYTES,
+          "settings no longer append after the legacy prefix");
+    patch_select(1);
+    set.octave=-2;set.tempo=137;set.voices=6;set.category=CAT_PAD;set.drone_replace=1;
+    old=set;
+    memcpy(store[OBJ_SETTINGS],&set,SET_LEGACY_BYTES);store_len[OBJ_SETTINGS]=SET_LEGACY_BYTES;
+    set.display=DISPLAY_GREEN;
+    power_on();
+    CHECK(set.display==DISPLAY_NORD && set.patch==old.patch && set.octave==old.octave &&
+          set.tempo==old.tempo && set.voices==old.voices && set.category==old.category &&
+          set.drone_replace==old.drone_replace,"legacy settings were lost or inherited a stale display");
+    CHECK(!strcmp(cur.name,"Warm Pad"),"migration lost selected patch");
+    if(bank_used(0)) {
+        s1_patch stored_patch;
+        bank_load(0,&stored_patch);patch_select(NFACT);
+        memcpy(store[OBJ_SETTINGS],&set,SET_LEGACY_BYTES);store_len[OBJ_SETTINGS]=SET_LEGACY_BYTES;
+        power_on();
+        CHECK(cur_index==NFACT && bank_used(0) && !memcmp(cur.values,stored_patch.values,sizeof cur.values),
+              "legacy migration lost the selected imported patch");
+        patch_select(1);
+    }
+    tap(B_GLO);turn(EN_SELECT,5);
+    before=cur;
+    for(i=0;i<5;i++) previous[i]=zone_draws[i];
+    const uint32_t events_before=ev_w;
+    cell_edit(X_DISPLAY,1);
+    CHECK(set.display==DISPLAY_GREEN && set_dirty && !cur_dirty && !memcmp(&before,&cur,sizeof cur) && ev_w==events_before,
+          "display choice edited the patch or queued an audio event");
+    run(32);
+    for(i=0;i<5;i++) CHECK(zone_draws[i]>previous[i],"display switch left stale colors in zone %u",i);
+    CHECK(strstr(screen,"GREEN LED|") && strstr(screen,"STYLE|"),"display selection lacks feedback: %s",screen);
+    CHECK(zone_bg[0]==UX_BG && zone_bg[1]==UX_RED && UX_TEXT!=RGB(244,239,223),"green palette not applied");
+    cell_edit(X_DISPLAY,-100);CHECK(set.display==DISPLAY_NORD,"display did not clamp at Nord");
+    cell_edit(X_DISPLAY,1);
+    CHECK(ux_display_width(&FONT_M,"123")==43 && ux_display_width(&FONT_M,"0.01")==47,
+          "LED numeral widths disagree with their cells");
+    CHECK(ux_led_number(&FONT_M,"1/24") && !ux_led_number(&FONT_M,"LP24"),"segment selection loses fractions or labels");
+    CHECK(ux_pixel_row('a',0)==ux_pixel_row('A',0),"pixel display lost lowercase patch names");
+    run(5500);power_on();
+    CHECK(set.display==DISPLAY_GREEN && store_len[OBJ_SETTINGS]==sizeof set && set.tempo==137 && set.octave==-2,
+          "green selection or existing settings did not survive restart");
+    for(mode=0;mode<3;mode++) {
+        for(i=0;i<S1_NPARAMS;i++) cur.values[i]=mode==0?s1_param_def[i]:mode==1?s1_param_min[i]:s1_param_max[i];
+        to_engine();
+        for(page=0;page<NPAGES;page++)for(row=0;row<PAGES[page].nrows;row++) {
+            ui.page=page;ui.row=row;ui.redraw=UX_ALL;run(32);
+            CHECK(screen_zones[1][0] && screen_zones[3][0],"empty green page %u row %u endpoint %u",page,row,mode);
+        }
+    }
+    ui.page=7;ui.row=5;ui.redraw=UX_ALL;run(32);
+    for(i=0;i<5;i++) previous[i]=zone_draws[i];
+    before=cur;
+    const uint32_t lcd_events=ev_w;
+    cell_edit(X_DISPLAY,1);run(32);
+    CHECK(set.display==DISPLAY_LCD && ev_w==lcd_events && !memcmp(&before,&cur,sizeof cur),
+          "LCD style changed sound or failed to select");
+    for(i=0;i<5;i++) CHECK(zone_draws[i]>previous[i],"LCD left stale LED pixels in zone %u",i);
+    CHECK(strstr(screen,"GREEN LCD|") && UX_TEXT!=UX_BG && zone_bg[0]==RGB(166,193,89),
+          "LCD title or green background missing");
+    CHECK(((UX_TEXT>>11)&31)<8 && ((UX_BG>>5)&63)>40 && ((UX_MUTED>>5)&63)<25,
+          "LCD text lacks dark-on-light contrast");
+    cell_edit(X_DISPLAY,100);CHECK(set.display==DISPLAY_LCD,"display did not clamp at LCD");
+    run(5500);power_on();
+    CHECK(set.display==DISPLAY_LCD && set.tempo==137 && set.octave==-2,"LCD choice did not survive restart");
+    for(mode=0;mode<3;mode++) {
+        for(i=0;i<S1_NPARAMS;i++) cur.values[i]=mode==0?s1_param_def[i]:mode==1?s1_param_min[i]:s1_param_max[i];
+        to_engine();
+        for(page=0;page<NPAGES;page++)for(row=0;row<PAGES[page].nrows;row++) {
+            ui.page=page;ui.row=row;ui.redraw=UX_ALL;run(32);
+            CHECK(screen_zones[1][0] && screen_zones[3][0],"empty LCD page %u row %u endpoint %u",page,row,mode);
+        }
+    }
+    cell_edit(X_DISPLAY,-1);run(32);
+    CHECK(set.display==DISPLAY_GREEN && zone_bg[0]==RGB(1,7,3),"LCD-to-LED switch left light pixels");
+    cell_edit(X_DISPLAY,-1);run(32);
+    CHECK(set.display==DISPLAY_NORD && zone_bg[0]==RGB(17,19,20),"switch back left green colors");
+    set.display=255;plat_store_save(OBJ_SETTINGS,&set,sizeof set);power_on();
+    CHECK(set.display==DISPLAY_NORD && set.tempo==137,"invalid display reset unrelated settings");
 }
 
 int main(void)
@@ -560,6 +652,7 @@ int main(void)
 
     test_live_controls();
     test_nord_ux();
+    test_display_styles();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

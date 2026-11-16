@@ -1,81 +1,73 @@
-# Volledig Nord-redesign van SY1
+# SY1-schermstijlen — versie 0.2.1
 
-[Open de schermgalerij](index.html): alle **31 subpagina's**, met in totaal 57 echte schermbeelden van
-240 × 240 pixels. De knoppen bovenaan wisselen tussen 1× en 2×. De [oorspronkelijke pixelproef A](../nord-pixel/index.html)
-blijft beschikbaar om te vergelijken.
+[Open de schermgalerij](index.html): alle **32 subpagina's in drie stijlen**, met **137 echte
+schermbeelden van 240 × 240 pixels**. De knoppen bovenaan wisselen tussen 1× en 2×.
 
-## Doorgevoerd
+## Een stijl kiezen
 
-- Vaste patchkop, rode subpaginastrook, klankvenster, vier encoderkolommen en speelstatus op alle pagina's.
-- Amber encoderfocus, ook tegen een parametergrens. Nieuwe subpagina's starten zonder focus.
-- Subpaginageheugen per sectie tijdens de sessie; geen extra flashschrijfacties.
-- Opgeslagen markeringen en een exacte EDIT-status voor de parameters, categorie en patchnaam.
-  Terugdraaien naar de opgeslagen versie wist EDIT. Laden, opslaan, REC en ontvangen patches vernieuwen
-  de referentie. Een ontvangen patch vervangt lopende onopgeslagen edits niet.
-- Schakelaars en keuzes hebben afzonderlijke posities; bipolaire regelaars hebben een nulmarkering.
-- Eenheden uit dezelfde gemeten tabellen/formules als de engine: attack, envelope-tijdconstanten,
-  sustain, pitch, LFO, arp, delay, chorus rate en EQ. Kleine beatfracties worden exact als breuk getoond.
-- Een vaste ARP/Hold/Drone-status, MIDI-activiteit en INT/EXT-clockbron. CPU-beperking blijft herkenbaar
-  via LIMIT; GLO heeft een vijfde subpagina met alleen-lezen diagnostiek en de ruwe Synth1-waarde.
-- Meldingen verbergen de patchnaam niet. Waarschuwingen hebben voorrang op routinefeedback.
-- De screenreader leest de subpagina, vier waarden/eenheden en speelstand; animaties blijven stil.
+Op **GLO → DISPLAY (6/6)** kiest KNOB1 tussen:
 
-## Bewegende feedback
+- **NORD:** rode subpaginastrook, ivoorkleurige tekst en amber encoderfocus.
+- **GREEN / Green LED:** groene 5×7 pixelletters en zevensegmentcijfers op zwart.
+- **LCD / Green LCD:** donkere letters, cijfers en grafieken op zachtgroen. De actieve encoder krijgt
+  een lichter vlak met een donkere markering; opgeslagen referenties blijven zichtbaar.
 
-De audiozijde publiceert maximaal vijftien keer per seconde een kleine consistente momentopname.
-De UI leest daaruit envelope-niveau/stadium, LFO-fase/waarde, actieve stemmen en arp-positie.
-De envelope volgt de nieuwste stem, ook tijdens release, en springt na het einde niet terug naar een oudere
-vastgehouden noot. Een generatiecontrole voorkomt dat een patchwissel oude animatiedata overneemt.
+NORD is de standaard. De keuze is globaal, wordt bij stilte bewaard en beïnvloedt de patch of audio niet.
+Oude 12-byte instellingen worden met behoud van de geselecteerde patch, octaaf, tempo, voice-limiet,
+categorie en dronekeuze ingelezen. De screenreader houdt de oorspronkelijke tekst en noemt de keuze.
 
-Random LFO's tonen recente echte waarden. Andere LFO's tonen hun fasepunt op de ingestelde golfvorm.
-Een arp-stap is een weergave van wat de engine speelt, zonder sequencerbediening. De overige grafieken zijn
-schematische instellingenbeelden, geen gemeten audio- of filterrespons.
+## Gemeenschappelijke bediening
 
-Alleen gewijzigde schermzones worden naar het scherm gestuurd. Een lopende LFO tekent de patchkop en
-encoderstrook niet opnieuw. De vijf zones passen afzonderlijk in de bestaande RGB565-tekenstrook;
-er is geen extra framebuffer of DSP-effectbuffer toegevoegd.
+De patchkop, subpaginastrook, het klankvenster, vier encoderkolommen en de speelstatus staan op iedere
+pagina op dezelfde plaats. EDIT vergelijkt parameters, categorie en naam met de werkelijk opgeslagen
+versie; terugdraaien naar die waarden wist EDIT. Subpagina's worden per sectie onthouden.
 
-## Bouwen en opnieuw controleren
+Eenheden komen uit dezelfde tabellen en formules als de engine. Decay en release tonen een tijdconstante;
+kleine beatfracties blijven exact. GLO → DIAGNOSTIC is alleen-lezen en toont CPU, piekbelasting,
+stemverlaging en de ruwe Synth1-waarde. GLO → DISPLAY is de zesde subpagina.
+
+De audiozijde publiceert maximaal vijftien keer per seconde een consistente momentopname. De UI leest
+hieruit envelope-niveau/stadium, LFO-fase/waarde en arp-positie. Alleen gewijzigde schermzones worden
+verstuurd. De stijlkeuze voegt geen framebuffer of DSP-effectbuffer toe. Andere grafieken tonen
+instellingen, geen gemeten audio- of filterrespons.
+
+## Bouwen en controleren
 
 ```sh
-make test
-make test-app
-make test-web
+make test test-app test-web
 make preview-nord
-./build.sh --web
-./build.sh
+./build.sh --release 0.2.1
+./build.sh --web --release 0.2.1
+make test-site VERSION=0.2.1
 ```
 
-`make preview-nord` bouwt de normale hostsimulator, draait de basis-, performance- en UX-scenario's en
-exporteert alle subpagina's naar deze map. Een andere uitvoermap kan met
-`python3 tools/ux_review.py --output /pad/naar/map`.
+`make preview-nord` controleert basisbediening, performance, live feedback en de drie schermstijlen,
+exporteert deze galerij en vernieuwt de screenshots in `app/docs/img` en `docs/img`.
+Met `python3 tools/ux_review.py --output /pad/naar/map` kan een aparte export worden gemaakt.
 
-De installeerbare ontwikkelbuild staat in `app/build/sy1.fwsc`; de browseremulator in `app/build/emu`.
-Een release met de website en bijbehorende screenreaderwoorden wordt met het bestaande
-`tools/publish_site.sh VERSION [--push]` gebouwd.
+De installeerbare release is `app/build/sy1-0.2.1.fwsc`; de complete website wordt met
+`tools/publish_site.sh 0.2.1 [--push]` gebouwd. Browsercontrole: `host/display_browser_test.mjs`, met
+`PLAYWRIGHT_MODULE` voor een geïnstalleerde Playwright-module en `SY1_TEST_URL` voor de complete site.
 
 ## Validatie op 16 november 2026
 
 - Engine: **202 controles**, inclusief 400 willekeurige patches; geen fouten.
-- App: **220 controles**, inclusief alle subpagina's bij standaard-, minimum- en maximumwaarden;
-  opslag, referenties, import, navigatie, animatie en onafhankelijk tekenen; geen fouten.
-- JavaScript/C-patchreader: **62 controles**, plus integriteit van alle 3.174 openbare presets; geen fouten.
-- Echte hostsimulator: **130 controles**, alle 31 subpagina's en 57 schermbeelden; geen fouten.
-- De WAV van het basisscenario is byte voor byte gelijk aan de simulator van vóór het redesign.
-- Firmware en WebAssembly bouwen. De firmwarecontroles voor registers, RAM, pool en enkelvoudige
-  precisie slagen. Image: 178612 bytes; RAM data/bss: 39128/98304; pool: 237320/344064 bytes.
-- Browsercontrole gebruikt het echte WebAssembly-programma voor bediening, encoder/pagina-navigatie,
-  envelope- en LFO-beweging. De galerij ondersteunt oorspronkelijke resolutie, vergroting en mobiel.
+- App: **445 controles**, met migratie, herstart, ongeldige voorkeuren en minimum-/maximumwaarden;
+  geen fouten. Een stijlwissel verandert geen patchwaarden en voegt geen audio-event toe.
+- JavaScript/C-reader en ZIP-import: **62 controles**; alle **3.174 presets in 27 banken** geverifieerd.
+- Echte hostsimulator: **234 controles**, **32 subpagina's per stijl**, **137 screenshots**.
+- De WAV van het basisscenario is byte voor byte gelijk aan die van vóór het redesign.
+- Browser: keuze, screenreaderwaarden, herladen met behoud van LED/LCD en terugschakelen naar NORD.
+- Firmware: controles voor registers, RAM, pool en enkelvoudige precisie slagen.
 
-De aanvullende macOS AddressSanitizer-run kon niet starten: de lokale Clang-runtime faalt tijdens zijn
-eigen malloc-initialisatie. De bovenstaande gewone controles zijn wel uitgevoerd.
+De voorafgaande kandidaat **0.2.1-green** is op 16 november 2026 op de fysieke FM-1 geïnstalleerd.
+De installer bevestigde **FM-1_47000201**. Vóór en na de update waren 513 patchslots in gebruik;
+patch **379 Polarizer Lead** en de uitgelezen filter-/gainwaarden bleven behouden. De nieuwe pagina
+meldde **STYLE LCD**. De log meldde geen crash en geen stemverlaging. Leesbaarheid en audiobelasting
+tijdens spelen zijn hiermee nog niet volledig beoordeeld.
 
-Op 16 november 2026 is deze build over USB op de fysieke FM-1 geïnstalleerd en na de herstart gecontroleerd.
-Het apparaat meldt FM-1_4700; de nieuwe volledige subpagina-/parameterfeedback werkt en de 513 gebruikte
-patchslots zijn na de update nog aanwezig. De log meldt geen crash en geen nieuwe stemverlaging.
-Een volledige beoordeling van fysieke schermleesbaarheid, tekentijd en audiobelasting tijdens het spelen
-is hiermee nog niet afgerond.
-
-Bron: [schermrenderer](../../../app/ui/nord.h), [waarden](../../../app/ui/values.h),
-[momentopnamen](../../../app/ui/live.h), [app](../../../app/app.c),
-[UX-scenario](../../../app/tests/ux.txt) en [bouw-/exportsysteem](../../../tools/ux_review.py).
+Bron: [renderer](../../../app/ui/nord.h), [schermstijlen en lettervormen](../../../app/ui/display.h),
+[eenheden](../../../app/ui/values.h), [momentopnamen](../../../app/ui/live.h),
+[app](../../../app/app.c), [display-scenario](../../../app/tests/display.txt) en
+[export](../../../tools/ux_review.py). De [oorspronkelijke pixelproef A](../nord-pixel/index.html)
+blijft als ontwerpreferentie beschikbaar.

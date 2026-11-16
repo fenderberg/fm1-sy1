@@ -10,7 +10,8 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / "app/build/site"
-ROUTES = ("", "emu", "manager", "install", "manual")
+MAIN_ROUTES = ("", "emu", "manager", "install", "manual")
+ROUTES = (*MAIN_ROUTES, "manual/screens")
 LABELS = ["Overview", "Play", "Patch Manager", "Install", "Manual", "Source ↗"]
 
 
@@ -61,7 +62,7 @@ for route in ROUTES:
     page = Page(file.read_text(encoding="utf-8"))
     assert [link["label"].strip() for link in page.nav] == LABELS, f"Navigation differs: {route}"
     active = [link for link in page.nav if link.get("aria-current") == "page"]
-    assert len(active) == 1 and active[0]["label"] == LABELS[ROUTES.index(route)], f"Active page: {route}"
+    assert len(active) == 1 and active[0]["label"] == LABELS[MAIN_ROUTES.index(route.split('/')[0])], f"Active page: {route}"
     assert page.main == 1, f"Missing or duplicate skip-link destination: {route}"
     checks += 3
     for target in page.links:
@@ -86,4 +87,7 @@ for bank in catalog["banks"]:
     assert (SITE / "library" / bank["file"]).is_file(), f"Missing downloadable bank: {bank['name']}"
 assert (SITE / "manager/library.js").is_file()
 assert (SITE / "manager/app.js").is_file()
-print(f"site: {checks + 32} checks passed (5 pages, shared navigation, local links, scripts, patch reader, 27 preset banks)")
+report = json.loads((SITE / "manual/screens/validation.json").read_text(encoding="utf-8"))
+assert report["subpages"] == 32 and report["display_styles"] == 3 and report["screenshots"] == 137
+assert len(list((SITE / "manual/screens").glob("*.png"))) == report["screenshots"]
+print(f"site: {checks + 34} checks passed (6 pages, shared navigation, local links, 27 preset banks, 137 screen captures)")
