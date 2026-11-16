@@ -81,6 +81,12 @@ overwrite their data.
 
 ## Existing submission
 
+The existing submission was rechecked on 2026-11-16 against **0.3.1 / FM-1_51000301**.
+The seven automatic checks passed: repository source, license, card metadata,
+release package, own identity, Felucca loader and both flash chips. The status is
+**waiting for Sven**. The community banks are flagged for manual review of their
+original author terms; this is not yet approval or a live listing.
+
 The maker's status link is in the hub confirmation email. Its private key is not
 committed here. After publishing the new source and release, use **Check again**
 on that existing submission. Do not create a duplicate submission or claim hardware
