@@ -88,7 +88,9 @@ destination adds after the last imported patch. Manual placement shows and confi
 replacement. Selections must fit completely; unsent patches remain selected after Stop or a failure.
 The FM-1 holds 1,024 imported patches at a time, in addition to its eight built-in patches.
 
-The supplied `zipbank.zip` was verified with 175 banks / 16,698 patch entries (16,376 byte-unique).
+The supplied `zipbank.zip` matches the file in the [Internet Archive Synth1 collection](https://archive.org/details/synth1_202202),
+whose metadata credits the compilation to **techno-addicts**. Our inventory found 175 banks / 16,698 patch
+entries (16,376 byte-unique), independently of the archive title’s count.
 Import the full collection locally and browse it a bank at a time. Only the 27 banks with explicit
 redistribution grants in their original notes are publicly hosted here; others stay local. Imports last
 for the current tab; favourite IDs are saved in this browser. No imported files are uploaded.

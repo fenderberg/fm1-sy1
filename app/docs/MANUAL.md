@@ -136,6 +136,9 @@ stay selected for retry. After a lost acknowledgement, reconnect and check the d
 **On your FM-1** lists existing patches and offers individual removal. Erasing all imported patches requires
 confirmation; the built-in patches stay. Turn PRESETS past the built-in patches to play imported sounds.
 
+The collection comes from [Internet Archive](https://archive.org/details/synth1_202202); its metadata credits
+the compilation to techno-addicts. Our count of the supplied ZIP is 175 banks / 16,698 patch entries.
+
 Each hosted bank keeps its original ZIP, readme, author credits and distribution terms in **About this bank**.
 These presets have their authors' own terms, separately from the code's MIT license. The full supplied
 collection contains banks that restrict redistribution; those can be imported locally but are not hosted.

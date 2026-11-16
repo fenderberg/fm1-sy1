@@ -12,6 +12,16 @@ if(!source)throw new Error('Usage: node tools/import_presets.mjs COLLECTION.zip'
 const output=path.join(root,'app/site/library');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const raw=await readFile(source), banks=[], excluded=[];
+// Attribution applies to this verified archive, not to unrelated future inputs.
+const archiveSource=hash(raw)==='9ebc400d146679f126cfe8839f6be2176cc1f1290b778fe55ad7f1c05e1204b3' ? {
+  url:'https://archive.org/details/synth1_202202',
+  title:'Synth1 VST64.dll + 25000+ Presets',
+  compilationCredit:'techno-addicts',
+  archiveFile:'zipbank.zip',
+  archiveSha1:'b3ac5ce3dc933c97ece538bebf49b25557726864'
+} : null;
+const sourceCredit=archiveSource?`Collection source: [Synth1 collection on Internet Archive](${archiveSource.url}). The archive metadata credits the compilation to **${archiveSource.compilationCredit}**. Individual bank authors and their terms are listed below.\n\n`:'';
+const provenanceSource=archiveSource?`Source: [${archiveSource.title}](${archiveSource.url}), file \`${archiveSource.archiveFile}\`. The supplied ZIP matches the archive file's SHA-1: \`${archiveSource.archiveSha1}\`. Compilation credited to ${archiveSource.compilationCredit} by the archive metadata.`:'Source: user-supplied zipbank.zip';
 const grants = name => {
   if(/^AZur Studio [123]$/.test(name))return {author:'AZur Studio',terms:'CC0, as declared in the bank readme.',url:'http://bji.yukihotaru.com/'};
   if(name==='Christoph Mueller Synthhunter')return {author:'Christoph Mueller',terms:'Redistribution and use in music permitted by the included readme.'};
@@ -37,10 +47,10 @@ for(const entry of await unzipEntries(raw)){
   await writeFile(path.join(output,'banks',id+'.zip'),entry.bytes);
   banks.push({id,name,...grant,count:patches.length,sha256:digest,file:'banks/'+id+'.zip',notes,patches});
 }
-const catalog={schema:1,title:'SY1 community preset library',sourceSha256:hash(raw),
+const catalog={schema:1,title:'SY1 community preset library',sourceSha256:hash(raw),source:archiveSource,
   bankCount:banks.length,patchCount:banks.reduce((n,b)=>n+b.count,0),banks,
   provenance:'Selected from the user-supplied zipbank.zip. Original bank notes and authors are retained. Presets are not covered by the SY1 source-code MIT license.'};
 await writeFile(path.join(output,'catalog.json'),JSON.stringify(catalog));
-await writeFile(path.join(output,'CREDITS.md'),'# Community preset banks\n\nThese banks are provided free of charge under their own authors’ terms. The original ZIPs and readmes are unchanged. They are separate from SY1’s MIT-licensed source code.\n\n'+banks.map(b=>`- **${b.name}** — ${b.author}: ${b.terms}`).join('\n')+'\n');
-await writeFile(path.join(output,'IMPORT.md'),`# Catalogue provenance\n\nSource: user-supplied zipbank.zip\n\nSHA-256: ${hash(raw)}\n\nIncluded: ${banks.length} banks / ${catalog.patchCount} presets. Only banks with explicit redistribution wording in the accompanying notes are included. Original notes are preserved in each ZIP and the catalogue.\n\nThe remaining ${excluded.length} banks are available through local import if users supply their own collection; they are not redistributed by this repository.\n\nRebuild with \`node tools/import_presets.mjs /path/to/zipbank.zip\`. The source archive is not required for normal firmware or website builds.\n`);
+await writeFile(path.join(output,'CREDITS.md'),'# Community preset banks\n\n'+sourceCredit+'These banks are provided free of charge under their own authors’ terms. The original ZIPs and readmes are unchanged. They are separate from SY1’s MIT-licensed source code.\n\n'+banks.map(b=>`- **${b.name}** — ${b.author}: ${b.terms}`).join('\n')+'\n');
+await writeFile(path.join(output,'IMPORT.md'),`# Catalogue provenance\n\n${provenanceSource}\n\nSHA-256: ${hash(raw)}\n\nIncluded: ${banks.length} banks / ${catalog.patchCount} presets. Only banks with explicit redistribution wording in the accompanying notes are included. Original notes are preserved in each ZIP and the catalogue.\n\nThe remaining ${excluded.length} banks are available through local import if users supply their own collection; they are not redistributed by this repository.\n\nRebuild with \`node tools/import_presets.mjs /path/to/zipbank.zip\`. The source archive is not required for normal firmware or website builds.\n`);
 console.log(`${catalog.patchCount} presets / ${banks.length} banks imported; ${excluded.length} banks kept out of the public catalogue.`);

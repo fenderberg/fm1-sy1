@@ -48,7 +48,9 @@ contains no Synth1 code, binaries or artwork. `.sy1` files are read for compatib
 ## Community preset banks
 
 `app/site/library/` contains 27 original bank ZIPs (3,174 presets), selected from a user-supplied collection
-where the accompanying notes explicitly allow redistribution. These presets are **separate from the MIT
+where the accompanying notes explicitly allow redistribution. The source ZIP matches the file in the
+[Internet Archive collection](https://archive.org/details/synth1_202202); the archive metadata credits the compilation
+to **techno-addicts**. These presets are **separate from the MIT
 source-code license**. Each original ZIP and its readme are preserved unchanged. Some authors prohibit
 selling or including their patches in a paid library. See [bank credits](app/site/library/CREDITS.md),
 [provenance](app/site/library/IMPORT.md), and the complete original notes in the catalogue and ZIPs.

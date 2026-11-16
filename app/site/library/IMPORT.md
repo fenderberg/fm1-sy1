@@ -1,6 +1,6 @@
 # Catalogue provenance
 
-Source: user-supplied zipbank.zip
+Source: [Synth1 VST64.dll + 25000+ Presets](https://archive.org/details/synth1_202202), file `zipbank.zip`. The supplied ZIP matches the archive file's SHA-1: `b3ac5ce3dc933c97ece538bebf49b25557726864`. Compilation credited to techno-addicts by the archive metadata.
 
 SHA-256: 9ebc400d146679f126cfe8839f6be2176cc1f1290b778fe55ad7f1c05e1204b3
 

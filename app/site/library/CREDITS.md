@@ -1,5 +1,7 @@
 # Community preset banks
 
+Collection source: [Synth1 collection on Internet Archive](https://archive.org/details/synth1_202202). The archive metadata credits the compilation to **techno-addicts**. Individual bank authors and their terms are listed below.
+
 These banks are provided free of charge under their own authors’ terms. The original ZIPs and readmes are unchanged. They are separate from SY1’s MIT-licensed source code.
 
 - **AZur Studio 1** — AZur Studio: CC0, as declared in the bank readme.
