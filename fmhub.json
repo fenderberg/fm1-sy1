@@ -1,0 +1,13 @@
+{
+  "what": "A polyphonic synth inspired by Synth1, with 500 presets ready to play and 1,024 separate user slots. Two oscillators plus sub, FM, ring mod, sync, four filter types, arp, drone and effects. Explore 3,174 community sounds or load your own banks through the browser Patch Manager.",
+  "author": "Fenderberg",
+  "kinds": [
+    "synth"
+  ],
+  "play": "https://fenderberg.github.io/fm1-sy1/emu/",
+  "editor": "https://fenderberg.github.io/fm1-sy1/manager/",
+  "cheat": "https://fenderberg.github.io/fm1-sy1/manual/",
+  "image": "docs/img/screen-factory-lcd.png",
+  "sounds": "licensed: Synth1 community banks by AZur Studio, Christoph Mueller, Lunatique, Nolwenn, Reinhard Reschner and SOS; CC0 or original author redistribution terms. See app/site/library/CREDITS.md and app/presets/CREDITS.txt.",
+  "color": "#FF8A3D"
+}
