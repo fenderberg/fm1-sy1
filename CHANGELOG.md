@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0 — 2026-11-16
+
+**500 community presets are included in the firmware and browser synth, ready from first boot.**
+
+- Factory 500 is a separate, read-only bank in program flash: **F001–F500**. From ALL, turn
+  ALGORITHM left once to FACTORY, then browse with PRESETS. The eight original sounds remain.
+- All **1,024 user slots** remain available. Existing user records, slot numbers, MIDI program
+  numbers and saved selections are preserved. SAVE makes an editable user copy; erasing user
+  patches leaves the factory bank available.
+- 500 distinct parameter sets from all 27 redistributable website banks, balanced as 100 Bass,
+  100 Pad, 90 Lead, 80 Keys, 50 Pluck, 40 Arp, 30 FX and 10 Other. Every selection renders audible,
+  finite audio in a two-second four-note host test. Maximum pre-limiter peak: 3.43. This is automated
+  curation and testing, not individual listening tests or a claim of exact original-Synth1 matching.
+- The manager's Factory 500 filter previews the included selection. A downloadable ZIP retains
+  every selected original .sy1 file and complete original source-bank readmes. Full credits and
+  readme text are also embedded in the firmware and readable over SysEx command 0x06.
+- Original author terms remain separate from the MIT code license. The website still offers all
+  3,174 public presets, original bank downloads and source attribution.
+- NORD, GREEN LED and GREEN LCD remain available, with current screenshots and documentation.
+
+Validation: 202 engine checks; 3,064 app checks including all 500 records, category browsing,
+user-copy saving, erasing, full user storage, preserved MIDI IDs and read-only credits; 62 reader/ZIP
+checks; all 500 source files, 27 banks and full readmes verified; 255 simulator checks and 142
+screenshots. Baseline audio remains byte-identical. Firmware uses about 359 KB of program flash;
+RAM data/bss and the audio pool remain unchanged.
+
 ## 0.2.1 — 2026-11-16
 
 Choose the display that suits your FM-1: **NORD**, **GREEN LED**, or **GREEN LCD**.

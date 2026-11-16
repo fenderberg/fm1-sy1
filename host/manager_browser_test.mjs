@@ -28,6 +28,8 @@ await context.addInitScript(()=>{
 const page=await context.newPage();await page.goto(base+'/manager/');
 await page.waitForFunction(()=>document.getElementById('total-patches').textContent==='3,174');
 assert.equal(await page.locator('#patches tr').count(),48);
+await page.locator('#factory-only').check();assert.equal(await page.locator('#matches').textContent(),'500 sounds');assert.equal(await page.locator('#select-bank').textContent(),'Select 500 sounds');
+await page.locator('#factory-only').uncheck();
 assert.equal(await page.locator('#select-bank').isDisabled(),true,'whole catalogue exceeds hardware capacity');
 await page.locator('#search').fill('warm');await page.waitForFunction(()=>document.querySelectorAll('#patches tr').length>0);
 assert.ok((await page.locator('#matches').textContent()).includes('sounds'));

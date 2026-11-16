@@ -8,6 +8,7 @@ const element = (tag, text='', cls='') => { const e=document.createElement(tag);
 let access=null,input=null,output=null,waiting=null,busy=false,importing=false,cancelled=false,used=0,page=0,localNumber=0;
 let entries=[],filtered=[],queue=[],occupied=new Set(),banks=new Map();
 const bankCache=new Map();
+let factoryIds=new Set();
 let favorites;
 try { favorites=new Set(JSON.parse(localStorage.getItem('sy1-favorites')||'[]')); } catch { favorites=new Set(); }
 const favoriteSave=()=>{try{localStorage.setItem('sy1-favorites',JSON.stringify([...favorites]));}catch{}};
@@ -17,6 +18,10 @@ async function catalogue() {
   try {
     const r=await fetch('../library/catalog.json'); if(!r.ok)throw new Error('Catalogue unavailable');
     const data=await r.json();
+    try {
+      const response=await fetch('../library/factory500.json');
+      if(response.ok){const factory=await response.json();factoryIds=new Set(factory.patches.map(p=>p.id));$('factory-only').disabled=false;}
+    }catch { /* The main library stays available when starter metadata cannot be reached. */ }
     for(const bank of data.banks){ banks.set(bank.id,bank); for(const p of bank.patches)addEntry(p,bank); }
     refreshBanks(); filter();
   } catch { $('import-status').textContent='The online collection could not be loaded. Reload to try again, or import your own banks.'; }
@@ -32,7 +37,7 @@ function refreshBanks(){
 }
 function filter(reset=true){
   const words=fold($('search').value).split(/\s+/).filter(Boolean),bank=$('bank').value,cat=$('category').value;
-  filtered=entries.filter(p=>(!bank||p.bank===bank)&&(!cat||p.category===cat)&&(!$('favorites-only').checked||favorites.has(p.id))&&words.every(w=>p.search.includes(w)));
+  filtered=entries.filter(p=>(!bank||p.bank===bank)&&(!cat||p.category===cat)&&(!$('favorites-only').checked||favorites.has(p.id))&&(!$('factory-only').checked||factoryIds.has(p.id))&&words.every(w=>p.search.includes(w)));
   if(reset)page=0; page=Math.max(0,Math.min(page,Math.ceil(filtered.length/PAGE)-1));
   const b=banks.get(bank); $('bank-info').hidden=!b;
   if(b){$('bank-credit').textContent=`${b.author} · ${b.terms}`; $('bank-notes').textContent=(b.notes||[]).map(n=>n.path+'\n\n'+n.text).join('\n\n');
@@ -107,7 +112,7 @@ async function addFiles(files){
       }catch(e){errors.push(f.name+': '+e.message);}
     }
     refreshBanks();$('bank').value=localBanks.size===1?[...localBanks.values()][0].id:'';
-    $('search').value='';$('category').value='';$('favorites-only').checked=false;filter();
+    $('search').value='';$('category').value='';$('favorites-only').checked=false;$('factory-only').checked=false;filter();
     $('import-status').textContent=`${added.toLocaleString('en-US')} sounds imported into ${localBanks.size} banks. Choose a bank or search, then select sounds.`+(skipped?` ${skipped} non-patch files skipped.`:'')+(errors.length?' '+errors.join(' · '):'');
   }finally{importing=false;$('pick').disabled=$('pickdir').disabled=false;}
 }
@@ -169,7 +174,7 @@ async function removeSlot(slot,name){
   if(!r||r.data[8]!==0)say('Removal was not confirmed. Reading the device again.',true);await readDevice();
 }
 async function eraseAll(){
-  if(busy||!output||!confirm('Erase all imported patches from the FM-1? This cannot be undone. The eight built-in patches stay.'))return;
+  if(busy||!output||!confirm('Erase all imported patches from the FM-1? This cannot be undone. All built-in sounds stay.'))return;
   busy=true;showQueue();const r=await ask(output,cmd(0x02),0x42,15000);busy=false;
   if(!r||r.data[6]!==0)say('Erasing was not confirmed. Reading the device again.',true);await readDevice();
 }
@@ -220,7 +225,7 @@ async function send(){
   }
 }
 for(const c of CATEGORIES)$('category').add(new Option(c,c));
-for(const id of ['search','bank','category','favorites-only'])$(id).addEventListener(id==='search'?'input':'change',()=>filter());
+for(const id of ['search','bank','category','favorites-only','factory-only'])$(id).addEventListener(id==='search'?'input':'change',()=>filter());
 $('previous').onclick=()=>{page--;filter(false);};$('next').onclick=()=>{page++;filter(false);};
 $('select-bank').onclick=()=>{if(busy)return;const selected=new Set(queue.map(p=>p.id)),fresh=filtered.filter(p=>!selected.has(p.id));if(queue.length+fresh.length>SLOTS)return;queue.push(...fresh);render();showQueue();};
 $('clear').onclick=()=>{if(busy)return;queue=[];$('result').textContent='';render();showQueue();};

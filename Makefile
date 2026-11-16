@@ -22,7 +22,7 @@ build/s1test: host/test.c $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -o $@ host/test.c $(ENGINE) -lm
 
-build/apptest: host/app_test.c app/app.c app/app.h app/bank.h app/category.h $(wildcard app/ui/*.h) $(ENGINE) $(HEADERS)
+build/apptest: host/app_test.c app/app.c app/app.h app/bank.h app/category.h $(wildcard app/ui/*.h) app/presets/factory500.h $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Wno-unused-function -Wno-unused-parameter -Iapp -I$(BASE)/include -o $@ host/app_test.c $(ENGINE) -lm
 
@@ -46,9 +46,10 @@ clean:
 test-web: build/sy1pack
 	node host/web_loader_test.mjs
 	node host/library_test.mjs
+	node host/factory500_test.mjs
 
 # Build the complete website from an existing release package and browser build.
-VERSION ?= 0.2.1
+VERSION ?= 0.3.0
 site:
 	python3 tools/make_site.py app/build/sy1-$(VERSION).fwsc $(VERSION)
 

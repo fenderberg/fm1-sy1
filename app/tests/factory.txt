@@ -1,0 +1,48 @@
+# 500 community sounds are available without writing any user slots.
+wait 600
+expect factory 500
+expect count 0
+turn ALGO -1
+expect category 10
+expect patch 1032
+shot factory-first.png
+listen
+where
+said F001
+where
+said BY AZur Studio
+turn PRESET -1
+expect patch 1531
+turn PRESET 1
+expect patch 1032
+# The built-in bank uses all three display styles.
+tap GLO
+turn SELECT 5
+turn K1 1
+tap HOME
+shot factory-led.png
+tap GLO
+turn K1 1
+tap HOME
+shot factory-lcd.png
+# SAVE makes an editable user copy, then FACTORY still contains the original.
+turn K1 1
+expect dirty 1
+tap SAVE
+expect count 1
+expect patch 8
+expect category 9
+expect dirty 0
+shot user-copy.png
+turn ALGO 1
+expect category 10
+expect patch 1032
+expect dirty 0
+shot factory-restored.png
+wait 5500
+reboot
+wait 600
+expect factory 500
+expect count 1
+expect patch 1032
+expect display 2

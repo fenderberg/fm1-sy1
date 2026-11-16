@@ -252,18 +252,19 @@ static void refresh_dirty(void)
     for (i = 0; i < S1_NPARAMS && !cur_dirty; i++) cur_dirty = cur.values[i] != saved_values[i];
 }
 
-static uint32_t list_count(void) { return NFACT + bank_count; }
-static int list_has(uint32_t i) { return i < NFACT || bank_used(i - NFACT); }
+static uint32_t list_count(void) { return FACTORY500_END; }
+static int list_has(uint32_t i) { return i < NFACT || factory500_has(i) || (user_index(i) && bank_used(i - NFACT)); }
 
 static uint8_t patch_category(uint32_t i)
 {
-    return i < NFACT ? category_guess(FACT[i].name) : bank_category[i - NFACT];
+    return i < NFACT ? category_guess(FACT[i].name) : factory500_has(i) ?
+        FACTORY500[i - FACTORY500_BASE][2] : bank_category[i - NFACT];
 }
 
 static int category_matches(uint32_t i)
 {
     return list_has(i) && (set.category == CAT_ALL ||
-        (set.category == CAT_USER ? i >= NFACT : patch_category(i) == set.category));
+        (set.category == CAT_USER ? user_index(i) : set.category == CAT_FACTORY ? factory500_has(i) : patch_category(i) == set.category));
 }
 
 static void to_engine(void)
@@ -282,6 +283,8 @@ static void patch_select(uint32_t i)
         i = 0;
     if (i < NFACT)
         fact_load(i, &cur);
+    else if (factory500_has(i))
+        bank_decode(FACTORY500[i - FACTORY500_BASE], &cur);
     else
         bank_load(i - NFACT, &cur);
     cur_index = i;
@@ -387,7 +390,9 @@ static void num3(uint32_t v, char *b)    /* three digits */
 
 static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's slot 12 */
 {
-    if (i < NFACT) {
+    if (factory500_has(i)) {
+        b[0] = 'F'; num3(i - FACTORY500_BASE + 1u, b + 1);
+    } else if (i < NFACT) {
         b[0] = 'P';
         b[1] = (char)('0' + (i + 1u) / 10u % 10u);
         b[2] = (char)('0' + (i + 1u) % 10u);
@@ -578,6 +583,10 @@ static void speak(void)                  /* explicit WHERE: identity, subpage, v
         text_cat(t, n);
         text_cat(t, " ");
         text_cat(t, cur.name);
+        if (factory500_has(cur_index)) {
+            const uint32_t source = FACTORY500_BANK[cur_index - FACTORY500_BASE];
+            ux_append(t,sizeof t,". BY ");ux_append(t,sizeof t,FACTORY500_SOURCE[source].author);
+        }
         text_cat(t, ". PAGE ");
         text_cat(t, PAGES[ui.page].title);
         ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_row_title());
@@ -652,7 +661,7 @@ static void cell_edit(uint32_t id, int32_t d)
 static void save_patch(void)
 {
     uint8_t rec[BANK_REC];
-    int slot = cur_index >= NFACT ? (int)(cur_index - NFACT) : bank_free_slot();   /* a built-in one: a new slot */
+    int slot = user_index(cur_index) ? (int)(cur_index - NFACT) : bank_free_slot(); /* built-ins save a copy */
     if (slot < 0) {
         app_say("SAVE", "BANK FULL");
         return;
@@ -666,6 +675,7 @@ static void save_patch(void)
         return;
     }
     cur_index = NFACT + (uint32_t)slot;
+    if (!category_matches(cur_index)) set.category = CAT_USER;
     patch_reference();
     set.patch = (uint16_t)cur_index;
     plat_store_save(OBJ_SETTINGS, &set, sizeof set);
@@ -909,7 +919,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         ev_push(EV_PANIC, 0, 0);
         d[0] = bank_erase_all() ? 2u : 0u;
         sysex_reply(0x42, d, 1);
-        if (cur_index >= NFACT)
+        if (user_index(cur_index))
             patch_select(0);
         app_say("BANK", "ERASED");
     } else if (p[4] == 0x04u && n >= 7u) {   /* a slot's name */
@@ -939,7 +949,18 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         sysex_reply(0x45, d, 3);
         if (!status && cur_index == NFACT + slot)
             patch_select(0);                 /* the patch playing is gone */
-    } else if (p[4] == 0x03u) {              /* how many: the slots in use, and all of them */
+    } else if (p[4] == 0x06u && n >= 8u) {   /* complete credits/readmes, read-only and byte-preserving */
+        const uint32_t offset = p[5] | (uint32_t)p[6] << 7 | (uint32_t)p[7] << 14;
+        uint8_t frame[204];
+        uint32_t at = 0, i;
+        frame[at++]=0xF0;frame[at++]=0x7D;frame[at++]=0x53;frame[at++]=0x59;frame[at++]=0x31;frame[at++]=0x46;
+        frame[at++]=p[5]&127u;frame[at++]=p[6]&127u;frame[at++]=p[7]&127u;
+        for(i=0;i<96u && offset+i<sizeof FACTORY500_CREDITS;i++) {
+            const uint8_t byte=FACTORY500_CREDITS[offset+i];
+            frame[at++]=byte>>4;frame[at++]=byte&15u;
+        }
+        frame[at++]=0xF7;plat_sysex_send(frame,at);return 1;
+    } else if (p[4] == 0x03u) {              /* user slots only; built-ins consume none of these */
         d[0] = (uint8_t)(bank_count & 0x7Fu);
         d[1] = (uint8_t)(bank_count >> 7);
         d[2] = (uint8_t)(BANK_SLOTS & 0x7Fu);
@@ -1084,6 +1105,7 @@ int app_expect(const char *what, int *got)
         *got = (int)cur_index;
     else if (!strcmp(what, "count"))
         *got = (int)bank_count;
+    else if (!strcmp(what, "factory")) *got = FACTORY500_COUNT;
     else if (!strcmp(what, "voices"))
         *got = s1_active_voices(&synth);
     else if (!strcmp(what, "maxv"))

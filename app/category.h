@@ -2,8 +2,8 @@
  * Explicit categories use the record's spare bytes, leaving Synth1's 99 parameters untouched. */
 #pragma once
 
-enum { CAT_ALL, CAT_BASS, CAT_PAD, CAT_LEAD, CAT_KEYS, CAT_PLUCK, CAT_ARP, CAT_FX, CAT_OTHER, CAT_USER, CAT_COUNT };
-static const char *const CATEGORY[] = {"ALL", "BASS", "PAD", "LEAD", "KEYS", "PLUCK", "ARP", "FX", "OTHER", "USER"};
+enum { CAT_ALL, CAT_BASS, CAT_PAD, CAT_LEAD, CAT_KEYS, CAT_PLUCK, CAT_ARP, CAT_FX, CAT_OTHER, CAT_USER, CAT_FACTORY, CAT_COUNT };
+static const char *const CATEGORY[] = {"ALL", "BASS", "PAD", "LEAD", "KEYS", "PLUCK", "ARP", "FX", "OTHER", "USER", "FACTORY"};
 #define CAT_MARK 0xC1u
 
 static int name_has(const char *name, const char *word)

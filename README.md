@@ -4,6 +4,11 @@ A polysynth for the [M-VAVE FM-1](https://github.com/m-vave/fm1_open) that plays
 
 **[Website](https://fenderberg.github.io/fm1-sy1/)** · [Try it in the browser](https://fenderberg.github.io/fm1-sy1/emu/) · [Install](https://fenderberg.github.io/fm1-sy1/install/) · [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) · [Manual](https://fenderberg.github.io/fm1-sy1/manual/)
 
+**500 community presets are included in the firmware**, ready from first boot. From ALL, turn
+**ALGORITHM left once to FACTORY**, then browse **F001–F500** with PRESETS. They use program flash,
+leaving all **1,024 user slots** available; existing patches and program numbers stay unchanged.
+The eight original sounds P01–P08 remain available too.
+
 Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes, two LFOs, arpeggiator,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
@@ -18,7 +23,7 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.2.1](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.2.1) · [What changed](CHANGELOG.md)
+Latest release: [v0.3.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.3.0) · [What changed](CHANGELOG.md)
 
 ## Status: early
 
@@ -42,7 +47,7 @@ python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/emu
 ```
 
 Open <http://localhost:8471>, switch the FM-1 on, and drop your Synth1 patches on the page. Turn PRESETS
-past the eight built-in patches to play them. The page loads the emulated FM-1 only; for a real one, see
+past P08 to play imported user slots, or choose FACTORY with ALGORITHM to browse the 500 included sounds. The page loads the emulated FM-1 only; for a real one, see
 below.
 
 ## Build and test
@@ -60,7 +65,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.2.1` after building the matching release package and
+Build the complete website with `make site VERSION=0.3.0` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -86,7 +91,7 @@ local import and browser previews. Choose a bank or narrow the search, select in
 filtered sounds, then connect an FM-1 running SY1 in Chrome or Edge (allow MIDI with SysEx). The default
 destination adds after the last imported patch. Manual placement shows and confirms occupied-slot
 replacement. Selections must fit completely; unsent patches remain selected after Stop or a failure.
-The FM-1 holds 1,024 imported patches at a time, in addition to its eight built-in patches.
+The FM-1 holds 1,024 imported patches at a time, in addition to 500 community factory presets and eight original built-in patches.
 
 The supplied `zipbank.zip` matches the file in the [Internet Archive Synth1 collection](https://archive.org/details/synth1_202202),
 whose metadata credits the compilation to **techno-addicts**. Our inventory found 175 banks / 16,698 patch
@@ -95,6 +100,19 @@ Import the full collection locally and browse it a bank at a time. Only the 27 b
 redistribution grants in their original notes are publicly hosted here; others stay local. Imports last
 for the current tab; favourite IDs are saved in this browser. No imported files are uploaded.
 Original Synth1 presets may sound different in this lighter engine; see the manual's limitations.
+
+The [Factory 500 selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) is also downloadable
+with complete original bank notes and [credits](app/presets/CREDITS.txt). The manager's **Factory 500** filter
+shows the included sounds for preview; there is no need to transfer them again on version 0.3.0.
+The selection contains 500 distinct normalized parameter sets from all 27 public banks, balanced as
+100 basses, 100 pads, 90 leads, 80 keys, 50 plucks, 40 arps, 30 FX and 10 other sounds. Selection is based
+on names, category balance and source-bank spread, with a two-second audio-render check for every sound;
+it is not a claim of individual listening tests or exact original-Synth1 matching.
+
+SAVE on an F preset creates a user copy and keeps its factory original. Erasing user patches leaves the
+factory bank available. Full readmes are also embedded in the firmware and can be read over SysEx command
+0x06; see [the protocol](app/bank.h). Regenerate from the committed website banks with
+`node tools/make_factory500.mjs`, then run `make test-app test-web` to verify every record and original file.
 
 For the command-line sender, with the FM-1 running SY1 connected over USB:
 
@@ -138,13 +156,13 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-Version **0.2.1** offers **GREEN LED** and **GREEN LCD**: choose **GLO → DISPLAY (6/6) → KNOB1**.
+All three display styles remain available in **0.3.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (6/6) → KNOB1**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
 NORD remains the default. This is a global preference, saved while idle; old settings migrate without
-losing the selected patch or other controls. Build with `./build.sh --release 0.2.1` and
-`./build.sh --web --release 0.2.1`. Optional browser QA is `node host/display_browser_test.mjs`
+losing the selected patch or other controls. Build with `./build.sh --release 0.3.0` and
+`./build.sh --web --release 0.3.0`. Optional browser QA is `node host/display_browser_test.mjs`
 with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
 
 See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).
@@ -153,7 +171,7 @@ HOLD replaces the latched chord when you play again after releasing every key. D
 play one again to remove it) and REPLACE (new gesture replaces the chord), selected on Arp row 2 or Voice row 4.
 Both work with the panel and MIDI. PLAY and MIDI Stop clear all held notes. A patch change also clears hold.
 
-Categories: ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX, OTHER and USER (every stored patch).
+Categories: ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX, OTHER USER (every stored patch), and FACTORY (the 500 bundled community presets).
 Imported names suggest a category; Voice row 4 lets you correct it and SAVE keeps it with the patch.
 The header shows the browser category; ARP/SEQ lights and the footer show ARP, HLD or DRN.
 

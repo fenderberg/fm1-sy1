@@ -8,6 +8,8 @@ I've been building **SY1**, alternative firmware for the **M-VAVE FM-1** with an
 
 The big appeal for me is the sound library: years of community sound design, from deep basses and lush pads to leads, plucks and evolving textures. You can start with a finished sound and make it your own on the hardware.
 
+The firmware ships with **500 community presets already installed**, alongside eight original sounds and **1,024 separate user slots**. From ALL, turn ALGORITHM left once to FACTORY, then browse with PRESETS.
+
 The browser-based **Patch Manager already includes 3,174 presets across 27 community banks**, ready to explore. Search, filter, save favourites and listen before loading anything onto the hardware.
 
 With SY1 installed, adding sounds is simple:
@@ -18,11 +20,11 @@ With SY1 installed, adding sounds is simple:
 
 The manager checks available space and shows transfer progress. By default it adds sounds after your existing patches. You can also drag in your own Synth1 `.sy1` files, bank ZIPs or a ZIP containing multiple banks — everything is imported locally in your browser.
 
-The FM-1 holds **1,024 user patches at a time, plus the eight built-in sounds**. Once transferred, they're stored on the device and ready to play without a computer.
+The FM-1 holds **1,024 user patches at a time, plus 500 community factory presets and eight original sounds**. Once transferred, they're stored on the device and ready to play without a computer.
 
 Everything is synthesized live on the FM-1: two oscillators plus a sub, FM/ring/sync, filters, envelopes, LFOs, effects and an arpeggiator. All **99 Synth1 parameters** are editable on the device.
 
-Version 0.2.1 adds three screen styles: NORD, GREEN LED and GREEN LCD. Choose bright green pixels on black or dark lettering on a classic green display, with clear parameter feedback and live envelope/LFO visuals.
+Version 0.3.0 keeps three screen styles: NORD, GREEN LED and GREEN LCD. Choose bright green pixels on black or dark lettering on a classic green display, with clear parameter feedback and live envelope/LFO visuals.
 
 It's an early release; close sound matching with the original Synth1 hasn't been validated yet. Original patchmakers keep their credits and terms.
 

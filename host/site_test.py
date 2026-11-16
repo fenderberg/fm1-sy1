@@ -88,6 +88,9 @@ for bank in catalog["banks"]:
 assert (SITE / "manager/library.js").is_file()
 assert (SITE / "manager/app.js").is_file()
 report = json.loads((SITE / "manual/screens/validation.json").read_text(encoding="utf-8"))
-assert report["subpages"] == 32 and report["display_styles"] == 3 and report["screenshots"] == 137
+assert report["subpages"] == 32 and report["display_styles"] == 3 and report["screenshots"] == 142
 assert len(list((SITE / "manual/screens").glob("*.png"))) == report["screenshots"]
-print(f"site: {checks + 34} checks passed (6 pages, shared navigation, local links, 27 preset banks, 137 screen captures)")
+factory = json.loads((SITE / "library/factory500.json").read_text(encoding="utf-8"))
+assert factory["count"] == len(factory["patches"]) == 500
+assert (SITE / "library/factory500.zip").is_file() and (SITE / "library/factory500-credits.txt").is_file()
+print(f"site: {checks + 34} checks passed (6 pages, shared navigation, local links, 27 preset banks, 142 screen captures)")

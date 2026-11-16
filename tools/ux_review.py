@@ -74,7 +74,7 @@ def main():
     host = ROOT / "app/build/host/sy1_host"
     checks = 0
     sections = []
-    for case in ("basic", "performance", "nord-preview", "ux", "display"):
+    for case in ("basic", "performance", "nord-preview", "ux", "display", "factory"):
         out = work / case
         out.mkdir(exist_ok=True)
         checks += checked([host, ROOT / f"app/tests/{case}.txt", out], work / f"{case}.log")
@@ -108,7 +108,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     from PIL import Image
     exports = []
-    for group in ("all-pages", "nord-preview", "ux", "display"):
+    for group in ("all-pages", "nord-preview", "ux", "display", "factory"):
         items = []
         for source in sorted((work / group).glob("*.png")):
             with Image.open(source) as screenshot:
@@ -117,7 +117,7 @@ def main():
             shutil.copy2(source, args.output / name)
             exports.append(name)
             items.append((name, source.stem.replace("-", " ")))
-        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "Displaykeuze en herstart" if group == "display" else "Referenties en live feedback", items))
+        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "500 fabriekspresets" if group == "factory" else "Displaykeuze en herstart" if group == "display" else "Referenties en live feedback", items))
     gallery(args.output, sections)
     # Keep the manual, README and homepage tied to the actual current renderer.
     if args.output.resolve() == (ROOT / "docs/mockups/nord-redesign").resolve():
@@ -126,6 +126,12 @@ def main():
                 for directory in (ROOT / "app/docs/img", ROOT / "docs/img"):
                     directory.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(args.output / (prefix + source), directory / ("screen-" + name + target))
+    if args.output.resolve() == (ROOT / "docs/mockups/nord-redesign").resolve():
+        for source, target in (("factory-factory-first.png", "screen-factory-nord.png"),
+                               ("factory-factory-led.png", "screen-factory-green.png"),
+                               ("factory-factory-lcd.png", "screen-factory-lcd.png")):
+            for directory in (ROOT / "app/docs/img", ROOT / "docs/img"):
+                shutil.copy2(args.output / source, directory / target)
     report = {"subpages": sum(len(page[3]) for page in PAGES), "display_styles": 3, "simulator_checks": checks,
               "screenshots": len(exports), "baseline_audio_identical": None}
     baseline = ROOT / "app/build/ux-baseline/sy1_host"

@@ -12,6 +12,7 @@
  *   03                                                                   how many?     -> 43 <count lo7> <hi7> <slots lo7> <hi7>
  *   04 <slot lo7> <slot hi7>                                             a slot's name -> 44 <lo7> <hi7> <1 used> <name, ASCII>
  *   05 <slot lo7> <slot hi7>                                             empty a slot  -> 45 <lo7> <hi7> <0 ok>
+ *   06 <offset lo7> <mid7> <hi7>                            bundled credits (read only) -> 46 <offset, 3 bytes> <up to 96 bytes as high/low nibbles>
  * 7-bit packing: each 7 bytes as 8, first the 7 top bits (bit 0 = the first byte's), then the 7 low parts. */
 #pragma once
 #include "s1_patch.h"
@@ -78,6 +79,14 @@ static const struct { const char *name; const uint8_t *set; } FACT[] = {
 };
 #define NFACT ((uint32_t)(sizeof FACT / sizeof FACT[0]))
 
+/* Community factory sounds live in program flash, after the fixed user-ID range.
+ * Keeping these IDs separate preserves old MIDI program numbers and saved selections. */
+#include "presets/factory500.h"
+#define FACTORY500_BASE (NFACT + BANK_SLOTS)
+#define FACTORY500_END (FACTORY500_BASE + FACTORY500_COUNT)
+static int factory500_has(uint32_t index) { return index >= FACTORY500_BASE && index < FACTORY500_END; }
+static int user_index(uint32_t index) { return index >= NFACT && index < FACTORY500_BASE; }
+
 static void fact_load(uint32_t i, s1_patch *p)
 {
     const uint8_t *lists[2], *l;
@@ -123,12 +132,9 @@ static void bank_scan(void)
         }
 }
 
-static int bank_load(uint32_t slot, s1_patch *p)
+static void bank_decode(const uint8_t *r, s1_patch *p)
 {
-    const uint8_t *r = bank_rec(slot);
     uint32_t i;
-    if (!bank_used(slot))
-        return 0;
     for (i = 0; i < 24u; i++)
         p->name[i] = (char)r[4u + i];
     for (; i < S1_NAME_LEN; i++)
@@ -141,6 +147,12 @@ static int bank_load(uint32_t slot, s1_patch *p)
             v &= 0xFFFF;                 /* the controllers' words are unsigned (45057: the wheel) */
         p->values[i] = v < s1_param_min[i] ? s1_param_min[i] : v > s1_param_max[i] ? s1_param_max[i] : v;
     }
+}
+
+static int bank_load(uint32_t slot, s1_patch *p)
+{
+    if (!bank_used(slot)) return 0;
+    bank_decode(bank_rec(slot), p);
     return 1;
 }
 

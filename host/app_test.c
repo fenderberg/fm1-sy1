@@ -14,7 +14,7 @@
 /* ---- the stand-in ---- */
 static uint32_t now_ms, btn_held, keys_held, sysex_n, store_len[OBJ_NOBJ], midi_n, midi_r, leds_btn;
 static int32_t enc_turn[NE];
-static uint8_t flash[0x100000], store[OBJ_NOBJ][64], sysex_last[64];
+static uint8_t flash[0x100000], store[OBJ_NOBJ][64], sysex_last[256];
 static uint32_t midi_q[64];
 
 uint32_t plat_ms(void) { return now_ms; }
@@ -246,13 +246,16 @@ static void test_live_controls(void)
     turn(EN_PRESET, 1);
     CHECK(cur_index == 6, "PAD browsing did not select Strings");
     turn(EN_PRESET, 1);
-    CHECK(cur_index == 1, "PAD browsing did not wrap within category");
+    CHECK(factory500_has(cur_index) && cur_category == CAT_PAD, "PAD browsing missed factory pads");
     turn(EN_PRESET, -1);
     CHECK(cur_index == 6, "PAD browsing backwards left category");
     turn(EN_ALGO, 4);                   /* LEAD, KEYS, PLUCK, ARP */
     CHECK(set.category == CAT_ARP && cur_index == 7, "category traversal gave %u patch %u", set.category, cur_index);
     turn(EN_ALGO, 1);
-    CHECK(set.category == CAT_ALL, "empty FX/OTHER/USER categories were not skipped");
+    CHECK(set.category == CAT_FX, "factory FX category was skipped");
+    turn(EN_ALGO,1);CHECK(set.category == CAT_OTHER,"factory Other category was skipped");
+    turn(EN_ALGO,1);CHECK(set.category == CAT_FACTORY,"empty USER was not skipped for FACTORY");
+    turn(EN_ALGO,1);CHECK(set.category == CAT_ALL,"FACTORY did not wrap to ALL");
     CHECK(category_guess("deep bass") == CAT_BASS && category_guess("STRINGS 1") == CAT_PAD &&
           category_guess("unknown") == CAT_OTHER, "legacy names not classified");
 
@@ -273,12 +276,13 @@ static void test_live_controls(void)
     power_on();
     CHECK(cur_index == NFACT + 20 && cur_category == CAT_BASS && set.drone_replace == 1 && !synth.hold,
           "restart lost category/mode or resumed a drone");
-    turn(EN_ALGO, -1);                 /* USER includes every stored patch */
+    turn(EN_ALGO, -2);                 /* from ALL, past FACTORY to USER */
     CHECK(set.category == CAT_USER && cur_index == NFACT + 20, "USER filter did not keep its patch");
     midi(0xC0, 2, 0);
     run(100);
     CHECK(cur_index == 2 && set.category == CAT_ALL, "MIDI program change was trapped by a category");
-    set.category = CAT_FX;             /* the last sound in a filter was removed by a manager */
+    bank_write(20,0);
+    set.category = CAT_USER;           /* the last user sound was removed by a manager */
     turn(EN_PRESET, 1);
     CHECK(set.category == CAT_ALL, "empty category did not recover");
 }
@@ -493,6 +497,72 @@ static void test_display_styles(void)
     CHECK(set.display==DISPLAY_NORD && set.tempo==137,"invalid display reset unrelated settings");
 }
 
+static void test_factory500(void)
+{
+    uint32_t i,j,counts[CAT_COUNT]={0},wr;
+    uint8_t rec[BANK_REC],request[]={0xF0,0x7D,0x53,0x59,0x31,0x06,0,0,0,0xF7};
+    s1_patch patch,copy;
+    uint32_t audible=0;float factory_peak=0.0f;
+    CHECK(FACTORY500_COUNT==500 && FACTORY500_BASE==1032,"factory IDs shifted existing programs");
+    for(i=0;i<FACTORY500_COUNT;i++) {
+        bank_decode(FACTORY500[i],&patch);
+        CHECK(patch.name[0] && FACTORY500_BANK[i]<sizeof FACTORY500_SOURCE/sizeof FACTORY500_SOURCE[0],
+              "factory %u has no name or source",i);
+        int valid=1;for(j=0;j<S1_NPARAMS;j++)valid&=patch.values[j]>=s1_param_min[j] && patch.values[j]<=s1_param_max[j];
+        CHECK(valid,"factory %u has invalid parameter values",i);
+        bank_pack(&patch,rec);
+        CHECK(!memcmp(rec+28,FACTORY500[i]+28,198),"factory %u changed on C decode/encode",i);
+        s1_set_patch(&synth,patch.values);s1_set_tempo(&synth,120.0f);
+        s1_note_on(&synth,48,100);s1_note_on(&synth,60,100);s1_note_on(&synth,64,100);s1_note_on(&synth,67,100);
+        float left[APP_BLOCK],right[APP_BLOCK],sound_peak=0.0f;int finite=1;
+        for(uint32_t block=0;block<345;block++) {
+            s1_render(&synth,left,right,APP_BLOCK);
+            for(uint32_t sample=0;sample<APP_BLOCK;sample++) {
+                finite&=isfinite(left[sample]) && isfinite(right[sample]);
+                const float level=fmaxf(fabsf(left[sample]),fabsf(right[sample]));
+                if(level>sound_peak)sound_peak=level;
+            }
+        }
+        CHECK(finite,"factory %u generated non-finite audio",i);
+        if(sound_peak>0.00001f)audible++;
+        if(sound_peak>factory_peak)factory_peak=sound_peak;
+        counts[FACTORY500[i][2]]++;
+    }
+    printf("  factory render: %u / 500 audible, 500 finite; maximum pre-limiter peak %.2f\n",audible,(double)factory_peak);
+    CHECK(audible==500,"factory selection contains %u inaudible sounds",500-audible);
+    CHECK(counts[CAT_BASS]==100 && counts[CAT_PAD]==100 && counts[CAT_LEAD]==90 && counts[CAT_KEYS]==80 &&
+          counts[CAT_PLUCK]==50 && counts[CAT_ARP]==40 && counts[CAT_FX]==30 && counts[CAT_OTHER]==10,
+          "factory category balance changed");
+    memset(flash,0xFF,sizeof flash);memset(store_len,0,sizeof store_len);power_on();
+    CHECK(bank_count==0,"factory sounds consumed user storage");
+    turn(EN_ALGO,-1);
+    CHECK(set.category==CAT_FACTORY && cur_index==FACTORY500_BASE,"FACTORY is not one left from ALL");
+    char number[8];index_text(cur_index,number);CHECK(!strcmp(number,"F001"),"bad factory label %s",number);
+    turn(EN_PRESET,-1);CHECK(cur_index==FACTORY500_END-1,"factory backwards wrap failed");
+    turn(EN_PRESET,1);CHECK(cur_index==FACTORY500_BASE,"factory forward wrap failed");
+    set.category=CAT_ALL;patch_select(FACTORY500_END-1);turn(EN_PRESET,1);CHECK(cur_index==0,"ALL did not wrap past F500");
+    set.category=CAT_FACTORY;patch_select(FACTORY500_BASE);copy=cur;
+    cell_edit(S1P_FILTER_FREQ,cur.values[S1P_FILTER_FREQ]>60?-1:1);tap(B_SAVE);
+    CHECK(cur_index==NFACT && bank_used(0) && set.category==CAT_USER,"factory edit did not save a user copy");
+    patch_select(FACTORY500_BASE);CHECK(!memcmp(cur.values,copy.values,sizeof copy.values),"SAVE changed the immutable factory sound");
+    set.category=CAT_FACTORY;patch_select(FACTORY500_BASE+17);run(5500);power_on();
+    CHECK(cur_index==FACTORY500_BASE+17 && set.category==CAT_FACTORY,"factory selection did not survive restart");
+    wr=ev_w;send_sysex(request,sizeof request);
+    CHECK(ev_w==wr && sysex_last[5]==0x46 && sysex_n==202,"credits query changed sound or returned wrong size");
+    for(i=0;i<96;i++)CHECK((sysex_last[9+2*i]<<4|sysex_last[10+2*i])==FACTORY500_CREDITS[i],"credit byte %u changed",i);
+    const uint32_t end=sizeof FACTORY500_CREDITS;
+    request[6]=end&127u;request[7]=(end>>7)&127u;request[8]=(end>>14)&127u;
+    send_sysex(request,sizeof request);CHECK(sysex_n==10 && sysex_last[5]==0x46,"end of credits response was not empty");
+    uint8_t erase[]={0xF0,0x7D,0x53,0x59,0x31,0x02,0xF7};send_sysex(erase,sizeof erase);
+    CHECK(bank_count==0 && factory500_has(cur_index),"erasing user slots removed a factory sound");
+    for(i=0;i<FACTORY500_COUNT;i++)CHECK(list_has(FACTORY500_BASE+i),"factory %u vanished after erase",i);
+    /* A full user bank must not turn a factory SAVE into an out-of-range write. */
+    bank_pack(&copy,rec);for(i=0;i<BANK_SLOTS;i++)memcpy(flash+BANK_BASE+i*BANK_REC,rec,BANK_REC);bank_scan();
+    set.category=CAT_FACTORY;patch_select(FACTORY500_BASE);tap(B_SAVE);
+    CHECK(factory500_has(cur_index) && bank_count==BANK_SLOTS && !strcmp(ui.msg[1],"BANK FULL"),"full user bank allowed factory overwrite");
+    CHECK(bank_used(0) && bank_used(1023),"full-bank SAVE damaged user slots");
+}
+
 int main(void)
 {
     static const char sy1[] = "Test Patch 7\ncolor=red\nver=112\n0,3\n14,2\n19,77\n9,-12\n38,1\n86,45057\n87,44\n";
@@ -535,7 +605,8 @@ int main(void)
     turn(EN_PRESET, 1);
     CHECK(cur_index == 1 && !strcmp(cur.name, "Warm Pad"), "PRESET +1 gives %u", (unsigned)cur_index);
     turn(EN_PRESET, -2);
-    CHECK(cur_index == NFACT - 1u, "PRESET wraps to %u", (unsigned)cur_index);
+    CHECK(cur_index == FACTORY500_END - 1u, "PRESET wraps to %u", (unsigned)cur_index);
+    patch_select(7);
     run(1400);                           /* (the patch's name leaves the header) */
     tap(B_SEL);
     CHECK(ui.page == 2 && strstr(screen, "FILTER / MAIN|"), "SEL: page %u", (unsigned)ui.page);
@@ -587,7 +658,7 @@ int main(void)
           cur.values[86] == 45057 && cur.values[87] == 44, "slot 5's values did not survive");
     CHECK(strstr(screen, "005|"), "slot 5 on the screen: %s", screen);
     turn(EN_PRESET, 1);                  /* the list skips the empty slots and wraps to the first */
-    CHECK(cur_index == 0, "after the last patch: %u", (unsigned)cur_index);
+    CHECK(cur_index == FACTORY500_BASE, "factory bank did not follow user sounds: %u", (unsigned)cur_index);
     turn(EN_PRESET, -1);
     CHECK(cur_index == NFACT + 4, "before the first patch: %u", (unsigned)cur_index);
     keys_held = 1u << 12;
@@ -653,6 +724,7 @@ int main(void)
     test_live_controls();
     test_nord_ux();
     test_display_styles();
+    test_factory500();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

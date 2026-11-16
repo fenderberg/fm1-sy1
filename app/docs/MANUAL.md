@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.2.1** includes NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **0.3.0** includes 500 community factory presets plus NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -78,12 +78,20 @@ selected patch, octave, voice limit, tempo, category and drone preference, and s
 ## 3. Patches
 
 Turn ALGORITHM to choose a category, and PRESETS for the next or previous patch within it. Both wrap at the
-ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank.
+ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank. FACTORY contains the 500 bundled community presets.
 The musical categories are BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX and OTHER.
 
-`P01` to `P08` are built in. Your own patches follow them, numbered `001` to `1024`; empty slots are skipped.
+**500 community presets are ready from the first boot**, numbered **F001–F500**. From ALL, turn
+**ALGORITHM left once to FACTORY**, then use PRESETS. No import or USB transfer is needed.
+![F001 FM Slap Bass in the included Factory 500 bank, using the Green LCD display](img/screen-factory-lcd.png)
 
-SAVE keeps the patch with your changes. A built-in patch is saved to the first free slot of your own. REC puts
+These presets live in program flash and leave the 1,024 user slots available. Existing user slots,
+stored selections and MIDI program numbers are preserved when upgrading.
+
+`P01` to `P08` are the eight original built-in sounds. Your own patches are numbered `001` to `1024`;
+empty slots are skipped. From the manager, the slot count always refers to these user slots.
+
+SAVE keeps the patch with your changes. An original or factory patch is saved as a copy to the first free user slot, keeping the built-in original. REC puts
 the patch back as it was saved and releases hold/drone. Changing patches also releases hold/drone.
 
 Imported patches are categorized from their names, ignoring case (for example, "deep bass", "Warm Pad" and
@@ -145,7 +153,7 @@ imported slot; it never sends patches to USB hardware.
 To bring your own collection, use **Import your banks**, choose a folder, or drop `.sy1` files and ZIPs.
 ZIPs containing other bank ZIPs work too. Even the complete supplied collection (175 banks / 16,698 patch
 entries) can be browsed locally. Select a bank or narrow the search before selecting sounds: the FM-1
-holds **1,024 imported patches**, in addition to the eight built-in patches. Imports remain in this tab
+holds **1,024 imported patches**, in addition to the 500 community factory presets and eight original built-in patches. Imports remain in this tab
 until it is closed or reloaded; favourite IDs are remembered in this browser. Imported files are not uploaded.
 
 Connect the FM-1 by USB, open the manager in Chrome or Edge, press **Connect**, and allow MIDI with SysEx.
@@ -160,6 +168,8 @@ confirmation; the built-in patches stay. Turn PRESETS past the built-in patches 
 
 The collection comes from [Internet Archive](https://archive.org/details/synth1_202202); its metadata credits
 the compilation to techno-addicts. Our count of the supplied ZIP is 175 banks / 16,698 patch entries.
+
+Use the manager's **Factory 500** filter to preview the included sounds. The [downloadable selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) contains the original patch files and complete original readmes.
 
 Each hosted bank keeps its original ZIP, readme, author credits and distribution terms in **About this bank**.
 These presets have their authors' own terms, separately from the code's MIT license. The full supplied
