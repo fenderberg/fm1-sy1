@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1 — 2026-11-16
+
+- Assign SY1 its own project prefix 51: package and full USB identity **FM-1_51000301**, replacing the prefix 47 range already used by FRASIL. The fm1-base submodule is unchanged.
+- Add the root `fmhub.json` with the current synth description, maker name, emulator, Patch Manager, manual, square GREEN LCD screenshot and preset rights declaration.
+- Keep all 500 factory presets, eight original sounds, user-slot IDs and saved settings from 0.3.0.
+- Update the release, website and documentation, and record the hub requirements and physical test status in `docs/FIRMWARE-HUB.md`.
+
+Validation: release package identity and embedded Felucca loader checked; hub metadata, image and original preset readmes checked. The exact release package was installed from official V15 and Dinghy 0.5 on one physical FM-1; leaving SY1 for Dinghy and V15 worked. The full identity and factory F001/F500 browsing were confirmed after both installs. All 513 existing user patches and settings were backed up, restored and read back byte for byte; the final public firmware retained the count and selected patch and reported no crash.
+
 ## 0.3.0 — 2026-11-16
 
 **500 community presets are included in the firmware and browser synth, ready from first boot.**

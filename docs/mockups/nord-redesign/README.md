@@ -1,4 +1,4 @@
-# SY1-schermstijlen — versie 0.3.0
+# SY1-schermstijlen — versie 0.3.1
 
 [Open de schermgalerij](index.html): alle **32 subpagina's in drie stijlen**, met **142 echte
 schermbeelden van 240 × 240 pixels**. De knoppen bovenaan wisselen tussen 1× en 2×.
@@ -43,17 +43,17 @@ instellingen, geen gemeten audio- of filterrespons.
 ```sh
 make test test-app test-web
 make preview-nord
-./build.sh --release 0.3.0
-./build.sh --web --release 0.3.0
-make test-site VERSION=0.3.0
+./build.sh --release 0.3.1
+./build.sh --web --release 0.3.1
+make test-site VERSION=0.3.1
 ```
 
 `make preview-nord` controleert basisbediening, performance, live feedback en de drie schermstijlen,
 exporteert deze galerij en vernieuwt de screenshots in `app/docs/img` en `docs/img`.
 Met `python3 tools/ux_review.py --output /pad/naar/map` kan een aparte export worden gemaakt.
 
-De installeerbare release is `app/build/sy1-0.3.0.fwsc`; de complete website wordt met
-`tools/publish_site.sh 0.3.0 [--push]` gebouwd. Browsercontrole: `host/display_browser_test.mjs`, met
+De installeerbare release is `app/build/sy1-0.3.1.fwsc`; de complete website wordt met
+`tools/publish_site.sh 0.3.1 [--push]` gebouwd. Browsercontrole: `host/display_browser_test.mjs`, met
 `PLAYWRIGHT_MODULE` voor een geïnstalleerde Playwright-module en `SY1_TEST_URL` voor de complete site.
 
 ## Validatie op 16 november 2026

@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.3.0** includes 500 community factory presets plus NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **0.3.1** includes 500 community factory presets plus NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -27,6 +27,8 @@ To try it first, open the emulator. It runs the same code in your browser, with 
 To install, open the installer in Chrome or Edge with the FM-1 connected by USB, and follow it. Back up what
 you want to keep from the firmware you have now: SY1 keeps its settings and patches in the same part of the
 flash, and overwrites what another firmware left there. The installer can put M-VAVE's own firmware back.
+
+After installation, this release reports the full USB identity **FM-1_51000301**.
 
 ## 2. The screen
 

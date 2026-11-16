@@ -23,7 +23,9 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.3.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.3.0) · [What changed](CHANGELOG.md)
+Latest release: [v0.3.1](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.3.1) · [What changed](CHANGELOG.md)
+
+The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.3.1 uses its own USB identity **FM-1_51000301** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
 
 ## Status: early
 
@@ -65,7 +67,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.3.0` after building the matching release package and
+Build the complete website with `make site VERSION=0.3.1` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -103,7 +105,7 @@ Original Synth1 presets may sound different in this lighter engine; see the manu
 
 The [Factory 500 selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) is also downloadable
 with complete original bank notes and [credits](app/presets/CREDITS.txt). The manager's **Factory 500** filter
-shows the included sounds for preview; there is no need to transfer them again on version 0.3.0.
+shows the included sounds for preview; there is no need to transfer them again on version 0.3.1.
 The selection contains 500 distinct normalized parameter sets from all 27 public banks, balanced as
 100 basses, 100 pads, 90 leads, 80 keys, 50 plucks, 40 arps, 30 FX and 10 other sounds. Selection is based
 on names, category balance and source-bank spread, with a two-second audio-render check for every sound;
@@ -156,13 +158,13 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.3.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (6/6) → KNOB1**.
+All three display styles remain available in **0.3.1**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (6/6) → KNOB1**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
 NORD remains the default. This is a global preference, saved while idle; old settings migrate without
-losing the selected patch or other controls. Build with `./build.sh --release 0.3.0` and
-`./build.sh --web --release 0.3.0`. Optional browser QA is `node host/display_browser_test.mjs`
+losing the selected patch or other controls. Build with `./build.sh --release 0.3.1` and
+`./build.sh --web --release 0.3.1`. Optional browser QA is `node host/display_browser_test.mjs`
 with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
 
 See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).

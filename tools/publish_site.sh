@@ -9,6 +9,7 @@ PY="${PYTHON:-python3}"
 ./build.sh --release "$V"
 ./build.sh --web --release "$V"
 "$PY" tools/make_site.py "app/build/sy1-$V.fwsc" "$V" app/build/site
+"$PY" host/hub_test.py "app/build/sy1-$V.fwsc"
 "$PY" host/site_test.py app/build/site
 touch app/build/site/.nojekyll
 echo "site: app/build/site"

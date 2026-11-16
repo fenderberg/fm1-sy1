@@ -1,6 +1,6 @@
 # SY1's build settings (fm1-base's tools/build.py: ./build.sh)
 name = "SY1"                   # the build's files: sy1.fwsc, sy1-X.Y.fwsc
-id_prefix = "FM-1_47"          # package identity: dev FM-1_4700, releases FM-1_47XXYYZZ
+id_prefix = "FM-1_51"          # SY1 identity: dev FM-1_5100, releases FM-1_51XXYYZZ
 usb_manufacturer = "SY1"
 usb_product = "SY1 FM-1"
 include = ["dsp"]
