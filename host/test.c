@@ -7,6 +7,9 @@
 #include "s1_synth.h"
 #include "s1_patch.h"
 #include "s1_math.h"
+#ifndef M_PI                             /* (not in strict C99's math.h, as on Linux with -std=c99) */
+#define M_PI 3.14159265358979323846
+#endif
 
 #define SR 44100
 #define DELAY_LEN 32768u
