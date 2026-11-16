@@ -274,7 +274,8 @@ async function readDevice() {
   try {
     const a = await ask(output, cmd(0x03), 0x43, 1500); if (!a) throw new Error('The FM-1 did not answer. Reconnect before syncing.');
     const used = Math.min(SLOTS, a.data[6] | a.data[7] << 7), device = new Array(SLOTS).fill(null);
-    const old = !(await ask(output, cmd(0x07, 0, 0, 0), 0x47, 700, 0));          // SY1 0.3.1 and earlier: names only
+    // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
+    const old = !(a.data.length >= 12 && a.data[10] & 1);
     for (let s = 0; s < used; s++) {
       if (!output) throw new Error('FM-1 disconnected.');
       if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
