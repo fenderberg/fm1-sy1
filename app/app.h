@@ -5,7 +5,7 @@
 #include "plat.h"
 
 #define APP_NAME "SY1"
-#define APP_TAGLINE "256 SYNTH1 PRESETS"
+#define APP_TAGLINE "CT TIMING DIAGNOSTIC"
 #define APP_SPLASH_RGB RGB(255, 184, 70)
 #define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity from the keys (lib/touch.h) */

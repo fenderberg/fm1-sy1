@@ -79,7 +79,18 @@ static volatile uint8_t w_bi, w_layout, w_focus;   /* the main loop's: bitimbral
 static uint8_t a_bi, a_layout;           /* as the render has them (taken at EV_MODE: the notes stop there) */
 static volatile uint8_t ux_refocus;      /* the panel moved to the other part: the live view starts again */
 static uint32_t dual_jobs, dual_self;    /* blocks R rendered on the second core / on the first */
-static void part_b_job(uint32_t m) { s1_render(&synth_b, buf2_l, buf2_r, (int)m); }
+/* Diagnostic build: maxima include interrupt preemption and are read only between jobs. */
+static volatile uint32_t diag_part_ticks[2];
+static uint32_t diag_render_ticks, diag_midi_ticks, diag_macro_ticks, diag_burst;
+static uint32_t diag_notes[2], diag_cc[2], diag_usb_notes, diag_trs_notes;
+static void part_b_job(uint32_t m)
+{
+    const uint32_t t = plat_ticks24();
+    uint32_t dt;
+    s1_render(&synth_b, buf2_l, buf2_r, (int)m);
+    dt = plat_ticks24() - t;
+    if (dt > diag_part_ticks[1]) diag_part_ticks[1] = dt;
+}
 static float gain_now;
 #include "ui/live.h"
 
@@ -121,7 +132,8 @@ static void ev_push_to(uint32_t part, uint32_t type, uint32_t a, int32_t b)
  * middle again. Audio interrupt, but macro_param: the main loop's popup uses it too. */
 #define NMACRO 8u
 typedef struct { uint8_t id; int8_t depth; } mtarget_t;   /* depth: knob units at the knob's end, from its middle */
-static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 71, 74, 12, 13};
+/* Circuit Tracks' default MIDI template, in physical knob order (5..8 are 12, 13, 71, 74). */
+static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 12, 13, 71, 74};
 static const char *const MACRO_NAME[NMACRO] = {"OSCILLATOR", "OSC MOD", "AMP ENV", "FILTER ENV", "FILTER FREQ",
                                                "RESONANCE", "MODULATION", "FX"};
 static const mtarget_t MACRO[NMACRO][2] = {
@@ -300,7 +312,9 @@ static void midi_in(void)                /* audio interrupt: USB, the TRS jack, 
 {
     uint32_t pkt;
     int port;
+    uint32_t nread = 0;
     while (plat_midi_in(&pkt, &port)) {
+        nread++;
         const uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
         /* Standard: every channel plays L. Bitimbral: channel 3 is part L, channel 4 part R (the Circuit Tracks'
          * MIDI 1 and MIDI 2), the other channels are not ours; DOUBLE: the notes of either play both parts */
@@ -318,11 +332,15 @@ static void midi_in(void)                /* audio interrupt: USB, the TRS jack, 
                     if (d2) {
                         s1_note_on(part, (int)d1, (int)d2);
                         midi_notes++;
+                        diag_notes[p]++;
+                        if (port == PORT_TRS) diag_trs_notes++;
+                        else if (port == PORT_USB) diag_usb_notes++;
                         break;
                     }
                     /* fall through */
                 case 0x80u: s1_note_off(part, (int)d1); break;
                 case 0xB0u:
+                    diag_cc[p]++;
                     if (!a_bi || !macro_cc(p, d1, d2))
                         s1_control_change(part, (int)d1, (int)d2);
                     break;
@@ -370,6 +388,7 @@ static void midi_in(void)                /* audio interrupt: USB, the TRS jack, 
             break;
         }
     }
+    if (nread > diag_burst) diag_burst = nread;
     if (clk_live && synth.now - clk_last > 88200u) {  /* unplugged clock: return to the internal tempo */
         ext_tempo = 0;
         clk_live = 0;
@@ -395,16 +414,26 @@ static inline float soft(float x)
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
     const float gain = (float)master_q12 * (1.0f / 4096.0f) * 8388607.0f;
-    uint32_t pos, i;
+    uint32_t pos, i, t, dt;
+    const uint32_t render_start = plat_ticks24();
     events();
+    t = plat_ticks24();
     midi_in();
+    dt = plat_ticks24() - t;
+    if (dt > diag_midi_ticks) diag_midi_ticks = dt;
+    t = plat_ticks24();
     macro_run(0);
     macro_run(1);
+    dt = plat_ticks24() - t;
+    if (dt > diag_macro_ticks) diag_macro_ticks = dt;
     for (pos = 0; pos < n; pos += APP_BLOCK) {
         const uint32_t m = n - pos < APP_BLOCK ? n - pos : APP_BLOCK;
         const float step = (gain - gain_now) / (float)m;   /* MASTER glides over the block: no click */
         const int two = a_bi, on2 = two && plat_cpu2_on() && plat_cpu2_run(part_b_job, m);
+        t = plat_ticks24();
         s1_render(&synth, buf_l, buf_r, (int)m);
+        dt = plat_ticks24() - t;
+        if (dt > diag_part_ticks[0]) diag_part_ticks[0] = dt;
         if (two) {
             if (!on2 || plat_cpu2_wait() != 0) {
                 part_b_job(m);           /* one core, or the second dropped the job */
@@ -423,6 +452,8 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         gain_now = gain;
     }
     ux_publish(n);
+    dt = plat_ticks24() - render_start;
+    if (dt > diag_render_ticks) diag_render_ticks = dt;
 }
 
 void app_panic(void)
@@ -1242,7 +1273,7 @@ static uint32_t peak_cpu, peak_voices, sheds;   /* since the last readout (app_l
  * readout, with the voices that were sounding, and how often an overload dropped a voice */
 void app_log(void (*line)(const char *t))
 {
-    char t[41], n[12];
+    char t[64], n[12];
     t[0] = 0;
     text_cat(t, "sy1 cpu ");
     int_text((int32_t)plat_cpu_pct(), n);
@@ -1280,6 +1311,27 @@ void app_log(void (*line)(const char *t))
     text_cat(t, " bi ");
     int_text((int32_t)set.bi, n); text_cat(t, n);
     line(t);
+    t[0] = 0; text_cat(t, "sy1 xruns ");
+    int_text((int32_t)plat_xruns(), n); text_cat(t, n);
+    text_cat(t, " burst "); int_text((int32_t)diag_burst, n); text_cat(t, n); line(t);
+    t[0] = 0; text_cat(t, "sy1 us render ");
+    int_text((int32_t)(diag_render_ticks / PLAT_TICKS_PER_US), n); text_cat(t, n);
+    text_cat(t, " midi "); int_text((int32_t)(diag_midi_ticks / PLAT_TICKS_PER_US), n); text_cat(t, n); line(t);
+    t[0] = 0; text_cat(t, "sy1 us macro ");
+    int_text((int32_t)(diag_macro_ticks / PLAT_TICKS_PER_US), n); text_cat(t, n);
+    text_cat(t, " L "); int_text((int32_t)(diag_part_ticks[0] / PLAT_TICKS_PER_US), n); text_cat(t, n);
+    text_cat(t, " R "); int_text((int32_t)(diag_part_ticks[1] / PLAT_TICKS_PER_US), n); text_cat(t, n); line(t);
+    t[0] = 0; text_cat(t, "sy1 notes L ");
+    int_text((int32_t)diag_notes[0], n); text_cat(t, n);
+    text_cat(t, " R "); int_text((int32_t)diag_notes[1], n); text_cat(t, n); line(t);
+    t[0] = 0; text_cat(t, "sy1 src usb ");
+    int_text((int32_t)diag_usb_notes, n); text_cat(t, n);
+    text_cat(t, " trs "); int_text((int32_t)diag_trs_notes, n); text_cat(t, n); line(t);
+    t[0] = 0; text_cat(t, "sy1 cc L ");
+    int_text((int32_t)diag_cc[0], n); text_cat(t, n);
+    text_cat(t, " R "); int_text((int32_t)diag_cc[1], n); text_cat(t, n); line(t);
+    diag_render_ticks = diag_midi_ticks = diag_macro_ticks = diag_burst = 0;
+    diag_part_ticks[0] = diag_part_ticks[1] = 0;
     dual_jobs = dual_self = 0;
     peak_cpu = peak_voices = sheds = 0;
 }

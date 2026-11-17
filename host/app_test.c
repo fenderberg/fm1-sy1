@@ -71,6 +71,8 @@ int plat_store_save(uint32_t obj, const void *src, uint32_t len)
     return 0;
 }
 uint32_t plat_cpu_pct(void) { return 12; }
+uint32_t plat_xruns(void) { return 0; }
+uint32_t plat_ticks24(void) { return now_ms * 24000u; }
 /* the second core, as fm1-base's simulator has it: a job runs at once (the measurement build's part B) */
 void plat_play_red(int red) { (void)red; }
 int plat_cpu2_set(int on) { (void)on; return 0; }
@@ -590,6 +592,71 @@ static void test_factory500(void)
     CHECK(bank_used(0) && bank_used(1023),"full-bank SAVE damaged user slots");
 }
 
+static void test_circuit_macros(void)
+{
+    /* Hardware specification, independent of MACRO_CC: Circuit Tracks' default template in knob order. */
+    static const uint8_t cc[8] = {1, 2, 5, 11, 12, 13, 71, 74};
+    static const uint8_t parameter[8] = {S1P_OSC_MIX, S1P_OSC1_DETUNE, S1P_AMP_RELEASE,
+        S1P_FILTER_AMOUNT, S1P_FILTER_FREQ, S1P_FILTER_RES, S1P_LFO1_DEPTH, S1P_DELAY_DRY_WET};
+    int32_t values[S1_NPARAMS], other_values[S1_NPARAMS];
+    uint32_t p, state, knob, i;
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    mode_set(1);
+    run(50);
+    for (i = 0; i < S1_NPARAMS; i++) values[i] = s1_param_def[i];
+    for (i = 0; i < 8; i++) values[parameter[i]] = 64;
+    values[S1P_ARP_ON] = values[S1P_UNISON_ON] = values[S1P_PLAY_MODE] = 0;
+    values[S1P_LFO1_ON] = values[S1P_DELAY_ON] = 0;
+    values[S1P_AMP_ATTACK] = 0;
+    values[S1P_AMP_SUSTAIN] = 127;
+    for (p = 0; p < 2; p++)
+        for (state = 0; state < 3; state++)  /* silent, held, and released */
+            for (knob = 0; knob < 8; knob++) {
+                s1_synth *const part = PART[p];
+                s1_voice before[S1_MAX_VOICES];
+                uint32_t notes = midi_notes;
+                s1_set_patch(part, values);
+                macro_patch(p, values);
+                if (state) {
+                    s1_note_on(part, 60, 100);
+                    s1_render(part, buf_l, buf_r, APP_BLOCK);
+                    if (state == 2) s1_note_off(part, 60);
+                }
+                memcpy(before, part->voice, sizeof before);
+                memcpy(other_values, PART[p ^ 1u]->base, sizeof other_values);
+                midi(0xB0u | w_ch[p], cc[knob], 127);
+                midi_in();
+                for (i = 0; i < 24; i++) macro_run(p);
+                CHECK(s1_get_param(part, parameter[knob]) == 127,
+                      "Circuit knob %u (CC%u) did not reach its parameter on part %u",
+                      (unsigned)knob + 1, cc[knob], (unsigned)p);
+                CHECK(!memcmp(before, part->voice, sizeof before) && midi_notes == notes,
+                      "Circuit knob %u changed a voice/envelope or generated a note", (unsigned)knob + 1);
+                CHECK(!memcmp(other_values, PART[p ^ 1u]->base, sizeof other_values),
+                      "Circuit knob changed the other part");
+                CHECK(s1_get_param(part, S1P_FILTER_FREQ) == (knob == 4 ? 127 : 64),
+                      "Circuit knob %u unexpectedly swept the cutoff", (unsigned)knob + 1);
+                CHECK(s1_get_param(part, S1P_FILTER_RES) == (knob == 5 ? 127 : 64),
+                      "Circuit knob %u unexpectedly changed resonance", (unsigned)knob + 1);
+                CHECK(s1_get_param(part, S1P_LFO1_ON) == (knob == 6) &&
+                      s1_get_param(part, S1P_DELAY_ON) == (knob == 7),
+                      "Circuit knob %u enabled the wrong modulation/effect", (unsigned)knob + 1);
+                s1_render(part, buf_l, buf_r, APP_BLOCK);
+                for (i = 0; i < S1_MAX_VOICES; i++)
+                    CHECK(part->voice[i].age == before[i].age &&
+                          (!part->voice[i].gate || before[i].gate),
+                          "Circuit knob retriggered voice %u while rendering", (unsigned)i);
+            }
+    mode_set(0);
+    run(50);
+    s1_set_patch(&synth, values);
+    midi(0xB0, 12, 127);
+    midi_in();
+    CHECK(synth.cc[12] == 127 && s1_get_param(&synth, S1P_FILTER_FREQ) == 64,
+          "standard mode unexpectedly used the Circuit macro mapping");
+}
+
 int main(void)
 {
     static const char sy1[] = "Test Patch 7\ncolor=red\nver=112\n0,3\n14,2\n19,77\n9,-12\n38,1\n86,45057\n87,44\n";
@@ -787,6 +854,7 @@ int main(void)
     test_display_styles();
     test_global_page();
     test_factory500();
+    test_circuit_macros();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

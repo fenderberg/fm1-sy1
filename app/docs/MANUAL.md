@@ -199,10 +199,14 @@ names the knob, what it moves and the value.
 | 2 OSC MOD | 2 | Detune: the detuned copies, and oscillator 2 a little |
 | 3 AMP ENV | 5 | Amp release and decay (the attack stays) |
 | 4 FILTER ENV | 11 | Filter envelope amount, and a little of its decay |
-| 5 FILTER FREQ | 71 | Cutoff |
-| 6 RESONANCE | 74 | Resonance |
-| 7 MODULATION | 12 | LFO 1's depth (above the middle LFO 1 is switched on) |
-| 8 FX | 13 | The delay's level (above the middle the delay is switched on) |
+| 5 FILTER FREQ | 12 | Cutoff |
+| 6 RESONANCE | 13 | Resonance |
+| 7 MODULATION | 71 | LFO 1's depth (above the middle LFO 1 is switched on) |
+| 8 FX | 74 | The delay's level (above the middle the delay is switched on) |
+
+These numbers follow the Circuit Tracks' [default MIDI template](https://userguides.novationmusic.com/hc/en-gb/articles/26207128061458-Using-Circuit-Tracks-Synths-MIDI-Tracks-and-Drums).
+Versions through 0.4.2 assigned knobs 5–8 in the wrong order. Recorded knob movements on the Circuit are replayed
+with every pattern loop, including after changing its MIDI template; they keep changing the sound until cleared.
 
 In standard mode these controllers do what the patch routes them to, as before.
 

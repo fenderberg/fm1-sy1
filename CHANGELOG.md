@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Correct the Circuit Tracks' default MIDI template mapping for knobs 5–8: CC12 is cutoff, CC13 resonance,
+  CC71 modulation and CC74 FX. Previously the modulation knob swept the cutoff and the FX knob changed
+  resonance. The browser demo and manual now use the same physical knob order.
+
 ## 0.4.2 — 2026-11-17
 
 **Two sounds at once, for everyone, and a GLO page with nothing of the patch on it.**
