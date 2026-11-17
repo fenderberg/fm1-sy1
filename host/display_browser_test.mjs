@@ -16,7 +16,7 @@ try{
  await page.goto(base+'/emu/',{waitUntil:'networkidle'});await page.locator('#go').click();await page.waitForFunction(lit,{},{timeout:20000});
  assert.equal(await page.locator('#device g.knob').first().evaluate(e=>getComputedStyle(e).outlineStyle),'none','rack decoration must not affect real panel controls');
  await turn('ALGORITHM','ArrowDown');await page.waitForFunction(()=>/factory/i.test(document.getElementById('said').textContent));
- await turn('PRESETS','ArrowDown');await page.waitForFunction(()=>/F500/i.test(document.getElementById('said').textContent));
+ await turn('PRESETS','ArrowDown');await page.waitForFunction(()=>/F256/i.test(document.getElementById('said').textContent));
  await turn('PRESETS','ArrowUp');await page.waitForFunction(()=>/F001/i.test(document.getElementById('said').textContent));
  await turn('PRESETS','ArrowUp');await page.waitForFunction(()=>/F002/i.test(document.getElementById('said').textContent));
  await turn('PRESETS','ArrowDown');await page.waitForFunction(()=>/F001/i.test(document.getElementById('said').textContent));

@@ -513,7 +513,7 @@ static void test_factory500(void)
     uint8_t rec[BANK_REC],request[]={0xF0,0x7D,0x53,0x59,0x31,0x06,0,0,0,0xF7};
     s1_patch patch,copy;
     uint32_t audible=0;float factory_peak=0.0f;
-    CHECK(FACTORY500_COUNT==500 && FACTORY500_BASE==1032,"factory IDs shifted existing programs");
+    CHECK(FACTORY500_COUNT==256 && FACTORY500_BASE==1032,"factory IDs shifted existing programs");
     for(i=0;i<FACTORY500_COUNT;i++) {
         bank_decode(FACTORY500[i],&patch);
         CHECK(patch.name[0] && FACTORY500_BANK[i]<sizeof FACTORY500_SOURCE/sizeof FACTORY500_SOURCE[0],
@@ -538,11 +538,13 @@ static void test_factory500(void)
         if(sound_peak>factory_peak)factory_peak=sound_peak;
         counts[FACTORY500[i][2]]++;
     }
-    printf("  factory render: %u / 500 audible, 500 finite; maximum pre-limiter peak %.2f\n",audible,(double)factory_peak);
-    CHECK(audible==500,"factory selection contains %u inaudible sounds",500-audible);
-    CHECK(counts[CAT_BASS]==100 && counts[CAT_PAD]==100 && counts[CAT_LEAD]==90 && counts[CAT_KEYS]==80 &&
-          counts[CAT_PLUCK]==50 && counts[CAT_ARP]==40 && counts[CAT_FX]==30 && counts[CAT_OTHER]==10,
+    printf("  factory render: %u / %u audible, all finite; maximum pre-limiter peak %.2f\n",audible,(unsigned)FACTORY500_COUNT,(double)factory_peak);
+    CHECK(audible==FACTORY500_COUNT,"factory selection contains %u inaudible sounds",(unsigned)FACTORY500_COUNT-audible);
+    CHECK(counts[CAT_BASS]==35 && counts[CAT_PAD]==35 && counts[CAT_LEAD]==34 && counts[CAT_KEYS]==34 &&
+          counts[CAT_PLUCK]==34 && counts[CAT_ARP]==34 && counts[CAT_FX]==34 && counts[CAT_OTHER]==16,
           "factory category balance changed");
+    for(i=0;i<FACTORY500_COUNT;i++)CHECK(FACTORY500[i][3]==CAT_MARK && FACTORY500[i][2]>=CAT_BASS && FACTORY500[i][2]<=CAT_OTHER,
+                                         "factory %u has no explicit category",i);
     memset(flash,0xFF,sizeof flash);memset(store_len,0,sizeof store_len);power_on();
     CHECK(bank_count==0,"factory sounds consumed user storage");
     turn(EN_ALGO,-1);
@@ -550,7 +552,7 @@ static void test_factory500(void)
     char number[8];index_text(cur_index,number);CHECK(!strcmp(number,"F001"),"bad factory label %s",number);
     turn(EN_PRESET,-1);CHECK(cur_index==FACTORY500_END-1,"factory backwards wrap failed");
     turn(EN_PRESET,1);CHECK(cur_index==FACTORY500_BASE,"factory forward wrap failed");
-    set.category=CAT_ALL;patch_select(FACTORY500_END-1);turn(EN_PRESET,1);CHECK(cur_index==0,"ALL did not wrap past F500");
+    set.category=CAT_ALL;patch_select(FACTORY500_END-1);turn(EN_PRESET,1);CHECK(cur_index==0,"ALL did not wrap past the last factory sound");
     set.category=CAT_FACTORY;patch_select(FACTORY500_BASE);copy=cur;
     cell_edit(S1P_FILTER_FREQ,cur.values[S1P_FILTER_FREQ]>60?-1:1);tap(B_SAVE);
     CHECK(cur_index==NFACT && bank_used(0) && set.category==CAT_USER,"factory edit did not save a user copy");

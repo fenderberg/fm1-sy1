@@ -46,10 +46,10 @@ const synced=async()=>{await page.locator('#sync').click();await page.waitForFun
 const names=()=>page.evaluate(()=>mock.names());
 await page.goto(base+'/manager/');await loaded();
 
-// The library: virtual rows, search, character counts, Factory 500 and favourites that persist.
+// The library: virtual rows, search, character counts, the factory bank and favourites that persist.
 assert.equal(await text('#lcount'),'3,174 of 3,174 sounds');
 const rows=await page.locator('#llist .prow').count();assert.ok(rows>5&&rows<80,'only the rows in view are rendered: '+rows);
-await page.locator('#factory-only').click();assert.equal(await text('#lcount'),'500 of 3,174 sounds');await page.locator('#factory-only').click();
+await page.locator('#factory-only').click();assert.equal(await text('#lcount'),'256 of 3,174 sounds');await page.locator('#factory-only').click();
 await page.locator('#search').fill('warm');assert.match(await text('#lcount'),/^\d+ of 3,174 sounds$/);assert.notEqual(await text('#lcount'),'3,174 of 3,174 sounds');
 await page.locator('#llist [data-act=fav]').first().click();await page.locator('#lchips [data-tog=fav]').click();assert.equal(await page.locator('#llist .prow').count(),1);
 await page.reload();await loaded();await page.locator('#lchips [data-tog=fav]').click();assert.equal(await page.locator('#llist .prow').count(),1);

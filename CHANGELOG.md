@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1 — 2026-11-17
+
+**A factory bank you can browse by category: 256 presets, shared out nearly evenly.**
+
+- The factory bank holds **256 presets** instead of 500: 35 Bass, 35 Pad, 34 Lead, 34 Keys, 34 Pluck, 34 Arp,
+  34 FX and 16 Other. The old bank had 100 Bass and 100 Pad against 30 FX.
+- A preset is only included when its name and its sound agree on the category: a pad swells or lingers, a pluck
+  decays quickly without sustain, an arpeggio has the arpeggiator on, a bass starts at once. Names that point two
+  ways ("Kick Bass", "909 Snare w/o Noise"), init and test patches and closed or silent sounds are left out, and
+  at most two of one name series are taken. Other holds only recognisable instruments: drums, brass, sax, flute,
+  horns, chords. The rules are in `tools/factory_pick.mjs`; every preset renders audible, finite audio.
+- Factory presets are numbered **F001–F256**. A part that was on F257–F500 starts on the first patch. User
+  slots, settings and the 1,024 user patches are untouched.
+
 ## 0.4.0 — 2026-11-17
 
 **Bitimbral: two sounds at once, made for the Novation Circuit Tracks.**

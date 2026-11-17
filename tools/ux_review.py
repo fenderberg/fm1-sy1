@@ -117,7 +117,7 @@ def main():
             shutil.copy2(source, args.output / name)
             exports.append(name)
             items.append((name, source.stem.replace("-", " ")))
-        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "500 fabriekspresets" if group == "factory" else "Displaykeuze en herstart" if group == "display" else "Referenties en live feedback", items))
+        if group != "all-pages": sections.append((group, "Bediening en speelstatus" if group == "nord-preview" else "256 fabriekspresets" if group == "factory" else "Displaykeuze en herstart" if group == "display" else "Referenties en live feedback", items))
     gallery(args.output, sections)
     # Keep the manual, README and homepage tied to the actual current renderer.
     if args.output.resolve() == (ROOT / "docs/mockups/nord-redesign").resolve():

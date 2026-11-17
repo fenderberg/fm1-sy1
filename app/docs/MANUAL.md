@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.4.0** adds bitimbral mode (two sounds at once, made for a Novation Circuit Tracks) and a Patch Manager that arranges all 1,024 user slots; it keeps the 500 community factory presets and the NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **0.4.1** sorts its 256 factory presets evenly into eight categories; 0.4.0 added bitimbral mode (two sounds at once, made for a Novation Circuit Tracks) and a Patch Manager that arranges all 1,024 user slots; it keeps the community factory presets and the NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -80,12 +80,17 @@ selected patch, octave, voice limit, tempo, category and drone preference, and s
 ## 3. Patches
 
 Turn ALGORITHM to choose a category, and PRESETS for the next or previous patch within it. Both wrap at the
-ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank. FACTORY contains the 500 bundled community presets.
+ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank. FACTORY contains the 256 bundled community presets.
 The musical categories are BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX and OTHER.
 
-**500 community presets are ready from the first boot**, numbered **F001–F500**. From ALL, turn
+**256 community presets are ready from the first boot**, numbered **F001–F256**. From ALL, turn
 **ALGORITHM left once to FACTORY**, then use PRESETS. No import or USB transfer is needed.
-![F001 FM Slap Bass in the included Factory 500 bank, using the Green LCD display](img/screen-factory-lcd.png)
+![F001 FM Slap Bass in the included factory bank, using the Green LCD display](img/screen-factory-lcd.png)
+
+Each factory preset has a category, and the bank is shared out nearly evenly: 35 Bass, 35 Pad, 34 Lead, 34 Keys,
+34 Pluck, 34 Arp, 34 FX and 16 Other (drums, brass, sax, flute, horns and chords). A preset is only included when
+its name and its sound agree on the category: a pad has a slow or long envelope, a pluck a short decay without
+sustain, an arpeggio the arpeggiator on. Turn ALGORITHM to a category to browse just those, factory and your own.
 
 These presets live in program flash and leave the 1,024 user slots available. Existing user slots,
 stored selections and MIDI program numbers are preserved when upgrading.
@@ -232,7 +237,7 @@ Shift-click and Ctrl-click select several; Ctrl+A selects all, Ctrl+Z undoes, `/
 many slots will be written. **Undo** and **Discard all** cost nothing, because the FM-1 has not been touched
 yet. **Sync** writes slot by slot, each acknowledged, with progress; **Stop** stops between acknowledged
 writes and leaves the rest staged. Removing patches asks for confirmation first. If a slot is not
-confirmed, press **Read again** before retrying. The 500 factory presets and the eight original sounds are
+confirmed, press **Read again** before retrying. The factory presets and the eight original sounds are
 never affected. Turn PRESETS past the built-in patches to play your slots.
 
 **Sets.** A set is a saved layout of all your slots, kept in this browser: one for the stage, one for the
@@ -258,7 +263,7 @@ sounds, but reordering, renaming, Arrange and Sets need a newer SY1.
 The collection comes from [Internet Archive](https://archive.org/details/synth1_202202); its metadata credits
 the compilation to techno-addicts. Our count of the supplied ZIP is 175 banks / 16,698 patch entries.
 
-Use the manager's **Factory 500** filter to preview the included sounds. The [downloadable selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) contains the original patch files and complete original readmes.
+Use the manager's **Factory** filter to preview the included sounds. The [downloadable selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) contains the original patch files and complete original readmes.
 
 Each hosted bank keeps its original ZIP, readme, author credits and distribution terms in **About this bank**.
 These presets have their authors' own terms, separately from the code's MIT license. The full supplied

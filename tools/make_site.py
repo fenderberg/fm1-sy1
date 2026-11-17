@@ -50,7 +50,7 @@ def decorate(document, current, version):
                           'Switch on, play a few notes, and turn a knob. Choose your screen style on '
                           'GLO → DISPLAY with KNOB1: NORD, GREEN (LED), or LCD.</p></header>', document, count=1, flags=re.S)
     elif current == "install":
-        document = document.replace('<main>', '<main><p class="factory-note">Includes 500 community presets in program flash, plus 1,024 separate user slots. '
+        document = document.replace('<main>', '<main><p class="factory-note">Includes 256 community presets in program flash, sorted into eight categories, plus 1,024 separate user slots. '
                                     '<a href="../library/factory500-credits.txt">Included preset credits and terms</a>.</p>', 1)
     document = document.replace('</head>', f'<link rel="stylesheet" href="{up}assets/site.css">\n</head>', 1)
     document = document.replace('<body>', f'<body data-site-page="{current or "home"}">\n' + navigation(current, up), 1)

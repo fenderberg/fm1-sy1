@@ -49,7 +49,7 @@ test-web: build/sy1pack
 	node host/factory500_test.mjs
 
 # Build the complete website from an existing release package and browser build.
-VERSION ?= 0.4.0
+VERSION ?= 0.4.1
 site:
 	python3 tools/make_site.py app/build/sy1-$(VERSION).fwsc $(VERSION)
 

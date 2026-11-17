@@ -1,6 +1,6 @@
-# 500 community sounds are available without writing any user slots.
+# 256 community sounds are available without writing any user slots.
 wait 600
-expect factory 500
+expect factory 256
 expect count 0
 turn ALGO -1
 expect category 10
@@ -12,7 +12,7 @@ said F001
 where
 said BY AZur Studio
 turn PRESET -1
-expect patch 1531
+expect patch 1287
 turn PRESET 1
 expect patch 1032
 # The built-in bank uses all three display styles.
@@ -43,7 +43,7 @@ shot factory-restored.png
 wait 5500
 reboot
 wait 600
-expect factory 500
+expect factory 256
 expect count 1
 expect patch 1032
 expect display 2

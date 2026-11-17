@@ -1,6 +1,6 @@
-SY1 Factory 500
+SY1 factory presets
 
-500 parameter-distinct Synth1 community presets. These presets have their authors' own terms and are separate from the SY1 source-code MIT license.
+256 parameter-distinct Synth1 community presets. These presets have their authors' own terms and are separate from the SY1 source-code MIT license.
 Source: https://archive.org/details/synth1_202202
 Compilation credit: techno-addicts
 

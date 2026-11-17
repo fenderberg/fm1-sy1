@@ -58,12 +58,12 @@ selling or including their patches in a paid library. See [bank credits](app/sit
 Banks with absent, unclear or restrictive redistribution terms are not hosted. Users may import their
 own full collection locally in the browser; it is not uploaded or redistributed by SY1.
 
-## Included Factory 500 presets
+## Included factory presets
 
-`app/presets/factory500.h` embeds a 500-sound selection from the redistributable website banks. This
+`app/presets/factory500.h` embeds a 256-sound selection from the redistributable website banks. This
 preset data is separate from the source-code MIT license, and remains under each patchmaker's own terms.
 The selection's full author credits, terms and original readme text are in [CREDITS.txt](app/presets/CREDITS.txt)
-and are embedded in program flash. The [downloadable Factory 500 ZIP](app/site/library/factory500.zip)
+and are embedded in program flash. The [downloadable factory ZIP](app/site/library/factory500.zip)
 also preserves every selected `.sy1` file and all original source-bank `.txt` files byte-for-byte,
 including the complete Lunatique readme required for redistribution. Banks that prohibit sale or
 inclusion in a paid library retain those restrictions. SY1 distributes this bank free of charge.
