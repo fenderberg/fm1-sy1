@@ -29,7 +29,13 @@ jobs:
         run: |
           pip install Pillow
           ./build.sh --host
-          set -o pipefail
+          fail=0
           for t in basic performance nord-preview ux display factory bitimbral; do
-            mkdir -p "app/build/host/$t" && app/build/host/sy1_host "app/tests/$t.txt" "app/build/host/$t" | tail -1
+            mkdir -p "app/build/host/$t"
+            if app/build/host/sy1_host "app/tests/$t.txt" "app/build/host/$t" > "app/build/host/$t.log" 2>&1; then
+              echo "$t: $(tail -1 "app/build/host/$t.log")"
+            else
+              echo "$t FAILED:"; grep -iE "fail|expect|error" "app/build/host/$t.log" | grep -v "^  ok" | head -20; fail=1
+            fi
           done
+          exit $fail

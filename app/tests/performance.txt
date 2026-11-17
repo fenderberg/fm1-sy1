@@ -9,7 +9,7 @@ wait 50
 expect patch 6
 turn PRESET 1
 wait 50
-expect patch 1132
+expect patch 1067
 turn PRESET -2
 expect patch 1
 tap ARP
