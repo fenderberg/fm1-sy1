@@ -325,7 +325,7 @@ const PATTERNS = [
   { name: "Held chord (try ARP)", events: [[0, [60, 63, 67, 70], 15]] },
 ];
 function circuitDemo(parent) {
-  const box = el("section", { class: "sy1 ncd", "aria-label": "Circuit demo" });
+  const box = el("section", { class: "sy1 ncd", "aria-label": "Bitimbral demo" });
   const css = el("style");
   css.textContent = `
     .ncd .tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: .8rem; }
@@ -383,8 +383,8 @@ function circuitDemo(parent) {
     tracks.append(wrap);
     return { ch, pattern, sound, mute, offs: [] };
   });
-  box.append(el("h2", {}, "Circuit demo: two sounds at once"),
-    el("p", { class: "row" }, "A pretend Novation Circuit Tracks plays SY1's two parts and turns its eight macro knobs. Switch the FM-1 on above, then press Start."),
+  box.append(el("h2", {}, "Bitimbral demo: two sounds at once"),
+    el("p", { class: "row" }, "A pretend sequencer plays SY1's two parts on MIDI channels 3 and 4, with eight knobs laid out like a Novation Circuit Tracks. Switch the FM-1 on above, then press Start."),
     top, steps, tracks, status);
   parent.append(box);
 

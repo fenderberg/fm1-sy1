@@ -282,3 +282,5 @@ body[data-site-page="manager"] > footer.site-footer { display: none; }
   body[data-site-page="manager"] .site-nav a:not([aria-current]) { display: none; }
   body[data-site-page="manager"] main { padding: 8px 10px; }
 }
+.bitimbral-section { padding-top: 64px; }
+.bitimbral-section .micro-note { font-size: 11px; margin: 0 0 14px; max-width: 70ch; }
