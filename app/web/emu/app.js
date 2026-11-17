@@ -249,20 +249,56 @@ async function eraseAll() {
 
 // A patch from the Patch Manager's page (this one in its hidden frame): into slot 1 of the browser's own emulated
 // flash, selected, then a short phrase. One at a time; a newer one cuts the phrase of the one before.
-let auditions = Promise.resolve(), phrase = 0;
-async function audition(name, bytes) {
-  const patch = parseSy1(bytes), run = ++phrase;
-  if (!patch.lines) throw new Error("Invalid preview patch.");
-  const answer = await ask(frameFor(patch, 0), 0x41);
+// With a pair, the first sound goes to slot 1 and part L, the second to slot 2 and part R, in bitimbral STEREO: a
+// bass line on L under chords on R, as on a Circuit. A single sound puts the synth back in standard mode.
+let auditions = Promise.resolve(), phrase = 0, parts = null;
+const SY = [0xf0, 0x7d, 0x53, 0x59, 0x31];
+async function hasParts() {               // SysEx 08/09 (bitimbral): announced in the 03 answer's features byte
+  if (parts === null) { const a = await ask([...SY, 0x03, 0xf7], 0x43, 1500); parts = !!(a && a.length >= 12 && a[10] & 2); }
+  return parts;
+}
+async function store(patch, slot) {
+  const answer = await ask(frameFor(patch, slot), 0x41);
   if (!answer || answer[8] !== 0) throw new Error("The browser synth did not confirm the preview.");
-  midi.toDevice([0xc0, 8]);
-  say(`Preview: ${name}.`);
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function audition(name, bytes, pair) {
+  const patch = parseSy1(bytes), other = pair && parseSy1(pair.bytes), run = ++phrase;
+  if (!patch.lines || (pair && !other.lines)) throw new Error("Invalid preview patch.");
+  if (pair && !(await hasParts())) throw new Error("This browser synth has no bitimbral mode yet; pairs play once the site is updated.");
+  await store(patch, 0);
+  if (!pair) {
+    if (await hasParts()) await ask([...SY, 0x08, 0, 0x7f, 0xf7], 0x48, 1500);   // standard: one sound on every channel
+    midi.toDevice([0xc0, 8]);
+    say(`Preview: ${name}.`);
+    (async () => {
+      for (const note of [48, 55, 60, 64]) {
+        if (run !== phrase) return;
+        midi.toDevice([0x90, note, 92]);
+        await wait(350);
+        midi.toDevice([0x80, note, 0]);
+      }
+    })();
+    return;
+  }
+  await store(other, 1);
+  const mode = await ask([...SY, 0x08, 1, 1, 0xf7], 0x48, 1500);   // bitimbral, STEREO
+  if (!mode) throw new Error("The browser synth did not switch to bitimbral.");
+  for (const [part, slot] of [[0, 0], [1, 1]]) {
+    const a = await ask([...SY, 0x09, part, slot, 0, 0xf7], 0x49, 1500);
+    if (!a || a[9] !== 0) throw new Error("The browser synth did not take the pair.");
+  }
+  const l = mode[9] & 15, r = mode[10] & 15;
+  say(`Preview: ${pair.name} (L) with ${name} (R).`);
   (async () => {
-    for (const note of [48, 55, 60, 64]) {
+    const bass = [36, 36, 43, 36, 34, 34, 41, 34], chords = [[60, 63, 67], [58, 62, 65]];
+    for (let step = 0; step < 8; step++) {
       if (run !== phrase) return;
-      midi.toDevice([0x90, note, 92]);
-      await new Promise((r) => setTimeout(r, 350));
-      midi.toDevice([0x80, note, 0]);
+      if (step % 4 === 0) for (const n of chords[step >> 2]) midi.toDevice([0x90 | r, n, 84]);
+      midi.toDevice([0x90 | l, bass[step], 100]);
+      await wait(220);
+      midi.toDevice([0x80 | l, bass[step], 0]);
+      if (step % 4 === 3) for (const n of chords[step >> 2]) midi.toDevice([0x80 | r, n, 0]);
     }
   })();
 }
@@ -450,8 +486,8 @@ export async function attach(ctx) {
     if (window.parent !== window) {      // inside the Patch Manager: it sends the patches to audition
       window.addEventListener("message", (e) => {
         if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.sy1 !== "preview") return;
-        const { id, name, bytes } = e.data;
-        auditions = auditions.then(() => audition(name, bytes))
+        const { id, name, bytes, pair } = e.data;
+        auditions = auditions.then(() => audition(name, bytes, pair))
           .then(() => ({ ok: true }), (error) => ({ ok: false, error: error.message }))
           .then((answer) => window.parent.postMessage({ sy1: "previewed", id, ...answer }, location.origin));
       });

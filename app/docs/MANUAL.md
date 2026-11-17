@@ -240,6 +240,18 @@ studio. Load a set to stage it, then sync. Before a sync that moves, changes or 
 saves the old layout as **Auto-backup before last sync**. Export a set as a file to keep a backup outside
 the browser, and import it again later.
 
+**Bitimbral in the manager.** With an FM-1 connected, the strip under its name switches between **Standard**
+and **Bitimbral** and, in bitimbral, chooses the output (**Split**, **Stereo**, **Double**); it also shows each
+part's MIDI channel and the slot it plays. Each slot in the list has an **L** and an **R** button (one ▶ in
+standard mode) that make the FM-1 play that slot on that part straight away, with any of the 1,024 slots. The
+map rings part L's slot in green and part R's in red, as the FM-1's PLAY light shows the part. A slot you have
+only staged plays after you sync it.
+
+To find two sounds that work together, press **L** beside a sound in the library: it becomes part L. Every ▶
+after that plays the other sound as part R together with it, a bass line on L under chords on R, as on a
+Circuit. **Add pair** stages both side by side; after syncing, press L and R on the two slots. **✕** ends the
+pairing.
+
 An FM-1 running SY1 0.3.1 or earlier can only report patch names. The manager then still adds and removes
 sounds, but reordering, renaming, Arrange and Sets need a newer SY1.
 

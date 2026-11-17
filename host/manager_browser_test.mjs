@@ -17,11 +17,14 @@ await context.addInitScript(()=>{
   const pack=part=>{const out=[];for(let i=0;i<part.length;i+=7){let top=0;for(let j=0;j<7;j++)top|=((part[i+j]||0)>>7)<<j;out.push(top);for(let j=0;j<7;j++)out.push((part[i+j]||0)&127);}return out;};
   slots.set(0,record('Existing Bass'));slots.set(5,record('Old Lead'));
   const input={state:'connected',name:'Test FM-1',onmidimessage:null};
-  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,slots,
+  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,noParts:false,parts:{on:0,layout:1,slot:[-1,-1]},slots,
     names:()=>[...slots.keys()].sort((a,b)=>a-b).map(s=>s+':'+name(slots.get(s))),bytes:(s,i)=>slots.get(s)[i]};
   const out={state:'connected',name:'Test FM-1',send(frame){
     const c=frame[5],slot=frame[6]|frame[7]<<7;let response;
-    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[1]),0xf7];}
+    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[window.mock.noParts?1:3]),0xf7];}
+    else if(c===8){const m=window.mock.parts;if(frame[6]<=1)m.on=frame[6];if(frame[7]<=2)m.layout=frame[7];const sl=m.slot.map(x=>x+1);
+      response=[...head,0x48,m.on,m.layout,0,2,3,sl[0]&127,sl[0]>>7,sl[1]&127,sl[1]>>7,0xf7];}
+    else if(c===9){const part=frame[6],s=frame[7]|frame[8]<<7,ok=slots.has(s);if(ok)window.mock.parts.slot[part]=s;response=[...head,0x49,part,frame[7],frame[8],ok?0:1,0xf7];}
     else if(c===4)response=[...head,0x44,slot&127,slot>>7,slots.has(slot)?1:0,...(slots.has(slot)?[...name(slots.get(slot))].map(x=>x.charCodeAt(0)):[]),0xf7];
     else if(c===7){if(window.mock.legacy){window.mock.stuck=true;return;}const r=slots.get(slot),part=frame[8];
       response=[...head,0x47,slot&127,slot>>7,part,r?1:0,...(r?pack(part?r.subarray(119):r.subarray(0,119)):[]),0xf7];}
@@ -109,6 +112,15 @@ await page.locator('#llist input[type=checkbox]').nth(8).check();await page.loca
 await page.evaluate(()=>{mock.slots.delete(0);});await page.locator('#connect').click();await idle();
 assert.equal(await text('#dcount'),'6 / 1,024 slots used · 1,018 free');assert.match(await text('#syncmsg'),/1 added/);await synced();
 
+// A pair in the library: L pinned, R auditioned with it, both staged side by side.
+await page.locator('#llist [data-act=pin]').first().click();assert.equal(await page.locator('#pairbar').isVisible(),true);
+assert.match(await text('#pairname'),/\S/);
+await page.locator('#llist [data-act=play]').nth(3).click();
+await page.waitForFunction(()=>/\(L\) with|^Preview failed/.test(document.getElementById('preview-status').textContent),{},{timeout:45000});
+const pairText=await text('#preview-status');
+assert.equal(await page.locator('#pairadd').isDisabled(),false);
+await page.locator('#pairoff').click();assert.equal(await page.locator('#pairbar').isHidden(),true);
+
 // Preview plays in the page: the hidden browser synth answers for the patch.
 const usb=await page.evaluate(()=>mock.writes.length);
 await page.locator('#llist [data-act=play]').first().click();
@@ -145,6 +157,28 @@ await page.locator('#llist input[type=checkbox]').first().check();await page.loc
 assert.equal(await page.evaluate(()=>mock.slots.size),count+2);
 await page.selectOption('#bank','');
 
+// Bitimbral: the mode and output, a slot on each part, shown in the list, the map and the strip.
+assert.equal(await page.locator('#parts').isVisible(),true);assert.equal(await page.locator('#layoutseg').isHidden(),true);
+await page.locator('[data-mode="1"]').click();await page.waitForFunction(()=>!document.getElementById('layoutseg').hidden);
+assert.equal(await page.evaluate(()=>mock.parts.on),1);
+await page.locator('[data-layout="0"]').click();await page.waitForFunction(()=>mock.parts.layout===0);
+await page.locator('#dlist .prow [data-act=part][data-part="1"]').nth(1).click();
+await page.waitForFunction(()=>document.querySelectorAll('#dlist .ic.pr.on').length===1);
+await page.locator('#dlist .prow [data-act=part][data-part="0"]').first().click();
+await page.waitForFunction(()=>document.querySelectorAll('#dlist .ic.pl.on').length===1);
+const nos=(await page.locator('#dlist .prow .no').allTextContents()).slice(0,2);
+assert.deepEqual(await page.evaluate(()=>mock.parts.slot),nos.map(n=>+n-1));
+assert.match(await text('#partinfo'),new RegExp(`L ch 3 · ${nos[0]} .* R ch 4 · ${nos[1]} `));
+assert.equal(await page.locator('#map i.pl').count(),1);assert.equal(await page.locator('#map i.pr').count(),1);
+// A staged slot cannot be played until it is synced.
+await page.locator('#llist input[type=checkbox]').nth(12).check();await page.locator('#add').click();
+assert.equal(await page.locator('#dlist .prow').last().locator('[data-act=part]').first().isDisabled(),true);await page.locator('#discard').click();
+// An SY1 without the parts commands never gets them.
+await page.evaluate(()=>{mock.noParts=true;});await page.locator('#connect').click();await idle();
+assert.equal(await page.locator('#parts').isHidden(),true);assert.equal(await page.locator('#dlist [data-act=part]').count(),0);
+await page.evaluate(()=>{mock.noParts=false;});await page.locator('#connect').click();await idle();
+await page.locator('[data-mode="0"]').click();await page.waitForFunction(()=>mock.parts.on===0);
+
 // Remove everything: one erase command.
 await page.locator('#m-arr summary').click();await page.locator('[data-arr=clear]').click();page.once('dialog',d=>d.accept());await synced();
 assert.deepEqual(await page.evaluate(()=>[mock.erased,mock.slots.size]),[1,0]);
@@ -160,6 +194,6 @@ await page.setViewportSize({width:390,height:844});
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no mobile horizontal overflow');
 await page.locator('#tab-dev').click();assert.equal(await page.locator('#lib').isHidden(),true);
 await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:'app/build/manager-qa/mobile.png',fullPage:true});
-assert.deepEqual(errors,[]);console.log('manager browser: library, favourites, staging, whole-record read, sync with failure and retry, arrange, undo, rename, character, move, removal, sets, re-read, in-page preview, older firmware, drag, local import and erase'+(process.env.SY1_TEST_COLLECTION?' plus full local collection':'')+' passed');
+assert.deepEqual(errors,[]);console.log('manager browser: library, favourites, staging, whole-record read, sync with failure and retry, arrange, undo, rename, character, move, removal, sets, re-read, in-page preview, older firmware, drag, local import, bitimbral parts, pairs and erase'+(process.env.SY1_TEST_COLLECTION?' plus full local collection':'')+' passed');
 await context.close();
 } finally {await browser.close();}

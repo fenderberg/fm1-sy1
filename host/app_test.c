@@ -660,7 +660,19 @@ int main(void)
     CHECK(bank_count == 5, "bank count %u after slot 5", (unsigned)bank_count);
     send_sysex(ask, sizeof ask);
     CHECK(sysex_last[5] == 0x43 && sysex_last[6] == 5 && (sysex_last[8] | sysex_last[9] << 7) == 1024 &&
-          sysex_n == 12 && (sysex_last[10] & 1u), "count answer, with the record read announced");
+          sysex_n == 12 && sysex_last[10] == 3u, "count answer, with the record read and the parts announced");
+    {   /* the parts: part L to slot 5 by SysEx 09, read back by 08; an empty slot refused */
+        uint8_t pick[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 4, 0, 0xF7}, bad[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 2, 0, 0xF7};
+        uint8_t query[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x08, 0x7F, 0x7F, 0xF7};
+        send_sysex(pick, sizeof pick);
+        CHECK(sysex_n == 11 && sysex_last[5] == 0x49 && sysex_last[7] == 4 && sysex_last[9] == 0 && cur_index == NFACT + 4,
+              "09 did not put part L on slot 5: %u", (unsigned)cur_index);
+        send_sysex(query, sizeof query);
+        CHECK(sysex_n == 16 && sysex_last[5] == 0x48 && sysex_last[6] == 0 && sysex_last[9] == 2 && sysex_last[10] == 3 &&
+              (sysex_last[11] | sysex_last[12] << 7) == 5, "08 did not report the channels and part L's slot");
+        send_sysex(bad, sizeof bad);
+        CHECK(sysex_last[5] == 0x49 && sysex_last[9] == 1 && cur_index == NFACT + 4, "09 took an empty slot");
+    }
     turn(EN_PRESET, -1);                 /* from built-in 4 down ... */
     patch_select(NFACT + 4);
     run(1400);                           /* (the name of the patch before leaves the header) */

@@ -1284,11 +1284,11 @@ void app_log(void (*line)(const char *t))
 /* -------------------------------------------------------------------- SysEx --- */
 static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n data bytes, 7 bits each */
 {
-    uint8_t f[16];
+    uint8_t f[20];
     uint32_t k = 0, i;
     f[k++] = 0xF0; f[k++] = 0x7D; f[k++] = 0x53; f[k++] = 0x59; f[k++] = 0x31;
     f[k++] = (uint8_t)cmd;
-    for (i = 0; i < n && i < 8u; i++)
+    for (i = 0; i < n && i < 12u; i++)
         f[k++] = d[i] & 0x7Fu;
     f[k++] = 0xF7;
     plat_sysex_send(f, k);
@@ -1296,7 +1296,7 @@ static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n da
 
 int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0 and F7 (bank.h) */
 {
-    uint8_t d[5];
+    uint8_t d[12];
     if (n < 5u || p[0] != 0x7Du || p[1] != 0x53u || p[2] != 0x59u || p[3] != 0x31u)
         return 0;
     if (p[4] == 0x01u && n >= 7u) {          /* write a slot */
@@ -1382,11 +1382,38 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
             mode_set((int)p[5]);
         if (p[6] < LAY_COUNT)
             layout_set((int32_t)p[6]);
-        d[0] = (uint8_t)BI_ON;
-        d[1] = (uint8_t)BI_LAYOUT;
-        d[2] = cur_part;
-        sysex_reply(0x48, d, 3);
+        {
+            const uint32_t l = cur_part ? other.index : cur_index, r = cur_part ? cur_index : other.index;
+            const uint32_t sl = user_index(l) ? l - NFACT + 1u : 0u, sr = user_index(r) ? r - NFACT + 1u : 0u;
+            d[0] = (uint8_t)BI_ON;
+            d[1] = (uint8_t)BI_LAYOUT;
+            d[2] = cur_part;
+            d[3] = (uint8_t)(CH_L - 1u);     /* the parts' channels, 0 .. 15 */
+            d[4] = (uint8_t)(CH_R - 1u);
+            d[5] = (uint8_t)(sl & 0x7Fu);    /* the user slot each part plays, 1 .. 1024 (0: a built-in or factory one) */
+            d[6] = (uint8_t)(sl >> 7);
+            d[7] = (uint8_t)(sr & 0x7Fu);
+            d[8] = (uint8_t)(sr >> 7);
+            sysex_reply(0x48, d, 9);
+        }
         return 1;
+    } else if (p[4] == 0x09u && n >= 8u) {   /* part p[5] (0 L, 1 R) plays a user slot, as a program change would,
+                                              * but any of the 1,024 */
+        const uint32_t part = p[5] ? 1u : 0u, slot = p[6] | (uint32_t)p[7] << 7;
+        uint32_t status = 1;
+        if (slot < BANK_SLOTS && bank_used(slot)) {
+            if (part == cur_part) {
+                patch_select(NFACT + slot);
+                say_patch();
+            } else
+                other_select(NFACT + slot);
+            status = 0;
+        }
+        d[0] = (uint8_t)part;
+        d[1] = p[6] & 0x7Fu;
+        d[2] = p[7] & 0x7Fu;
+        d[3] = (uint8_t)status;
+        sysex_reply(0x49, d, 4);
     } else if (p[4] == 0x06u && n >= 8u) {   /* complete credits/readmes, read-only and byte-preserving */
         const uint32_t offset = p[5] | (uint32_t)p[6] << 7 | (uint32_t)p[7] << 14;
         uint8_t frame[204];
@@ -1426,7 +1453,8 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[1] = (uint8_t)(bank_count >> 7);
         d[2] = (uint8_t)(BANK_SLOTS & 0x7Fu);
         d[3] = (uint8_t)(BANK_SLOTS >> 7);
-        d[4] = 1u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read) */
+        d[4] = 3u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read);
+                                              * bit 1, the parts: 08 with channels and slots, and 09 */
         sysex_reply(0x43, d, 5);
     } else
         return 0;

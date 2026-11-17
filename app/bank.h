@@ -10,12 +10,16 @@
  *   01 <slot lo7> <slot hi7> <7-bit packed bytes 0..225 of the record>   write a slot  -> 41 <lo7> <hi7> <0 ok>
  *   02                                                                   erase all     -> 42 <0 ok>
  *   03                                                                   how many?     -> 43 <count lo7> <hi7> <slots lo7> <hi7> <features>
- *     (features, from 0.3.2: bit 0 = command 07 below. Older ones send none, and must not get 07: they do not know it)
+ *     (features, from 0.3.2: bit 0 = command 07, bit 1 = 08 and 09 below. Older ones send none: they get neither)
  *   04 <slot lo7> <slot hi7>                                             a slot's name -> 44 <lo7> <hi7> <1 used> <name, ASCII>
  *   05 <slot lo7> <slot hi7>                                             empty a slot  -> 45 <lo7> <hi7> <0 ok>
  *   06 <offset lo7> <mid7> <hi7>                            bundled credits (read only) -> 46 <offset, 3 bytes> <up to 96 bytes as high/low nibbles>
  *   07 <slot lo7> <slot hi7> <part 0|1>            a slot's record, to move or back up -> 47 <lo7> <hi7> <part> <1 used> <7-bit packed bytes:
  *                                                                                          part 0: 0..118, part 1: 119..225; none if empty>
+ *   08 <mode 0|1, 7F: keep> <output 0..2, 7F: keep>   standard/bitimbral, SPLIT/STEREO/DOUBLE -> 48 <bitimbral> <output>
+ *                                                   <panel's part> <L's channel-1> <R's channel-1> <L's slot lo7> <hi7> <R's slot lo7> <hi7>
+ *                                                   (a slot: the user slot + 1 the part plays, 0 for a built-in or factory one)
+ *   09 <part 0|1> <slot lo7> <slot hi7>             the part plays that user slot -> 49 <part> <lo7> <hi7> <0 ok, 1 empty slot>
  * 7-bit packing: each 7 bytes as 8, first the 7 top bits (bit 0 = the first byte's), then the 7 low parts. */
 #pragma once
 #include "s1_patch.h"

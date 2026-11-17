@@ -19,6 +19,12 @@
 - Settings grow from 16 to 24 bytes; older settings load as they are. An older SY1 installed over this one starts
   with default settings (the patches stay).
 - `tools/sy1_send.py` asks again when an answer is lost over USB.
+- **The Patch Manager knows the parts.** A strip switches Standard/Bitimbral and the output; L and R buttons on
+  every slot make the FM-1 play it on that part, any of the 1,024 (a program change reaches only the first 120);
+  the slot map rings part L green and R red. In the library, **L** pairs a sound as part L and ▶ then plays others
+  as part R with it in the browser synth; **Add pair** stages both side by side.
+- SysEx: 08's answer adds the parts' channels and the user slots they play; new **09** makes a part play a user
+  slot. The 03 answer's features byte announces both (bit 1), so an older SY1 never receives them.
 
 Validation: `make test`, `make test-app`, the simulator scripts with the new `app/tests/bitimbral.txt` (mode,
 parts, channels, outputs, knobs, lights, clock). On one FM-1: the load of two parts on two cores and on one,
