@@ -325,10 +325,11 @@ static void test_nord_ux(void)
     CHECK(cur_dirty, "category edit was not dirty");
     turn(EN_K4, -1);
     CHECK(!cur_dirty, "returning to saved category left EDIT lit");
-    turn(EN_SELECT, 1);
+    tap(B_GLO);
+    turn(EN_SELECT, 10);               /* GLOBAL / DIAGNOSTIC, the last row */
     incoming = cur;
     for (i = 0; i < 4; i++) turn(EN_K1 + (int)i, 1);
-    CHECK(ui.row == 4 && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
+    CHECK(ui.row == 3 && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
           "diagnostics changed patch values");
 
     tap(B_SEL);
