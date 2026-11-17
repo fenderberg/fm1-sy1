@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.2 — 2026-11-17
+
+**Two sounds at once, for everyone, and a GLO page with nothing of the patch on it.**
+
+- **GLO is now GLOBAL: only settings that are not part of the patch.** The patch's voice settings (poly, mono
+  or legato, portamento, bend range, unison, polyphony) and its category moved to PLAY (HOME), subpages 3 to 5;
+  CAT is on PLAY / SPREAD, KNOB4. GLOBAL has four subpages: PART (the part's voice limit, the tempo and the Drone
+  mode, on the same knobs as before), BITIMBRAL, DISPLAY and DIAGNOSTIC.
+- The website, the manual and the README present **bitimbral mode** as a feature of its own: layer two patches
+  (DOUBLE), send two sounds to the two outputs (SPLIT), or play two tracks of any DAW, groovebox or sequencer on
+  MIDI channels 3 and 4. The Novation Circuit Tracks remains a perfect match, not a requirement. The browser
+  demo is now the bitimbral demo.
+- CI runs every simulator script (basic, performance, nord-preview, ux, display, factory, bitimbral), not only
+  basic; two scripts that had fallen behind the 0.4.0 and 0.4.1 changes are up to date again. A UX review
+  workflow rebuilds the screen gallery in the simulator.
+
 ## 0.4.1 — 2026-11-17
 
 **A factory bank you can browse by category: 256 presets, shared out nearly evenly.**
@@ -11,10 +27,6 @@
   ways ("Kick Bass", "909 Snare w/o Noise"), init and test patches and closed or silent sounds are left out, and
   at most two of one name series are taken. Other holds only recognisable instruments: drums, brass, sax, flute,
   horns, chords. The rules are in `tools/factory_pick.mjs`; every preset renders audible, finite audio.
-- **GLO is now GLOBAL: only settings that are not part of the patch.** The patch's voice settings (poly, mono
-  or legato, portamento, bend range, unison, polyphony) and its category moved to PLAY (HOME), subpages 3 to 5;
-  CAT is on PLAY / SPREAD, KNOB4. GLOBAL has four subpages: PART (the part's voice limit, the tempo and the Drone
-  mode, on the same knobs as before), BITIMBRAL, DISPLAY and DIAGNOSTIC.
 - Factory presets are numbered **F001–F256**. A part that was on F257–F500 starts on the first patch. User
   slots, settings and the 1,024 user patches are untouched.
 

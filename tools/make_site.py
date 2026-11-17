@@ -48,7 +48,8 @@ def decorate(document, current, version):
                           '<header class="page-heading"><p class="eyebrow">01 / PLAY</p>'
                           '<h1>Meet your next sound.</h1><p>The real SY1 engine, right in your browser. '
                           'Switch on, play a few notes, and turn a knob. Choose your screen style on '
-                          'GLO → DISPLAY with KNOB1: NORD, GREEN (LED), or LCD.</p></header>', document, count=1, flags=re.S)
+                          'GLO → DISPLAY with KNOB1: NORD, GREEN (LED), or LCD. Further down, the bitimbral demo '
+                          'plays two sounds at once.</p></header>', document, count=1, flags=re.S)
     elif current == "install":
         document = document.replace('<main>', '<main><p class="factory-note">Includes 256 community presets in program flash, sorted into eight categories, plus 1,024 separate user slots. '
                                     '<a href="../library/factory500-credits.txt">Included preset credits and terms</a>.</p>', 1)

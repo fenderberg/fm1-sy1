@@ -9,6 +9,11 @@ A polysynth for the [M-VAVE FM-1](https://github.com/m-vave/fm1_open) that plays
 leaving all **1,024 user slots** available; existing patches and program numbers stay unchanged.
 The eight original sounds P01–P08 remain available too.
 
+**Two sounds at once:** press OCT- and OCT+ together for **bitimbral mode**: two parts, L and R, each with its own
+patch, arpeggiator, Hold/Drone and effects, the second on the FM-1's second core. Layer them (DOUBLE), send them
+to the two outputs (SPLIT), or play them from two MIDI channels (3 and 4 to begin with) of any DAW, groovebox or
+sequencer. A Novation Circuit Tracks' two MIDI tracks and eight macro knobs map straight on.
+
 Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes, two LFOs, arpeggiator,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
@@ -23,9 +28,9 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.4.1](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.4.1) · [What changed](CHANGELOG.md)
+Latest release: [v0.4.2](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.4.2) · [What changed](CHANGELOG.md)
 
-The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.4.1 uses the USB identity **FM-1_51000401** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
+The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.4.2 uses the USB identity **FM-1_51000402** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
 
 ## Status: early
 
@@ -59,7 +64,7 @@ make test          # the engine: maths, tuning, envelopes, the patch reader, 400
 make test-app      # the app against a stand-in for the FM-1
 make test-web      # reader against C, nested ZIPs, library integrity and placement (Node >= 22.16)
 make test-site     # website navigation, local links and scripts (needs existing release and browser builds)
-make preview-nord  # the full Nord UX: simulator checks and screenshots of all 32 subpages in all three display styles
+make preview-nord  # the full Nord UX: simulator checks and screenshots of all 33 subpages in all three display styles
 make all           # build/s1render (a patch to a WAV file) and build/sy1pack (patches to a SysEx file)
 
 ./build.sh --host  # fm1-base's simulator, then:
@@ -67,7 +72,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.4.1` after building the matching release package and
+Build the complete website with `make site VERSION=0.4.2` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -163,14 +168,14 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.4.1**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
+All three display styles remain available in **0.4.2**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
 NORD remains the default. This is a global preference, saved while idle; old settings migrate without
-losing the selected patch or other controls. Build with `./build.sh --release 0.4.1` and
-`./build.sh --web --release 0.4.1`, or on GitHub with the *Release build* workflow
-(`gh workflow run release.yml -f version=0.4.1`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
+losing the selected patch or other controls. Build with `./build.sh --release 0.4.2` and
+`./build.sh --web --release 0.4.2`, or on GitHub with the *Release build* workflow
+(`gh workflow run release.yml -f version=0.4.2`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
 with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
 
 See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).

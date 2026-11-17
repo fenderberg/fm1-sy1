@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.4.1** sorts its 256 factory presets evenly into eight categories; 0.4.0 added bitimbral mode (two sounds at once, made for a Novation Circuit Tracks) and a Patch Manager that arranges all 1,024 user slots; it keeps the community factory presets and the NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **0.4.2** plays two sounds at once in bitimbral mode, keeps everything on GLO out of the patch, and sorts its 256 factory presets evenly into eight categories; bitimbral mode is (two sounds at once, made for a Novation Circuit Tracks) and a Patch Manager that arranges all 1,024 user slots; it keeps the community factory presets and the NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -71,7 +71,7 @@ The screen reader keeps the original text and announces the style choice.
 
 ![GREEN LCD display: dark letters and graphs on a green background](img/screen-lcd-play.png)
 
-Compare every page in the [screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/): 32 subpages in all three styles.
+Compare every page in the [screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/): 33 subpages in all three styles.
 
 This is a global preference, separate from the sound. It is automatically saved when the synth is idle;
 existing patch edits and imported banks are preserved. Upgrading from older 12-byte settings keeps the
@@ -147,14 +147,21 @@ and bitimbral (below).
 These controls work with the FM-1 keys and incoming MIDI. A Drone keeps notes held, so a patch with zero amp
 sustain still decays naturally. There is no sequencer or note recording.
 
-VOICES, on the Play and Voice pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about
+VOICES, on the Play and Global pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about
 seven. When the processor runs out of time, SY1 lowers it by one and says CPU FULL.
 
-### Bitimbral: two sounds, for a Novation Circuit Tracks
+### Bitimbral: two sounds at once
 
 SY1 has two modes. **Standard** is one sound on every MIDI channel. **Bitimbral** is two parts, **L** and **R**,
-each with its own patch, arpeggiator, HOLD/Drone and effects. It is made for the Circuit Tracks' two MIDI tracks
-and two audio inputs, and works with any sequencer or keyboard.
+each with its own patch, arpeggiator, HOLD/Drone and effects: two synths in one FM-1. Use it to:
+
+- **layer** two patches, so every note plays both (a pad under a bell, a bass doubled by a pluck): output DOUBLE;
+- **split** two sounds to the two outputs, a bass on one mixer channel and a lead on the other: output SPLIT;
+- **play two tracks** of a DAW, a groovebox or a sequencer, each on its own MIDI channel: output STEREO or SPLIT;
+- keep a drone or an arpeggio going on one part while you play the other from the FM-1's keys.
+
+Nothing beyond MIDI is needed. A Novation Circuit Tracks fits especially well: its two MIDI tracks, its two
+audio inputs and its eight macro knobs map straight onto the parts (below).
 
 | Control | What it does |
 | --- | --- |
