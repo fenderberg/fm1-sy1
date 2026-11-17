@@ -55,14 +55,13 @@ expect octave 1
 expect maxv 8
 tap GLO
 turn SELECT -20
-spin SELECT 3
 spin K1 -1
 wait 50
 spin K1 -1
 wait 50
 expect maxv 6
 expect page 7
-expect row 3
+expect row 0
 tap OCT+
 wait 50
 expect part 1
@@ -75,7 +74,7 @@ wait 50
 expect octave 1
 expect maxv 6
 expect page 7
-expect row 3
+expect row 0
 spin K1 1
 wait 50
 spin K1 1
@@ -151,9 +150,10 @@ expect patchb 5
 expect patch 0
 # the output: GLO's last row
 tap GLO
-spin SELECT 6
+turn SELECT -20
+spin SELECT 1
 wait 50
-expect row 6
+expect row 1
 shot bitimbral-split.png
 spin K2 1
 wait 50
@@ -272,7 +272,7 @@ wait 100
 # the parts' channels: GLO's last row, KNOB 3 and 4
 tap GLO
 turn SELECT -20
-spin SELECT 6
+spin SELECT 1
 expect chl 3
 expect chr 4
 spin K3 1

@@ -9,14 +9,14 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = (("play", "HOME", "Play", ("Filter", "Performance")),
+PAGES = (("play", "HOME", "Play", ("Filter", "Performance", "Voice", "Unison", "Spread / Category")),
          ("osc", "EDIT", "Oscillators", ("Waveforms", "Pitch", "FM / Ring", "Sub", "Mod envelope", "Mod timing")),
          ("filter", "SEL", "Filter", ("Main", "Tracking")),
          ("env", "ENV", "Envelopes", ("Amp", "Filter", "Gain / Velocity")),
          ("lfo", "LFO", "LFO", ("LFO 1", "LFO 1 routing", "LFO 2", "LFO 2 routing")),
          ("fx", "FX", "Effects", ("Insert", "Mix", "EQ", "Delay", "Delay mix", "Chorus", "Chorus modulation")),
          ("arp", "ARP", "Arpeggiator", ("Direction / Range", "Gate / Hold")),
-         ("voice", "GLO", "Voice", ("Mode", "Unison", "Spread", "Setup", "Diagnostics", "Display")))
+         ("global", "GLO", "Global", ("Part", "Bitimbral", "Display", "Diagnostics")))
 
 
 def checked(args, log=None):
@@ -74,14 +74,14 @@ def main():
     host = ROOT / "app/build/host/sy1_host"
     checks = 0
     sections = []
-    for case in ("basic", "performance", "nord-preview", "ux", "display", "factory"):
+    for case in ("basic", "performance", "nord-preview", "ux", "display", "factory", "bitimbral"):
         out = work / case
         out.mkdir(exist_ok=True)
         checks += checked([host, ROOT / f"app/tests/{case}.txt", out], work / f"{case}.log")
     script = ["wait 600", "turn PRESET 1", "wait 1400"]
     for style, prefix in (("Nord", ""), ("Green LED", "green-"), ("Green LCD", "lcd-")):
         if prefix:
-            script += ["tap REC", "tap GLO", "turn SELECT -20", "spin SELECT 5", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
+            script += ["tap REC", "tap GLO", "turn SELECT -20", "spin SELECT 2", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
         for page, (slug, button, title, rows) in enumerate(PAGES):
             if button == "ARP":
                 script += ["press ARP", "wait 550", "release ARP", "tap ARP", "tap SEQ",

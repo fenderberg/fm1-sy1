@@ -209,7 +209,7 @@ static void test_live_controls(void)
     CHECK(!cur_dirty && !synth.hold, "REC did not restore the saved sound");
 
     tap(B_GLO);
-    turn(EN_SELECT, 3);
+    turn(EN_SELECT, -10);              /* GLOBAL / PART */
     turn(EN_K4, 1);                    /* drone REPLACE */
     tap(B_SEQ);
     midi(0x90, 60, 100);
@@ -275,10 +275,10 @@ static void test_live_controls(void)
     patch_select(NFACT + 20);
     run(80);
     CHECK(cur_category == CAT_OTHER, "legacy unknown patch was not OTHER");
-    tap(B_GLO);
+    tap(B_HOME);
     turn(EN_SELECT, -10);              /* pages now remember their last row */
-    turn(EN_SELECT, 3);
-    turn(EN_K3, -3);                   /* accelerate 9 steps: OTHER -> BASS */
+    turn(EN_SELECT, 4);                /* PLAY / SPREAD: the patch's category on KNOB4 */
+    turn(EN_K4, -3);                   /* accelerate 9 steps: OTHER -> BASS */
     CHECK(cur_category == CAT_BASS && cur_dirty, "manual category could not be edited");
     tap(B_SAVE);
     CHECK(bank_category[20] == CAT_BASS && bank_rec(20)[3] == CAT_MARK, "saved category missing");
@@ -318,11 +318,12 @@ static void test_nord_ux(void)
     tap(B_ENV);
     tap(B_SEL);
     CHECK(ui.row == 1 && ui.ux_focus == -1, "return to FILTER lost its row or retained encoder focus");
-    tap(B_GLO);
-    turn(EN_SELECT, 3);
-    turn(EN_K3, 1);
+    tap(B_HOME);
+    turn(EN_SELECT, -10);
+    turn(EN_SELECT, 4);
+    turn(EN_K4, 1);
     CHECK(cur_dirty, "category edit was not dirty");
-    turn(EN_K3, -1);
+    turn(EN_K4, -1);
     CHECK(!cur_dirty, "returning to saved category left EDIT lit");
     turn(EN_SELECT, 1);
     incoming = cur;
@@ -448,7 +449,7 @@ static void test_display_styles(void)
               "legacy migration lost the selected imported patch");
         patch_select(1);
     }
-    tap(B_GLO);turn(EN_SELECT,5);
+    tap(B_GLO);turn(EN_SELECT,-10);turn(EN_SELECT,2);   /* GLOBAL / DISPLAY */
     before=cur;
     for(i=0;i<5;i++) previous[i]=zone_draws[i];
     const uint32_t events_before=ev_w;
@@ -476,7 +477,7 @@ static void test_display_styles(void)
             CHECK(screen_zones[1][0] && screen_zones[3][0],"empty green page %u row %u endpoint %u",page,row,mode);
         }
     }
-    ui.page=7;ui.row=5;ui.redraw=UX_ALL;run(32);
+    ui.page=7;ui.row=2;ui.redraw=UX_ALL;run(32);
     for(i=0;i<5;i++) previous[i]=zone_draws[i];
     before=cur;
     const uint32_t lcd_events=ev_w;
@@ -505,6 +506,19 @@ static void test_display_styles(void)
     CHECK(set.display==DISPLAY_NORD && zone_bg[0]==RGB(17,19,20),"switch back left green colors");
     set.display=255;plat_store_save(OBJ_SETTINGS,&set,sizeof set);power_on();
     CHECK(set.display==DISPLAY_NORD && set.tempo==137,"invalid display reset unrelated settings");
+}
+
+static void test_global_page(void)    /* GLOBAL holds nothing that is stored in the patch */
+{
+    uint32_t r, c, pg;
+    for (pg = 0; pg < NPAGES && PAGES[pg].button != B_GLO; pg++) {}
+    CHECK(pg == NPAGES - 1u && !strcmp(PAGES[pg].title, "GLOBAL"), "GLO is not the GLOBAL page");
+    for (r = 0; r < PAGES[pg].nrows; r++)
+        for (c = 0; c < 4u; c++)
+            CHECK(PAGES[pg].rows[r][c] >= S1_NPARAMS && PAGES[pg].rows[r][c] != X_CATEGORY,
+                  "GLOBAL row %u knob %u is a patch setting", (unsigned)r + 1u, (unsigned)c + 1u);
+    CHECK(PAGES[0].nrows == 5u && PAGES[0].rows[4][3] == X_CATEGORY && PAGES[0].rows[2][0] == S1P_PLAY_MODE,
+          "PLAY does not hold the voice settings and the category");
 }
 
 static void test_factory500(void)
@@ -770,6 +784,7 @@ int main(void)
     test_live_controls();
     test_nord_ux();
     test_display_styles();
+    test_global_page();
     test_factory500();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;

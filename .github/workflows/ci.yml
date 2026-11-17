@@ -29,4 +29,7 @@ jobs:
         run: |
           pip install Pillow
           ./build.sh --host
-          app/build/host/sy1_host app/tests/basic.txt app/build/host
+          set -o pipefail
+          for t in basic performance nord-preview ux display factory bitimbral; do
+            mkdir -p "app/build/host/$t" && app/build/host/sy1_host "app/tests/$t.txt" "app/build/host/$t" | tail -1
+          done

@@ -18,7 +18,7 @@ expect patch 1032
 # The built-in bank uses all three display styles.
 tap GLO
 turn SELECT -20
-spin SELECT 5
+spin SELECT 2
 turn K1 1
 tap HOME
 shot factory-led.png

@@ -143,7 +143,7 @@ PRESETS past `P08` to reach them.
 | Control | What it does |
 | --- | --- |
 | PRESETS / ALGORITHM | Patch within category / category. Empty categories are skipped; both lists wrap |
-| HOME, EDIT, SEL, ENV, LFO, FX, GLO | Pages: Play, Osc, Filter, Env, LFO, Effects, Voice. Again: the next row |
+| HOME, EDIT, SEL, ENV, LFO, FX, GLO | Pages: Play, Osc, Filter, Env, LFO, Effects, Global. Again: the next row. Everything stored in a patch is on the first seven; GLO holds only device and part settings |
 | ARP | Tap: arp on/off. Hold 0.5 s: Arp settings; hold again: next row |
 | SEQ | Arp on: chord HOLD. Arp off: DRONE. Tap again to release |
 | SELECT | Choose a row |
@@ -163,7 +163,7 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.4.1**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (6/6) → KNOB1**.
+All three display styles remain available in **0.4.1**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.

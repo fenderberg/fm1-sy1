@@ -718,9 +718,14 @@ static const char *const PNAME[S1_NPARAMS] = {
 };
 
 typedef struct { const char *title; uint8_t button, nrows; const uint8_t (*rows)[4]; } page_t;
+/* PLAY: the patch, as it plays (its voice settings and its category are stored with it) */
 static const uint8_t R_HOME[][4] = {
     {S1P_FILTER_FREQ, S1P_FILTER_RES, S1P_FILTER_AMOUNT, S1P_AMP_GAIN},
-    {S1P_PORTA_TIME, S1P_PAN, X_TEMPO, X_VOICES}};
+    {S1P_PORTA_TIME, S1P_PAN, X_TEMPO, X_VOICES},
+    {S1P_PLAY_MODE, S1P_PORTA_TIME, S1P_PORTA_AUTO, S1P_BEND_RANGE},
+    {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
+    {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, X_CATEGORY}};
+#define HOME_VOICE_ROW 2u                /* PLAY's first voice row (ux_graph) */
 static const uint8_t R_OSC[][4] = {
     {S1P_OSC1_SHAPE, S1P_OSC2_SHAPE, S1P_OSC_MIX, S1P_OSC_PULSE_WIDTH},
     {S1P_OSC2_PITCH, S1P_OSC2_FINE, S1P_OSC2_KBD_TRACK, S1P_OSC2_SYNC},
@@ -751,19 +756,19 @@ static const uint8_t R_FX[][4] = {
 static const uint8_t R_ARP[][4] = {
     {S1P_ARP_ON, S1P_ARP_TYPE, S1P_ARP_OCT_RANGE, S1P_ARP_BEAT},
     {S1P_ARP_GATE, X_TEMPO, X_DRONE, X_NONE}};
-static const uint8_t R_VOICE[][4] = {
-    {S1P_PLAY_MODE, S1P_PORTA_TIME, S1P_PORTA_AUTO, S1P_BEND_RANGE},
-    {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
-    {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, S1P_PAN},
-    {X_VOICES, X_TEMPO, X_CATEGORY, X_DRONE},
-    {X_CPU, X_PEAK, X_SHED, X_RAW},
+/* GLOBAL: nothing of the patch. The part's voice limit and Drone mode (per part in bitimbral), the shared tempo,
+ * the mode and output, the display, and the read-only diagnostics */
+static const uint8_t R_GLOBAL[][4] = {
+    {X_VOICES, X_TEMPO, X_NONE, X_DRONE},
+    {X_BI, X_LAYOUT, X_CHL, X_CHR},
     {X_DISPLAY, X_NONE, X_NONE, X_NONE},
-    {X_BI, X_LAYOUT, X_CHL, X_CHR}};
+    {X_CPU, X_PEAK, X_SHED, X_RAW}};
+enum { GLOBAL_PART, GLOBAL_BI, GLOBAL_DISPLAY, GLOBAL_DIAG };
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
     {"ENV", B_ENV, ROWS(R_ENV)},        {"LFO", B_LFO, ROWS(R_LFO)},    {"EFFECTS", B_FX, ROWS(R_FX)},
-    {"ARP", B_ARP, ROWS(R_ARP)},        {"VOICE", B_GLO, ROWS(R_VOICE)},
+    {"ARP", B_ARP, ROWS(R_ARP)},        {"GLOBAL", B_GLO, ROWS(R_GLOBAL)},
 };
 #define NPAGES ((uint32_t)(sizeof PAGES / sizeof PAGES[0]))
 

@@ -48,7 +48,7 @@ and the arp shows the current step/note. Random LFOs show recent values. These a
 Values use meaningful units where the engine supplies a reliable conversion: attack in ms or s, pitch in semitones
 and cents, sustain in percent and LFO speed in Hz or exact fractions of a beat. D.TAU, R.TAU and M.TAU are decay
 and release **time constants**, not the total duration of a note. Pulse width shows the duty of the low part
-(50% at its maximum). Other values keep their Synth1 numbers. GLO's DIAGNOSTIC subpage shows CPU,
+(50% at its maximum). Other values keep their Synth1 numbers. GLO's DIAGNOSTIC subpage (4/4) shows CPU,
 peak CPU, voice-limit events and the raw value of the last edited Synth1 parameter. Its four encoders are read-only.
 
 The bottom always shows active/max voices, octave, tempo and its source: INT for internal, EXT for MIDI clock.
@@ -57,7 +57,7 @@ DRONE / STACK or REPLACE. LIMIT means that the CPU has reduced the voice limit d
 
 ### Choosing a display style
 
-On **GLO → DISPLAY (6/6)**, turn **KNOB1** to choose **NORD**, **GREEN** (LED) or **LCD**. The change is immediate.
+On **GLO → DISPLAY (3/4)**, turn **KNOB1** to choose **NORD**, **GREEN** (LED) or **LCD**. The change is immediate.
 NORD keeps the red section strip, ivory text and amber focus. GREEN LED uses a dark green background,
 uppercase 5×7 pixel lettering and seven-segment numerals. GREEN LCD reverses the contrast with dark
 characters and graphics on a soft green background; the focused control gets a lighter panel and dark
@@ -102,22 +102,23 @@ SAVE keeps the patch with your changes. An original or factory patch is saved as
 the patch back as it was saved and releases hold/drone. Changing patches also releases hold/drone.
 
 Imported patches are categorized from their names, ignoring case (for example, "deep bass", "Warm Pad" and
-"FM Bell"). Unrecognized names go under OTHER. To correct a category, use GLO (Voice), SELECT to row 4,
-then KNOB3 (CAT), and SAVE. Editing CAT returns the browser to ALL. KNOB4 on that row selects the Drone mode.
+"FM Bell"). Unrecognized names go under OTHER. To correct a category, use HOME (Play), SELECT to its last row (PLAY / SPREAD, 5/5),
+then KNOB4 (CAT), and SAVE: the category is stored with the patch. Editing CAT returns the browser to ALL. The
+Drone mode, which is not part of the patch, is on GLO → PART, KNOB4.
 MIDI program changes select their original patch number; if necessary the browser returns to ALL.
 
 ## 4. Pages and editing
 
 | Button | Page | What is on it |
 | --- | --- | --- |
-| HOME | Play | Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices |
+| HOME | Play | Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices; poly, mono or legato, bend range, unison, polyphony and the patch's category |
 | EDIT | Osc | Both oscillators, mix, pulse width, sync, ring, FM, detune, the sub, the mod envelope |
 | SEL | Filter | Type, frequency, resonance, envelope amount, keyboard tracking, saturation |
 | ENV | Env | The amp envelope, the filter envelope, gain and velocity |
 | LFO | LFO | Both LFOs: destination, wave, speed, depth, tempo and key sync |
 | FX | Effects | The effect, the equalizer, the delay and the chorus |
 | Hold ARP 0.5 s | Arp | The arpeggiator: on, type, range, beat, gate, tempo; Drone mode |
-| GLO | Voice | Poly, mono or legato, portamento, bend range, unison, polyphony, pan |
+| GLO | Global | Only what is not stored in the patch: the part's voice limit and Drone mode, the tempo, bitimbral mode, output and channels, the display style, diagnostics |
 
 Press a page's button again for its next subpage (hold again for ARP), or turn SELECT to choose one. Each page
 remembers its last subpage during the session. KNOB1 to KNOB4 change the four displayed values; a fast turn goes
@@ -161,9 +162,9 @@ and two audio inputs, and works with any sequencer or keyboard.
 | **OCT-** (tap, in bitimbral) | The panel and the keys on part **L**. OCT- lights, PLAY is green |
 | **OCT+** (tap, in bitimbral) | The panel and the keys on part **R**. OCT+ lights, PLAY is red |
 | OCT- or OCT+ held half a second (in bitimbral) | The octave |
-| GLO, last subpage (7), KNOB1 | MODE: standard or bitimbral |
-| GLO, last subpage, KNOB2 | OUTPUT: SPLIT, STEREO or DOUBLE |
-| GLO, last subpage, KNOB3 and KNOB4 | The MIDI channels of L and R (3 and 4 to begin with) |
+| GLO → BITIMBRAL (2/4), KNOB1 | MODE: standard or bitimbral |
+| GLO → BITIMBRAL, KNOB2 | OUTPUT: SPLIT, STEREO or DOUBLE |
+| GLO → BITIMBRAL, KNOB3 and KNOB4 | The MIDI channels of L and R (3 and 4 to begin with) |
 
 The three outputs:
 
@@ -281,7 +282,7 @@ itself, counted from MIDI Start: it stays on the sequencer's grid, a new chord b
 plays the pattern from its top.
 
 In standard mode SY1 listens on every channel. In bitimbral, part L listens on channel 3 and part R on channel 4
-(the Circuit Tracks' MIDI 1 and MIDI 2; GLO's last subpage changes them) and other channels are ignored. In DOUBLE
+(the Circuit Tracks' MIDI 1 and MIDI 2; GLO → BITIMBRAL changes them) and other channels are ignored. In DOUBLE
 the notes of either channel play both parts; controllers, pitch bend and program changes stay with their part.
 
 The FM-1's own keys also go out as notes over USB.

@@ -1,0 +1,33 @@
+# Rebuild the screen gallery (docs/mockups/nord-redesign) and the manual's screenshots in fm1-base's simulator:
+# every subpage in all three display styles, with all simulator scripts. Publishes nothing: download the artifact
+# and commit what changed. gh workflow run ux-review.yml
+name: UX review
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Gallery
+        run: |
+          pip install Pillow
+          rm -f docs/mockups/nord-redesign/*.png
+          python3 tools/ux_review.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ux-review
+          path: |
+            docs/mockups/nord-redesign/
+            app/docs/img/
+            docs/img/
+          if-no-files-found: error

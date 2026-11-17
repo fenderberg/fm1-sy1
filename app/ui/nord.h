@@ -206,14 +206,14 @@ static void ux_status(void)
 static const char *ux_row_title(void)
 {
     static const char *const titles[8][7] = {
-        {"PLAY / FILTER", "PLAY / PERFORM"},
+        {"PLAY / FILTER", "PLAY / PERFORM", "PLAY / VOICE", "PLAY / UNISON", "PLAY / SPREAD"},
         {"OSC / WAVES", "OSC / PITCH", "OSC / MOD", "OSC / SUB", "OSC / MOD ENV", "OSC / ENV TIME"},
         {"FILTER / MAIN", "FILTER / TRACK"},
         {"AMP ENV", "FILTER ENV", "ENV / LEVEL"},
         {"LFO 1", "LFO 1 / MOD", "LFO 2", "LFO 2 / MOD"},
         {"FX / EFFECT", "FX / MIX", "FX / EQ", "FX / DELAY", "FX / DELAY MIX", "FX / CHORUS", "FX / CHORUS MOD"},
         {"ARP", "ARP / GATE"},
-        {"VOICE", "VOICE / UNISON", "VOICE / SPREAD", "VOICE / SETUP", "DIAGNOSTIC", "DISPLAY", "BITIMBRAL"}
+        {"GLOBAL / PART", "GLOBAL / BITIMBRAL", "GLOBAL / DISPLAY", "GLOBAL / DIAGNOSTIC"}
     };
     return titles[ui.page][ui.row];
 }
@@ -385,20 +385,29 @@ static void ux_arp(void)
     ux_caption(text,(ui.status&2u) ? "HOLD ON" : "HOLD OFF");
 }
 
-static void ux_voice(void)
+static void ux_voice(uint32_t row)     /* PLAY's voice rows: 0 the mode, 1 and 2 unison (2 also the category) */
 {
     char text[40];
-    if(ui.row==0) {
+    if(row==0) {
         value_text(S1P_PLAY_MODE,cur.values[S1P_PLAY_MODE],text);
         ux_big("VOICE MODE",text,cur.values[S1P_PORTA_TIME] ? "PORTAMENTO ON" : "PORTAMENTO OFF");
-    } else if(ui.row<3) {
+    } else {
         const int32_t count=clamp(cur.values[S1P_UNISON_VOICES],2,8);
         int32_t i;
         for(i=0;i<count;i++) cv_rect(120-count*12+i*24,22,12,24,cur.values[S1P_UNISON_ON]?UX_TEXT:UX_RULE);
-        ux_caption(cur.values[S1P_UNISON_ON] ? "UNISON ON" : "UNISON OFF", "SPREAD / PITCH");
-    } else if(ui.row==3) {
-        ux_big("PATCH CATEGORY",CATEGORY[cur_category],set.drone_replace ? "DRONE / REPLACE" : "DRONE / STACK");
-    } else if(ui.row==6) {
+        text[0]=0;text_cat(text,row==2?"CATEGORY ":"");text_cat(text,row==2?CATEGORY[cur_category]:"SPREAD / PITCH");
+        ux_caption(cur.values[S1P_UNISON_ON] ? "UNISON ON" : "UNISON OFF", text);
+    }
+}
+
+static void ux_global(void)
+{
+    char text[40];
+    if(ui.row==GLOBAL_PART) {
+        char n[8];int_text((int32_t)set.voices,n);text[0]=0;text_cat(text,n);text_cat(text," VOICES");
+        ux_big(BI_ON ? (cur_part ? "PART R / NOT IN THE PATCH" : "PART L / NOT IN THE PATCH") : "NOT IN THE PATCH",text,
+               set.drone_replace ? "DRONE / REPLACE" : "DRONE / STACK");
+    } else if(ui.row==GLOBAL_BI) {
         if(!BI_ON) ux_big("ONE SOUND","STANDARD","OCT- AND OCT+ TOGETHER / BITIMBRAL");
         else {
             text[0]=0;text_cat(text,cur_part?"R ":"L ");ux_append(text,20,cur.name);
@@ -406,7 +415,7 @@ static void ux_voice(void)
             ux_big(BI_LAYOUT==LAY_SPLIT?"L LEFT / R RIGHT":BI_LAYOUT==LAY_STEREO?"L AND R IN STEREO":"ONE NOTE PLAYS L AND R",
                 LAYOUT[BI_LAYOUT],text);
         }
-    } else if(ui.row==5) {
+    } else if(ui.row==GLOBAL_DISPLAY) {
         ux_big("DISPLAY STYLE", UX_LCD ? "GREEN LCD" : UX_GREEN ? "GREEN LED" : "NORD", "KNOB 1 / CHOOSE YOUR DISPLAY");
     } else {
         ux_display_text(8,2,&FONT_XS,"PROCESSOR",UX_MUTED);
@@ -423,7 +432,7 @@ static void ux_graph(void)
 {
     cv_begin(240,80,UX_BG);
     if(ui.page==0 && ui.row==0) ux_filter();
-    else if(ui.page==0) {
+    else if(ui.page==0 && ui.row==1) {
         char tempo[16];int_text((int32_t)(ext_tempo?ext_tempo:set.tempo),tempo);
         ux_big(ext_tempo?"EXTERNAL CLOCK / BPM":"INTERNAL TEMPO / BPM",tempo,ext_tempo ?
             "TURN TEMPO FOR INTERNAL CLOCK" : cur.values[S1P_PLAY_MODE]==0?"POLYPHONIC":cur.values[S1P_PLAY_MODE]==1?"MONOPHONIC":"LEGATO");
@@ -435,7 +444,8 @@ static void ux_graph(void)
     else if(ui.page==4) ux_lfo();
     else if(ui.page==5) ux_fx();
     else if(ui.page==6) ux_arp();
-    else ux_voice();
+    else if(ui.page==0) ux_voice(ui.row-HOME_VOICE_ROW);
+    else ux_global();
     cv_blit(0,56);
 }
 

@@ -11,6 +11,10 @@
   ways ("Kick Bass", "909 Snare w/o Noise"), init and test patches and closed or silent sounds are left out, and
   at most two of one name series are taken. Other holds only recognisable instruments: drums, brass, sax, flute,
   horns, chords. The rules are in `tools/factory_pick.mjs`; every preset renders audible, finite audio.
+- **GLO is now GLOBAL: only settings that are not part of the patch.** The patch's voice settings (poly, mono
+  or legato, portamento, bend range, unison, polyphony) and its category moved to PLAY (HOME), subpages 3 to 5;
+  CAT is on PLAY / SPREAD, KNOB4. GLOBAL has four subpages: PART (the part's voice limit, the tempo and the Drone
+  mode, on the same knobs as before), BITIMBRAL, DISPLAY and DIAGNOSTIC.
 - Factory presets are numbered **F001–F256**. A part that was on F257–F500 starts on the first patch. User
   slots, settings and the 1,024 user patches are untouched.
 

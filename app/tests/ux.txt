@@ -24,7 +24,7 @@ shot remembered-filter-row.png
 # Diagnostic encoders are read-only, with the raw value of the last edited parameter.
 tap GLO
 turn SELECT 4
-expect row 4
+expect row 3
 turn K1 1
 turn K2 1
 turn K3 1
