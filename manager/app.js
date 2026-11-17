@@ -25,6 +25,9 @@ let baseSlot = new Map(), curSlot = new Map(), libSlot = new Map();
 let lview = [], dview = [], lsel = new Set(), dsel = new Set(), lanchor = 0, danchor = 0;
 let lcat = -1, dcat = -1, lfav = false, lnew = false, lfactory = false, drag = null;
 let access = null, input = null, output = null, waiting = null, busy = false, cancelled = false, legacy = false;
+// Bitimbral (SY1 with SysEx 08/09): the FM-1's mode, output, channels and the user slots parts L and R play (-1: none).
+let partsOK = false, bi = null, pinned = null, lastR = null;
+const LAYOUTS = ['Split', 'Stereo', 'Double'];
 
 const bankOf = it => it.entry ? banks.get(it.entry.bank).name : 'On the FM-1';
 const newItem = (name, cat, more) => ({uid: uid++, name, cat, explicit: false, rec: null, entry: null, locked: false, ...more});
@@ -57,7 +60,7 @@ function vlist(el, count, render) {
 }
 const drawLib = vlist($('llist'), () => lview.length, (k, y) => {
   const p = lview[k], on = libSlot.get(p.id), sel = lsel.has(p.id), fav = favorites.has(p.id), name = esc(p.name);
-  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}" draggable="true"><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${p.cat}" title="${CATEGORIES[p.cat]}"></i><span class="nm">${name}</span><span class="bk">${esc(banks.get(p.bank).name)}</span>${on === undefined ? '<span class="badge on" style="visibility:hidden"></span>' : `<span class="badge on" title="Already in slot ${pad(on + 1)}">${pad(on + 1)}</span>`}<button type="button" class="ic${fav ? ' on' : ''}" data-act="fav" aria-pressed="${fav}" aria-label="Favourite ${name}">${fav ? '★' : '☆'}</button><button type="button" class="ic" data-act="play" aria-label="Preview ${name}">▶</button></div>`;
+  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}" draggable="true"><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${p.cat}" title="${CATEGORIES[p.cat]}"></i><span class="nm">${name}</span><span class="bk">${esc(banks.get(p.bank).name)}</span>${on === undefined ? '<span class="badge on" style="visibility:hidden"></span>' : `<span class="badge on" title="Already in slot ${pad(on + 1)}">${pad(on + 1)}</span>`}<button type="button" class="ic${fav ? ' on' : ''}" data-act="fav" aria-pressed="${fav}" aria-label="Favourite ${name}">${fav ? '★' : '☆'}</button><button type="button" class="ic pl${pinned === p ? ' on' : ''}" data-act="pin" aria-pressed="${pinned === p}" aria-label="Pair ${name} as part L" title="Pair as part L: ▶ then plays other sounds as R with it">L</button><button type="button" class="ic" data-act="play" aria-label="Preview ${name}${pinned && pinned !== p ? ' as part R with ' + esc(pinned.name) : ''}">▶</button></div>`;
 });
 function status(s) {
   const it = slots[s], b = base[s];
@@ -68,8 +71,15 @@ const drawDev = vlist($('dlist'), () => dview.length, (k, y) => {
   const s = dview[k], it = slots[s], st = status(s), badge = st ? `<span class="badge ${st[0]}">${st[1]}</span>` : '<span class="badge"></span>';
   if (!it) return `<div class="prow empty${st ? ' gone' : ''}" style="top:${y}px" data-k="${k}"><span class="no">${pad(s + 1)}</span><span class="nm">${st ? esc(base[s].name) : 'empty'}</span>${badge}</div>`;
   const sel = dsel.has(it.uid), name = esc(it.name), fixed = it.locked || busy ? ' disabled' : '';
-  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORIES.map((c, i) => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${c}</option>`).join('')}</select><button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
+  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORIES.map((c, i) => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${c}</option>`).join('')}</select>${partButtons(s, it, name)}<button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
 });
+/** Play this slot on the FM-1: on part L, or in bitimbral on L or R. Only a slot the FM-1 already holds. */
+function partButtons(s, it, name) {
+  if (!output || !partsOK || !bi) return '';
+  const synced = it === base[s] && !busy, off = synced ? '' : ' disabled', why = synced ? '' : ' (sync first)';
+  const one = (p, label) => `<button type="button" class="ic p${'lr'[p]}${bi.slot[p] === s ? ' on' : ''}" data-act="part" data-part="${p}" aria-pressed="${bi.slot[p] === s}" aria-label="Play ${name} on part ${label}" title="Play on the FM-1, part ${label}${why}"${off}>${label}</button>`;
+  return bi.on ? one(0, 'L') + one(1, 'R') : `<button type="button" class="ic pl${bi.slot[0] === s ? ' on' : ''}" data-act="part" data-part="0" aria-pressed="${bi.slot[0] === s}" aria-label="Play ${name} on the FM-1" title="Play on the FM-1${why}"${off}>▶</button>`;
+}
 $('llist').dataset.none = 'No sounds match. Try another search, bank or character.';
 
 function chips(el, counts, active, extra = '') {
@@ -110,7 +120,7 @@ function filterDev() {
   $('capfill').style.width = used / SLOTS * 100 + '%';
   const shown = new Set(dview); let h = '';
   for (let s = 0; s < SLOTS; s++) { const it = slots[s];
-    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}"></i>`; }
+    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}${bi && bi.slot[0] === s ? ' pl' : ''}${bi && bi.on && bi.slot[1] === s ? ' pr' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}${bi && bi.slot[0] === s ? (bi.on ? ' · part L' : ' · playing') : ''}${bi && bi.on && bi.slot[1] === s ? ' · part R' : ''}"></i>`; }
   $('map').innerHTML = h;
   // Always there, so the list does not jump under the pointer when the first patch is selected.
   $('selcount').textContent = dsel.size ? `${dsel.size} selected` : 'Select patches to move or remove them'; $('movebox').hidden = legacy;
@@ -133,6 +143,7 @@ function refresh() {
   slots.forEach((it, s) => { if (it) { curSlot.set(it.uid, s); if (it.entry) libSlot.set(it.entry.id, s); } });
   for (const u of [...dsel]) if (!curSlot.has(u)) dsel.delete(u);
   for (const id of ['m-arr', 'm-sets']) $(id).classList.toggle('off', legacy || busy);
+  drawParts(); drawPair();
   $('legacy').hidden = !legacy;
   filterLib(); filterDev(); syncBar();
 }
@@ -220,16 +231,17 @@ function startPlayer() {
   });
 }
 async function preview(p) {
-  const id = ++previewId, line = $('preview-status');
+  const id = ++previewId, line = $('preview-status'), with_ = pinned && pinned !== p ? pinned : null;
   line.textContent = `Loading ${p.name}…`;
   try {
-    const bytes = await patchBytes(p);
+    const bytes = await patchBytes(p), pair = with_ ? {name: with_.name, bytes: await patchBytes(with_)} : null;
+    if (with_) { lastR = p; drawPair(); }
     if (!player) { line.textContent = 'Switching on the browser synth…'; player = startPlayer().catch(e => { player = null; throw e; }); }
     const frame = await player; if (id !== previewId) return;
     const answer = fromPlayer(frame, d => d.sy1 === 'previewed' && d.id === id, 8000);
-    frame.contentWindow.postMessage({sy1: 'preview', id, name: p.name, bytes}, location.origin);
+    frame.contentWindow.postMessage({sy1: 'preview', id, name: p.name, bytes, pair}, location.origin);
     const a = await answer; if (!a.ok) throw new Error(a.error || 'The browser synth refused this patch.');
-    if (id === previewId) line.textContent = `▶ Playing ${p.name} · ${banks.get(p.bank).name}`;
+    if (id === previewId) line.textContent = with_ ? `▶ Playing ${with_.name} (L) with ${p.name} (R)` : `▶ Playing ${p.name} · ${banks.get(p.bank).name}`;
   } catch (e) { if (id === previewId) line.innerHTML = `Preview failed: ${esc(e.message)} <a href="../emu/">Open the browser synth ↗</a>`; }
 }
 
@@ -238,12 +250,14 @@ const cmd = (c, ...data) => [...HEAD, c, ...data, 0xf7], slotBytes = s => [s & 1
 function onMessage(e) {
   const m = e.data, w = waiting; if (!w || m.length < 8 || HEAD.some((v, i) => m[i] !== v) || m.at(-1) !== 0xf7 || m[5] !== w.cmd || (input && e.target !== input)) return;
   const isSlot = [0x41, 0x44, 0x45, 0x47].includes(w.cmd);
+  if (w.cmd === 0x49 && (m.length < 11 || m[6] !== w.part || (m[7] | m[8] << 7) !== w.slot)) return;
   if (m.length < (w.cmd === 0x43 || w.cmd === 0x47 ? 11 : isSlot ? 10 : 8) || isSlot && (m[6] | m[7] << 7) !== w.slot || w.cmd === 0x47 && m[8] !== w.part) return;
   waiting = null; clearTimeout(w.timer); w.done({data: m, port: e.target});
 }
 function ask(out, frame, command, ms = 3000, part = 0) {
   if (waiting) throw new Error('Another MIDI request is still running');
-  return new Promise(done => { const w = {cmd: command, slot: frame[6] | frame[7] << 7, part, done, timer: setTimeout(() => { if (waiting === w) waiting = null; done(null); }, ms)}; waiting = w;
+  const at = command === 0x49 ? 7 : 6;   // (09's frame: <part> <slot lo> <hi>)
+  return new Promise(done => { const w = {cmd: command, slot: frame[at] | frame[at + 1] << 7, part, done, timer: setTimeout(() => { if (waiting === w) waiting = null; done(null); }, ms)}; waiting = w;
     try { out.send(frame); } catch { clearTimeout(w.timer); waiting = null; done(null); } });
 }
 /** The FM-1 drops about one SysEx exchange in fifty over USB. Every request asked this way reads, or writes one slot
@@ -256,7 +270,40 @@ function setConnected() {
   const on = !!output; $('connection').dataset.state = on ? 'connected' : 'disconnected';
   $('connection-label').textContent = on ? 'FM-1 CONNECTED' : 'FM-1 NOT CONNECTED'; $('connect').textContent = on ? 'Read again' : 'Connect to the FM-1';
   $('connect').className = on ? '' : 'primary'; $('connect').disabled = busy;
-  if (!on) legacy = false;
+  if (!on) { legacy = false; partsOK = false; bi = null; }
+}
+/** The FM-1's parts, from an answer to 08. */
+function partsFrom(m) {
+  if (m.length < 16) return null;
+  return {on: !!m[6], layout: m[7], focus: m[8], ch: [m[9] + 1, m[10] + 1], slot: [(m[11] | m[12] << 7) - 1, (m[13] | m[14] << 7) - 1]};
+}
+async function readParts() {
+  if (!output || !partsOK) return;
+  const r = await askAgain(output, cmd(0x08, 0x7f, 0x7f), 0x48, 800);
+  if (r) bi = partsFrom(r.data) || bi;
+}
+/** One request that changes the FM-1's parts, then its state read back. */
+async function partsDo(frame, answer, part, done) {
+  if (busy || !output || !partsOK) return;
+  busy = true; refresh();
+  try { const r = await askAgain(output, frame, answer, 1500, part); if (!r) throw new Error('The FM-1 did not answer. Press Read again.');
+    if (answer === 0x48) bi = partsFrom(r.data) || bi; else if (r.data[9]) throw new Error('That slot is empty on the FM-1. Press Read again.');
+    if (answer !== 0x48) await readParts(); if (done) toast(done()); }
+  catch (e) { say(e.message, true); }
+  finally { busy = false; refresh(); }
+}
+function drawParts() {
+  const show = !!(output && partsOK && bi); $('parts').hidden = !show; if (!show) return;
+  for (const b of document.querySelectorAll('[data-mode]')) { b.setAttribute('aria-pressed', String(+b.dataset.mode === +bi.on)); b.disabled = busy; }
+  for (const b of document.querySelectorAll('[data-layout]')) { b.setAttribute('aria-pressed', String(+b.dataset.layout === bi.layout)); b.disabled = busy; }
+  $('layoutseg').hidden = !bi.on;
+  const plays = p => bi.slot[p] >= 0 ? `${pad(bi.slot[p] + 1)} ${esc(slots[bi.slot[p]]?.name || base[bi.slot[p]]?.name || '')}` : 'a built-in or factory sound';
+  $('partinfo').innerHTML = bi.on ? `<span class="tl">L</span> ch ${bi.ch[0]} · ${plays(0)} <span class="tr">R</span> ch ${bi.ch[1]} · ${plays(1)}` : `Plays ${plays(0)}`;
+}
+function drawPair() {
+  $('pairbar').hidden = !pinned; if (!pinned) return;
+  $('pairname').textContent = pinned.name;
+  $('pairadd').disabled = busy || !lastR || lastR === pinned; $('pairadd').textContent = lastR && lastR !== pinned ? `Add pair: ${pinned.name} + ${lastR.name}` : 'Add pair';
 }
 async function connect() {
   if (busy) return; busy = true; setConnected(); refresh();
@@ -282,6 +329,7 @@ async function readDevice() {
     const used = Math.min(SLOTS, a.data[6] | a.data[7] << 7), device = new Array(SLOTS).fill(null);
     // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
     const old = !(a.data.length >= 12 && a.data[10] & 1);
+    partsOK = a.data.length >= 12 && !!(a.data[10] & 2);
     for (let s = 0; s < used; s++) {
       if (!output) throw new Error('FM-1 disconnected.');
       if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
@@ -302,6 +350,7 @@ async function readDevice() {
       }
     }
     legacy = old; adopt(device);
+    if (partsOK) await readParts();
     say(`Connected: ${output.name}. ${num(device.filter(Boolean).length)} patches read.`);
   } catch (e) { say(e.message, true); output = input = null; }
   finally { busy = false; setConnected(); refresh(); }
@@ -346,6 +395,8 @@ $('llist').addEventListener('click', e => {
   const row = e.target.closest('.prow'); if (!row) return; const k = +row.dataset.k, p = lview[k], act = e.target.dataset.act;
   if (act === 'fav') { favorites.has(p.id) ? favorites.delete(p.id) : favorites.add(p.id); store('sy1-favorites', [...favorites]); return filterLib(); }
   if (act === 'play') return preview(p);
+  if (act === 'pin') { pinned = pinned === p ? null : p; if (pinned) lastR = null; drawLib(); drawPair();
+    if (pinned) $('preview-status').textContent = `${p.name} is part L. ▶ another sound to hear it as part R with it.`; return; }
   lanchor = pick(lsel, lview.map(x => x.id), k, e, lanchor); filterLib();
 });
 $('llist').addEventListener('keydown', e => {
@@ -360,6 +411,8 @@ $('llist').addEventListener('keydown', e => {
 $('dlist').addEventListener('click', e => {
   const row = e.target.closest('.prow'); if (!row || e.target.matches('select, .rename')) return; const k = +row.dataset.k, s = dview[k];
   if (e.target.dataset.act === 'del') { const next = slots.slice(); next[s] = null; return void commit(next); }
+  if (e.target.dataset.act === 'part') { const p = +e.target.dataset.part, it = slots[s];
+    return void partsDo(cmd(0x09, p, ...slotBytes(s)), 0x49, p, () => `${bi.on ? 'Part ' + 'LR'[p] : 'The FM-1'} now plays ${pad(s + 1)} ${it.name}.`); }
   // The second click of a double-click: the row was redrawn by the first, so a dblclick event would hit a dead node.
   if (e.detail === 2 && e.target.closest('.nm')) return rename(row, s);
   danchor = pick(dsel, devKeys(), k, e, danchor); filterDev();
@@ -383,6 +436,18 @@ for (const [el, set] of [[$('lchips'), v => { lcat = v; }], [$('dchips'), v => {
 for (const id of ['search', 'bank', 'lsort']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { $('llist').scrollTop = 0; filterLib(); });
 for (const id of ['dq', 'dempty', 'dpend']) $(id).addEventListener(id === 'dq' ? 'input' : 'change', () => { $('dlist').scrollTop = 0; filterDev(); });
 $('add').onclick = addSelected;
+for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { const on = +b.dataset.mode; if (!bi || on === +bi.on) return;
+  partsDo(cmd(0x08, on, 0x7f), 0x48, 0, () => on ? `Bitimbral: part L listens on channel ${bi.ch[0]}, part R on ${bi.ch[1]}.` : 'Standard: one sound on every channel.'); };
+for (const b of document.querySelectorAll('[data-layout]')) b.onclick = () => { const v = +b.dataset.layout; if (!bi || v === bi.layout) return;
+  partsDo(cmd(0x08, 0x7f, v), 0x48, 0, () => `Output: ${LAYOUTS[v]}.`); };
+$('pairoff').onclick = () => { pinned = lastR = null; drawLib(); drawPair(); $('preview-status').textContent = '▶ plays a sound here in the page.'; };
+$('pairadd').onclick = () => {
+  if (!pinned || !lastR) return; const items = fromLibrary([pinned, lastR]); if (!items.length) return;
+  const next = appendSlots(slots, items); if (!next) return toast('Not enough free slots for the pair.');
+  if (commit(next)) toast(`Pair staged side by side. After syncing, press L and R on the two slots to play them together.`);
+};
+// Back from the FM-1's panel: what the parts play may have changed there.
+addEventListener('focus', () => { if (!output || !partsOK || busy || waiting) return; busy = true; readParts().catch(() => {}).finally(() => { busy = false; refresh(); }); });
 $('map').addEventListener('click', e => {
   const s = e.target.dataset.s; if (s === undefined) return; const it = slots[+s];
   if (!it) return toast(`Slot ${pad(+s + 1)} is empty.`);

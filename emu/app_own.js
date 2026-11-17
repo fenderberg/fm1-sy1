@@ -249,20 +249,56 @@ async function eraseAll() {
 
 // A patch from the Patch Manager's page (this one in its hidden frame): into slot 1 of the browser's own emulated
 // flash, selected, then a short phrase. One at a time; a newer one cuts the phrase of the one before.
-let auditions = Promise.resolve(), phrase = 0;
-async function audition(name, bytes) {
-  const patch = parseSy1(bytes), run = ++phrase;
-  if (!patch.lines) throw new Error("Invalid preview patch.");
-  const answer = await ask(frameFor(patch, 0), 0x41);
+// With a pair, the first sound goes to slot 1 and part L, the second to slot 2 and part R, in bitimbral STEREO: a
+// bass line on L under chords on R, as on a Circuit. A single sound puts the synth back in standard mode.
+let auditions = Promise.resolve(), phrase = 0, parts = null;
+const SY = [0xf0, 0x7d, 0x53, 0x59, 0x31];
+async function hasParts() {               // SysEx 08/09 (bitimbral): announced in the 03 answer's features byte
+  if (parts === null) { const a = await ask([...SY, 0x03, 0xf7], 0x43, 1500); parts = !!(a && a.length >= 12 && a[10] & 2); }
+  return parts;
+}
+async function store(patch, slot) {
+  const answer = await ask(frameFor(patch, slot), 0x41);
   if (!answer || answer[8] !== 0) throw new Error("The browser synth did not confirm the preview.");
-  midi.toDevice([0xc0, 8]);
-  say(`Preview: ${name}.`);
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function audition(name, bytes, pair) {
+  const patch = parseSy1(bytes), other = pair && parseSy1(pair.bytes), run = ++phrase;
+  if (!patch.lines || (pair && !other.lines)) throw new Error("Invalid preview patch.");
+  if (pair && !(await hasParts())) throw new Error("This browser synth has no bitimbral mode yet; pairs play once the site is updated.");
+  await store(patch, 0);
+  if (!pair) {
+    if (await hasParts()) await ask([...SY, 0x08, 0, 0x7f, 0xf7], 0x48, 1500);   // standard: one sound on every channel
+    midi.toDevice([0xc0, 8]);
+    say(`Preview: ${name}.`);
+    (async () => {
+      for (const note of [48, 55, 60, 64]) {
+        if (run !== phrase) return;
+        midi.toDevice([0x90, note, 92]);
+        await wait(350);
+        midi.toDevice([0x80, note, 0]);
+      }
+    })();
+    return;
+  }
+  await store(other, 1);
+  const mode = await ask([...SY, 0x08, 1, 1, 0xf7], 0x48, 1500);   // bitimbral, STEREO
+  if (!mode) throw new Error("The browser synth did not switch to bitimbral.");
+  for (const [part, slot] of [[0, 0], [1, 1]]) {
+    const a = await ask([...SY, 0x09, part, slot, 0, 0xf7], 0x49, 1500);
+    if (!a || a[9] !== 0) throw new Error("The browser synth did not take the pair.");
+  }
+  const l = mode[9] & 15, r = mode[10] & 15;
+  say(`Preview: ${pair.name} (L) with ${name} (R).`);
   (async () => {
-    for (const note of [48, 55, 60, 64]) {
+    const bass = [36, 36, 43, 36, 34, 34, 41, 34], chords = [[60, 63, 67], [58, 62, 65]];
+    for (let step = 0; step < 8; step++) {
       if (run !== phrase) return;
-      midi.toDevice([0x90, note, 92]);
-      await new Promise((r) => setTimeout(r, 350));
-      midi.toDevice([0x80, note, 0]);
+      if (step % 4 === 0) for (const n of chords[step >> 2]) midi.toDevice([0x90 | r, n, 84]);
+      midi.toDevice([0x90 | l, bass[step], 100]);
+      await wait(220);
+      midi.toDevice([0x80 | l, bass[step], 0]);
+      if (step % 4 === 3) for (const n of chords[step >> 2]) midi.toDevice([0x80 | r, n, 0]);
     }
   })();
 }
@@ -272,6 +308,124 @@ function el(tag, attrs = {}, text = "") {
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   if (text) e.textContent = text;
   return e;
+}
+
+// ---- a pretend Circuit Tracks: two tracks of notes on MIDI channels 3 and 4, the clock, and its eight macro knobs,
+// played into the emulated FM-1 in bitimbral mode. No hardware: for hearing what two parts do.
+const KNOBS = [["OSCILLATOR", 1], ["OSC MOD", 2], ["AMP ENV", 5], ["FILTER ENV", 11], ["FILTER FREQ", 71], ["RESONANCE", 74], ["MODULATION", 12], ["FX", 13]];
+const SOUNDS = ["P01 Saw Bass", "P02 Warm Pad", "P03 Pulse Lead", "P04 Pluck", "P05 Sync Lead", "P06 FM Bell", "P07 Strings", "P08 Arp"];
+// a pattern: one bar of 16 steps; each event [step, notes, length in steps]
+const line = (notes) => notes.map((n, s) => n ? [s, [n], 1] : null).filter(Boolean);
+const PATTERNS = [
+  { name: "Bass line", events: line([36, 0, 36, 48, 0, 36, 0, 48, 34, 0, 34, 46, 0, 34, 39, 41]) },
+  { name: "Slow bass", events: [[0, [36], 6], [8, [34], 4], [12, [31], 3]] },
+  { name: "Chords", events: [[0, [60, 63, 67], 7], [8, [58, 62, 65], 7]] },
+  { name: "Stabs", events: [[2, [60, 63, 67], 1], [6, [60, 63, 67], 1], [10, [58, 62, 65], 1], [13, [58, 62, 65], 1]] },
+  { name: "Melody", events: line([72, 0, 75, 0, 79, 77, 0, 75, 70, 0, 74, 0, 77, 75, 74, 0]) },
+  { name: "Held chord (try ARP)", events: [[0, [60, 63, 67, 70], 15]] },
+];
+function circuitDemo(parent) {
+  const box = el("section", { class: "sy1 ncd", "aria-label": "Circuit demo" });
+  const css = el("style");
+  css.textContent = `
+    .ncd .tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: .8rem; }
+    .ncd .track { border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; }
+    .ncd .track h3 { margin: 0 0 .5rem; font-size: .95rem; }
+    .ncd .track.l h3 { color: #3fbf6f; } .ncd .track.r h3 { color: #e8584c; }
+    .ncd select { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--muted); border-radius: 8px; padding: .3em .5em; min-height: 2.2em; max-width: 100%; }
+    .ncd .knobs { display: grid; grid-template-columns: auto 1fr; gap: .25rem .6rem; align-items: center; margin-top: .6rem; font-size: .8rem; color: var(--muted); }
+    .ncd .knobs input { width: 100%; min-width: 0; }
+    .ncd .steps { display: flex; gap: 3px; margin-top: .7rem; }
+    .ncd .steps i { flex: 1; height: 6px; border-radius: 2px; background: var(--rule); }
+    .ncd .steps i.on { background: var(--accent); }`;
+  document.head.append(css);
+  const send = (bytes) => midi.toDevice(bytes);
+  const mode = (on, layout) => send([0xf0, 0x7d, 0x53, 0x59, 0x31, 0x08, on, layout, 0xf7]);
+  const top = el("div", { class: "row" });
+  const play = el("button", { type: "button" }, "▶ Start");
+  const tempoLabel = el("label", {}, "Tempo ");
+  const tempo = el("input", { type: "number", min: "60", max: "180", value: "118" });
+  tempoLabel.append(tempo);
+  const outLabel = el("label", {}, "Output ");
+  const out = el("select");
+  ["SPLIT (L left, R right)", "STEREO", "DOUBLE (both sounds on every note)"].forEach((t, i) => out.append(el("option", { value: String(i) }, t)));
+  out.value = "1";
+  outLabel.append(out);
+  const standard = el("button", { type: "button" }, "Back to standard mode");
+  top.append(play, tempoLabel, outLabel, standard);
+  const status = el("p", { role: "status" });
+  const steps = el("div", { class: "steps", "aria-hidden": "true" });
+  for (let i = 0; i < 16; i++) steps.append(el("i"));
+  const tracks = el("div", { class: "tracks" });
+  const state = [0, 1].map((t) => {
+    const ch = 2 + t, wrap = el("div", { class: "track " + (t ? "r" : "l") });
+    const head = el("h3", {}, t ? "MIDI 2 → part R (channel 4)" : "MIDI 1 → part L (channel 3)");
+    const row = el("div", { class: "row" });
+    const pattern = el("select", { "aria-label": "Pattern" }), sound = el("select", { "aria-label": "Sound" });
+    PATTERNS.forEach((p, i) => pattern.append(el("option", { value: String(i) }, p.name)));
+    SOUNDS.forEach((s, i) => sound.append(el("option", { value: String(i) }, s)));
+    pattern.value = t ? "2" : "0"; sound.value = t ? "1" : "0";
+    const muteLabel = el("label", {}, " Mute"), mute = el("input", { type: "checkbox" });
+    muteLabel.prepend(mute);
+    const middle = el("button", { type: "button" }, "Knobs to the middle");
+    row.append(pattern, sound, muteLabel, middle);
+    const knobs = el("div", { class: "knobs" });
+    const sliders = KNOBS.map(([name, cc]) => {
+      const s = el("input", { type: "range", min: "0", max: "127", value: "64", "aria-label": `${t ? "R" : "L"} ${name}` });
+      s.addEventListener("input", () => send([0xb0 | ch, cc, +s.value]));
+      knobs.append(el("span", {}, name), s);
+      return s;
+    });
+    const centre = (tell) => sliders.forEach((s, i) => { s.value = "64"; if (tell) send([0xb0 | ch, KNOBS[i][1], 64]); });
+    middle.addEventListener("click", () => centre(true));
+    sound.addEventListener("change", () => { send([0xc0 | ch, +sound.value]); centre(false); });   // a new patch counts from the middle
+    wrap.append(head, row, knobs);
+    tracks.append(wrap);
+    return { ch, pattern, sound, mute, offs: [] };
+  });
+  box.append(el("h2", {}, "Circuit demo: two sounds at once"),
+    el("p", { class: "row" }, "A pretend Novation Circuit Tracks plays SY1's two parts and turns its eight macro knobs. Switch the FM-1 on above, then press Start."),
+    top, steps, tracks, status);
+  parent.append(box);
+
+  let timer = 0, tick = 0, next = 0;
+  const silence = () => state.forEach((t) => { t.offs.forEach(([, n]) => send([0x80 | t.ch, n, 0])); t.offs = []; });
+  const clock = () => {
+    const now = performance.now();
+    if (now - next > 500) next = now;            // the tab slept: do not catch up in a burst
+    while (now >= next) {
+      next += 60000 / Math.min(180, Math.max(60, +tempo.value || 118)) / 24;
+      send([0xf8]);
+      for (const t of state) {
+        t.offs = t.offs.filter(([at, n]) => at > tick || (send([0x80 | t.ch, n, 0]), false));
+        if (tick % 6 || t.mute.checked) continue;
+        for (const [s, notes, len] of PATTERNS[+t.pattern.value].events)
+          if (s === (tick / 6) % 16) for (const n of notes) { send([0x90 | t.ch, n, 100]); t.offs.push([tick + len * 6 - 1, n]); }
+      }
+      if (tick % 6 === 0) [...steps.children].forEach((e, i) => e.classList.toggle("on", i === (tick / 6) % 16));
+      tick++;
+    }
+  };
+  const stop = () => {
+    if (!timer) return;
+    clearInterval(timer); timer = 0;
+    silence(); send([0xfc]);
+    play.textContent = "▶ Start";
+    [...steps.children].forEach((e) => e.classList.remove("on"));
+  };
+  play.addEventListener("click", () => {
+    if (timer) { stop(); return; }
+    if (!document.getElementById("start")?.hidden) { status.textContent = "Switch the FM-1 on first (the button above)."; return; }
+    mode(1, +out.value);
+    state.forEach((t) => send([0xc0 | t.ch, +t.sound.value]));
+    status.textContent = "Bitimbral: part L plays MIDI 1, part R plays MIDI 2. On the FM-1, OCT- and OCT+ choose the part the panel edits.";
+    tick = 0; next = performance.now() + 150;     // (the mode change stops the notes: start after it)
+    send([0xfa]);
+    timer = setInterval(clock, 4);
+    play.textContent = "■ Stop";
+  });
+  out.addEventListener("change", () => { if (timer) { silence(); mode(0x7f, +out.value); } });
+  standard.addEventListener("click", () => { stop(); mode(0, 0x7f); status.textContent = "Standard: one sound on every channel."; });
 }
 
 export async function attach(ctx) {
@@ -328,11 +482,12 @@ export async function attach(ctx) {
       ui.first.value = String(Math.min(n + 1, SLOTS));
       if (n) say(`${n} slot${n === 1 ? "" : "s"} in use on this FM-1.`);
     }
+    if (window.parent === window) circuitDemo(box.parentNode);
     if (window.parent !== window) {      // inside the Patch Manager: it sends the patches to audition
       window.addEventListener("message", (e) => {
         if (e.origin !== location.origin || e.source !== window.parent || !e.data || e.data.sy1 !== "preview") return;
-        const { id, name, bytes } = e.data;
-        auditions = auditions.then(() => audition(name, bytes))
+        const { id, name, bytes, pair } = e.data;
+        auditions = auditions.then(() => audition(name, bytes, pair))
           .then(() => ({ ok: true }), (error) => ({ ok: false, error: error.message }))
           .then((answer) => window.parent.postMessage({ sy1: "previewed", id, ...answer }, location.origin));
       });

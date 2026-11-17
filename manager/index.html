@@ -29,6 +29,7 @@
     <details id="bank-info" hidden><summary>About this bank · credits and original notes</summary><p id="bank-credit"></p><a id="bank-download" download>Download original bank ZIP</a><pre id="bank-notes"></pre></details>
   </div>
   <div class="plist" id="llist" tabindex="0" aria-label="Library sounds"><div></div></div>
+  <div class="pairbar" id="pairbar" hidden><span class="tl">L</span> <b id="pairname"></b> <span class="muted">▶ plays others as R with it</span><button type="button" id="pairadd" disabled>Add pair</button><button type="button" class="quiet" id="pairoff" aria-label="Stop pairing">✕</button></div>
   <p class="pfoot muted"><span id="preview-status" role="status">▶ plays a sound here in the page. ↑ ↓ and Space audition quickly.</span></p>
 </section>
 
@@ -50,6 +51,11 @@
         <button type="button" id="setimport">Import a set file…</button><input type="file" id="setfile" accept=".json,application/json" hidden>
       </div></details></span></div>
     <div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span><span id="status" role="status" class="muted">Connect by USB. Use Chrome or Edge and allow MIDI when asked.</span><button type="button" class="primary" id="connect">Connect to the FM-1</button></div>
+    <div class="parts" id="parts" hidden>
+      <span class="seg" role="group" aria-label="Mode"><button type="button" data-mode="0">Standard</button><button type="button" data-mode="1">Bitimbral</button></span>
+      <span class="seg" id="layoutseg" role="group" aria-label="Output"><button type="button" data-layout="0" title="L on the left output, R on the right">Split</button><button type="button" data-layout="1">Stereo</button><button type="button" data-layout="2" title="Every note plays both parts">Double</button></span>
+      <span id="partinfo" class="partinfo"></span>
+    </div>
     <p id="legacy" class="notice" hidden>This FM-1 runs an older SY1 that cannot send its patches back. You can add and remove sounds; update SY1 to reorder, rename, sort and save sets.</p>
     <div class="cap" aria-hidden="true"><i id="capfill"></i></div>
     <div class="slotmap" id="map" aria-label="Map of all 1,024 slots"></div>
@@ -75,5 +81,5 @@
   <div class="acts"><button type="button" id="undo" disabled>Undo</button><button type="button" id="discard" disabled>Discard all</button><button type="button" id="cancel" hidden>Stop</button><button type="button" class="primary" id="sync" disabled>Sync to FM-1</button></div>
 </div>
 <div id="toast" role="status" hidden></div>
-</div></main><script type="module" src="app.js"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.3.1 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
+</div></main><script type="module" src="app.js"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v0.4.0 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
 </body></html>
