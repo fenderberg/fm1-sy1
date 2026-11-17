@@ -32,16 +32,20 @@ jobs:
         run: |
           pip install Pillow
           sh base/tools/get_toolchain.sh "$HOME/.jieli"
-          # the package takes three files of JieLi's AC79 SDK (Apache-2.0): its SPL, cfg_tool and EQ table
-          sdk="$HOME/fw-AC79_AIoT_SDK"
-          for url in https://github.com/Jieli-Tech/fw-AC79_AIoT_SDK.git https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git; do
-            rm -rf "$sdk"
-            git clone -q --depth 1 --filter=blob:none --no-checkout "$url" "$sdk" &&
-              git -C "$sdk" sparse-checkout set --no-cone /cpu/wl82/tools/uboot.boot /cpu/wl82/tools/cfg_tool.bin /cpu/wl82/tools/cfg/eq_cfg_hw.bin &&
-              git -C "$sdk" checkout -q && break
-          done
-          sha256sum "$sdk"/cpu/wl82/tools/uboot.boot "$sdk"/cpu/wl82/tools/cfg_tool.bin "$sdk"/cpu/wl82/tools/cfg/eq_cfg_hw.bin
-          mkdir -p sdk-files && cp "$sdk"/cpu/wl82/tools/uboot.boot "$sdk"/cpu/wl82/tools/cfg_tool.bin "$sdk"/cpu/wl82/tools/cfg/eq_cfg_hw.bin sdk-files/
+          # the package takes three files of JieLi's AC79 SDK (Apache-2.0): its SPL, cfg_tool and EQ table, from the
+          # tested release AC79NN_SDK_V1.2.1 only; the build stops if they differ from base/tools/build.py's SDK_SHA256
+          sdk="$HOME/fw-AC79_AIoT_SDK" t="$sdk/cpu/wl82/tools"
+          git clone -q --depth 1 --branch AC79NN_SDK_V1.2.1_2023-12-13 --filter=blob:none --no-checkout             https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git "$sdk"
+          git -C "$sdk" sparse-checkout set --no-cone /cpu/wl82/tools/uboot.boot /cpu/wl82/tools/cfg_tool.bin /cpu/wl82/tools/cfg/eq_cfg_hw.bin
+          git -C "$sdk" checkout -q
+          python3 - "$t" <<'PY'
+          import hashlib, re, sys
+          from pathlib import Path
+          ref = dict(re.findall(r'"([^"]+)": "([0-9a-f]{64})"', Path("base/tools/build.py").read_text().split("SDK_SHA256 = {")[1].split("}")[0]))
+          bad = [r for r, h in ref.items() if hashlib.sha256((Path(sys.argv[1]) / r).read_bytes()).hexdigest() != h]
+          print("SDK files:", ", ".join(ref), "->", "differ: " + ", ".join(bad) if bad else "match AC79NN_SDK_V1.2.1")
+          sys.exit(1 if bad or len(ref) != 3 else 0)
+          PY
       - name: Engine and app tests
         run: make test test-app test-web
       - name: Firmware, emulator and website
@@ -61,6 +65,5 @@ jobs:
             app/build/SHA256SUMS.txt
             app/build/publish-${{ inputs.version }}.log
             app/build/site/
-            sdk-files/
           include-hidden-files: true
           if-no-files-found: error
