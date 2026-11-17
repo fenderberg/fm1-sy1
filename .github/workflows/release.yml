@@ -32,6 +32,16 @@ jobs:
         run: |
           pip install Pillow
           sh base/tools/get_toolchain.sh "$HOME/.jieli"
+          # the package takes three files of JieLi's AC79 SDK (Apache-2.0): its SPL, cfg_tool and EQ table
+          sdk="$HOME/fw-AC79_AIoT_SDK"
+          for url in https://github.com/Jieli-Tech/fw-AC79_AIoT_SDK.git https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK.git; do
+            rm -rf "$sdk"
+            git clone -q --depth 1 --filter=blob:none --no-checkout "$url" "$sdk" &&
+              git -C "$sdk" sparse-checkout set --no-cone /cpu/wl82/tools/uboot.boot /cpu/wl82/tools/cfg_tool.bin /cpu/wl82/tools/cfg/eq_cfg_hw.bin &&
+              git -C "$sdk" checkout -q && break
+          done
+          sha256sum "$sdk"/cpu/wl82/tools/uboot.boot "$sdk"/cpu/wl82/tools/cfg_tool.bin "$sdk"/cpu/wl82/tools/cfg/eq_cfg_hw.bin
+          mkdir -p sdk-files && cp "$sdk"/cpu/wl82/tools/uboot.boot "$sdk"/cpu/wl82/tools/cfg_tool.bin "$sdk"/cpu/wl82/tools/cfg/eq_cfg_hw.bin sdk-files/
       - name: Engine and app tests
         run: make test test-app test-web
       - name: Firmware, emulator and website
@@ -39,6 +49,8 @@ jobs:
           export JIELI_TOOLCHAIN="$HOME/.jieli/toolchain"
           V="${{ inputs.version }}"
           echo "$V" | grep -Eq '^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}$' || { echo "version: X.Y.Z"; exit 1; }
+          mkdir -p app/build
+          set -o pipefail
           tools/publish_site.sh "$V" 2>&1 | tee "app/build/publish-$V.log"
           (cd app/build && sha256sum "sy1-$V.fwsc" > "SHA256SUMS.txt")
       - uses: actions/upload-artifact@v4
@@ -49,5 +61,6 @@ jobs:
             app/build/SHA256SUMS.txt
             app/build/publish-${{ inputs.version }}.log
             app/build/site/
+            sdk-files/
           include-hidden-files: true
           if-no-files-found: error
