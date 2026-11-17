@@ -1,0 +1,53 @@
+# Build a release on GitHub: the firmware package, the browser emulator and the complete website, with the same
+# checks as tools/publish_site.sh. It publishes nothing: download the artifact, then push the site and make the
+# release from it. Start it from the Actions tab or: gh workflow run release.yml -f version=X.Y.Z
+name: Release build
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, X.Y.Z"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.74
+      - name: Tools
+        run: |
+          pip install Pillow
+          sh base/tools/get_toolchain.sh "$HOME/.jieli"
+      - name: Engine and app tests
+        run: make test test-app test-web
+      - name: Firmware, emulator and website
+        run: |
+          export JIELI_TOOLCHAIN="$HOME/.jieli/toolchain"
+          V="${{ inputs.version }}"
+          echo "$V" | grep -Eq '^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}$' || { echo "version: X.Y.Z"; exit 1; }
+          tools/publish_site.sh "$V" 2>&1 | tee "app/build/publish-$V.log"
+          (cd app/build && sha256sum "sy1-$V.fwsc" > "SHA256SUMS.txt")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sy1-${{ inputs.version }}
+          path: |
+            app/build/sy1-${{ inputs.version }}.fwsc
+            app/build/SHA256SUMS.txt
+            app/build/publish-${{ inputs.version }}.log
+            app/build/site/
+          include-hidden-files: true
+          if-no-files-found: error
