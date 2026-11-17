@@ -95,7 +95,7 @@ function filterLib() {
   }
   const byName = (a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : a.n - b.n;
   if (sort === 'name') lview.sort(byName); else if (sort === 'cat') lview.sort((a, b) => a.cat - b.cat || byName(a, b));
-  chips($('lchips'), counts, lcat, `<button type="button" class="chip" data-tog="fav" aria-pressed="${lfav}">★ Favourites</button><button type="button" class="chip" data-tog="new" aria-pressed="${lnew}">Not on my FM-1</button><button type="button" class="chip" data-tog="factory" id="factory-only" aria-pressed="${lfactory}"${factoryIds.size ? '' : ' disabled'}>Factory 500</button>`);
+  chips($('lchips'), counts, lcat, `<button type="button" class="chip" data-tog="fav" aria-pressed="${lfav}">★ Favourites</button><button type="button" class="chip" data-tog="new" aria-pressed="${lnew}">Not on my FM-1</button><button type="button" class="chip" data-tog="factory" id="factory-only" aria-pressed="${lfactory}"${factoryIds.size ? '' : ' disabled'}>Factory ${factoryIds.size || ''}</button>`);
   $('lcount').textContent = `${num(lview.length)} of ${num(entries.length)} sounds`;
   const b = banks.get(bank); $('bank-info').hidden = !b;
   if (b) { $('bank-credit').textContent = `${b.author} · ${b.terms}`; $('bank-notes').textContent = (b.notes || []).map(n => n.path + '\n\n' + n.text).join('\n\n');
@@ -160,7 +160,7 @@ async function catalogue() {
     try {
       const response = await fetch('../library/factory500.json');
       if (response.ok) factoryIds = new Set((await response.json()).patches.map(p => p.id));
-    } catch { /* The main library stays available when the Factory 500 list cannot be reached. */ }
+    } catch { /* The main library stays available when the factory list cannot be reached. */ }
     for (const bank of data.banks) { banks.set(bank.id, bank); for (const p of bank.patches) addEntry(p, bank); }
     for (const it of new Set([...base, ...slots])) if (it && it.rec && !it.entry) it.entry = byId.get(known[recordKey(it.rec)]) || null;
     refreshBanks(); refresh();
@@ -528,7 +528,7 @@ function remember(it) {
 }
 async function sync() {
   const ch = changes(base, slots); if (!ch.total || busy || !output) return;
-  if (ch.removed && !confirm(`${ch.removed} ${ch.removed === 1 ? 'patch' : 'patches'} will be removed from the FM-1. Built-in and Factory 500 sounds stay. Continue?`)) return;
+  if (ch.removed && !confirm(`${ch.removed} ${ch.removed === 1 ? 'patch' : 'patches'} will be removed from the FM-1. Built-in and factory sounds stay. Continue?`)) return;
   busy = true; cancelled = false; refresh(); setConnected();
   const bar = $('progress'), result = $('result'); bar.hidden = false; bar.max = ch.total; bar.value = 0; $('cancel').hidden = false; $('cancel').disabled = false; result.className = '';
   let done = 0, error = '';
