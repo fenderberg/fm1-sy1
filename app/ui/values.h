@@ -83,6 +83,7 @@ static void ux_value(uint32_t id, int32_t value, char *text, const char **unit)
     case S1P_CHORUS_RATE:
         ux_decimal(value<=0?0.01f:2.9409f*s1_exp2f((float)(value-64)/8.89f),text);*unit="Hz";return;
     case X_TEMPO: int_text(value, text); *unit = "BPM"; return;
+    case X_CHL: case X_CHR: int_text(value, text); return;
     case X_CPU: int_text((int32_t)shown_cpu, text); *unit = "%"; return;
     case X_PEAK: int_text((int32_t)cpu_high, text); *unit = "%"; return;
     case X_SHED: int_text((int32_t)cpu_sheds, text); return;
@@ -113,7 +114,7 @@ static const char *ux_label(uint32_t id)
 
 static int ux_discrete(uint32_t id)
 {
-    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY;
+    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT;
     if (s1_param_max[id] - s1_param_min[id] == 1) return 1;
     switch (id) {
     case S1P_OSC1_SHAPE: case S1P_OSC2_SHAPE: case S1P_SUB_SHAPE: case S1P_FILTER_TYPE:

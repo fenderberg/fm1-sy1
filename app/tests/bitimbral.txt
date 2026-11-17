@@ -1,0 +1,355 @@
+# Bitimbral: two parts (L, R), each with its own patch; SPLIT, STEREO or DOUBLE; OCT- and OCT+ together switch
+# between standard and bitimbral.
+wait 300
+expect mode 0
+expect part 0
+expect patch 0
+# standard: one OCT button is the octave, as ever
+tap OCT+
+wait 50
+expect octave 1
+tap OCT-
+wait 50
+expect octave 0
+# standard: channel 4 plays the one sound too
+midi 93 3C 64
+wait 50
+expect voices 1
+expect voicesb 0
+tap PLAY
+wait 50
+# both together: bitimbral; the octave the first press moved is put back
+press OCT-
+wait 30
+press OCT+
+wait 30
+release OCT+
+release OCT-
+wait 100
+expect mode 1
+expect octave 0
+expect layout 0
+expect part 0
+# each part browses in its own category: BASS on L leaves R on ALL
+expect category 0
+spin ALGO 1
+wait 300
+expect category 1
+tap OCT+
+wait 50
+expect part 1
+expect category 0
+tap OCT-
+wait 50
+expect category 1
+spin ALGO -1
+wait 300
+expect category 0
+expect patch 0
+# each part is a synth of its own: octave, voice limit, drone mode and the panel's page
+press OCT+
+wait 700
+release OCT+
+wait 50
+expect octave 1
+expect maxv 8
+tap GLO
+turn SELECT -20
+spin SELECT 3
+spin K1 -1
+wait 50
+spin K1 -1
+wait 50
+expect maxv 6
+expect page 7
+expect row 3
+tap OCT+
+wait 50
+expect part 1
+expect octave 0
+expect maxv 8
+expect maxvb 6
+expect page 0
+tap OCT-
+wait 50
+expect octave 1
+expect maxv 6
+expect page 7
+expect row 3
+spin K1 1
+wait 50
+spin K1 1
+wait 50
+expect maxv 8
+tap HOME
+press OCT-
+wait 700
+release OCT-
+wait 50
+expect octave 0
+# a tap on OCT+ puts the panel on part R; it has its own patch
+tap OCT+
+wait 50
+expect part 1
+expect octave 0
+spin PRESET 3
+wait 300
+expect patch 3
+tap OCT-
+wait 50
+expect part 0
+expect patch 0
+expect patchb 3
+# holding an OCT button is the octave
+press OCT+
+wait 700
+release OCT+
+wait 50
+expect octave 1
+expect part 0
+press OCT-
+wait 700
+release OCT-
+wait 50
+expect octave 0
+# SPLIT: channel 3 plays L, channel 4 plays R, other channels are not ours
+midi 92 3C 64
+wait 50
+expect voices 1
+expect voicesb 0
+midi 93 40 64
+wait 50
+expect voicesb 1
+midi 90 43 64
+midi 99 24 64
+wait 50
+expect voices 1
+expect voicesb 1
+tap PLAY
+wait 50
+expect voices 0
+expect voicesb 0
+# the keys play the part the panel is on
+key 5 down
+wait 50
+expect voices 1
+expect voicesb 0
+key 5 up
+tap OCT+
+wait 50
+key 5 down
+wait 50
+expect voicesb 1
+key 5 up
+tap PLAY
+tap OCT-
+wait 50
+# a program change on channel 4 is part R's
+midi C3 05 00
+wait 100
+expect patchb 5
+expect patch 0
+# the output: GLO's last row
+tap GLO
+spin SELECT 6
+wait 50
+expect row 6
+shot bitimbral-split.png
+spin K2 1
+wait 50
+expect layout 1
+spin K2 1
+wait 50
+expect layout 2
+shot bitimbral-double.png
+# DOUBLE: a note of either channel, and a key, plays both parts
+midi 92 3C 64
+wait 50
+expect voices 1
+expect voicesb 1
+tap PLAY
+wait 50
+key 5 down
+wait 50
+expect voices 1
+expect voicesb 1
+key 5 up
+tap PLAY
+wait 50
+# it is kept: the panel on R, DOUBLE, both patches
+tap HOME
+tap OCT+
+spin ALGO 2
+wait 300
+expect category 2
+wait 6000
+reboot
+wait 300
+expect mode 1
+expect layout 2
+expect part 1
+expect category 2
+tap OCT-
+wait 50
+expect category 0
+tap OCT+
+wait 50
+spin ALGO -2
+wait 300
+expect category 0
+# (PAD chose R's first pad)
+expect patch 1
+expect patchb 0
+shot bitimbral-r.png
+# back to standard: the one sound is part L's
+press OCT+
+wait 30
+press OCT-
+wait 30
+release OCT-
+release OCT+
+wait 100
+expect mode 0
+expect part 0
+expect patch 0
+midi 93 3C 64
+wait 50
+expect voices 1
+expect voicesb 0
+tap PLAY
+wait 50
+# ---- the Circuit's knobs, the channels, the lights, the arp on the clock
+press OCT-
+wait 30
+press OCT+
+wait 30
+release OCT+
+release OCT-
+wait 100
+expect mode 1
+expect part 0
+expect p19 46
+expect e19 46
+# FILTER FREQ (controller 71) on channel 3 is part L's cutoff: the middle is the patch, the ends add and take 64
+midi B2 47 40
+wait 100
+expect e19 46
+midi B2 47 7F
+wait 300
+expect e19 109
+expect p19 46
+midi B2 47 00
+wait 300
+expect e19 0
+# the panel's edit moves what the knob adds to
+midi B2 47 50
+wait 300
+expect e19 62
+tap HOME
+turn SELECT -20
+spin K1 1
+wait 100
+expect p19 47
+expect e19 63
+# channel 4's knob is part R's; L is not touched
+midi B3 4A 7F
+wait 300
+expect e19 63
+tap OCT+
+wait 50
+# a new patch: the knobs count from the middle again
+spin PRESET 1
+wait 400
+tap OCT-
+wait 50
+spin PRESET 1
+wait 400
+expect patch 1
+expect e19 72
+# standard: controller 71 is not a Circuit knob
+tap REC
+wait 100
+# the parts' channels: GLO's last row, KNOB 3 and 4
+tap GLO
+turn SELECT -20
+spin SELECT 6
+expect chl 3
+expect chr 4
+spin K3 1
+wait 50
+spin K3 1
+wait 50
+expect chl 5
+midi 92 3C 64
+wait 50
+expect voices 0
+midi 94 3C 64
+wait 50
+expect voices 1
+tap PLAY
+spin K3 -1
+wait 50
+spin K3 -1
+wait 50
+expect chl 3
+leds
+shot bitimbral-channels.png
+# the arp on the clock: Start, then a step every 6 clocks at 1/16
+tap HOME
+spin PRESET 6
+wait 400
+expect patch 7
+expect p59 1
+midi FA 00 00
+wait 30
+expect arpext 0
+clock 1
+wait 30
+expect arpext 1
+expect clkpos 1
+# a chord waits for the next step of the grid
+key 5 down
+key 9 down
+key 12 down
+wait 50
+expect arpstep -1
+clock 5
+wait 30
+expect arpstep -1
+clock 1
+wait 30
+expect arpstep 0
+clock 6
+wait 30
+expect arpstep 1
+clock 12
+wait 30
+expect clkpos 25
+expect arpstep 3
+key 5 up
+key 9 up
+key 12 up
+tap PLAY
+wait 2500
+expect arpext 0
+press OCT+
+wait 30
+press OCT-
+wait 30
+release OCT-
+release OCT+
+wait 100
+expect mode 0
+# SysEx 08: the mode and the output from the computer (the page's Circuit demo); 7F leaves a value alone
+sysex F0 7D 53 59 31 08 01 02 F7
+wait 100
+expect mode 1
+expect layout 2
+expect_sysex F0 7D 53 59 31 48 01 02 00 F7
+sysex F0 7D 53 59 31 08 7F 00 F7
+wait 100
+expect mode 1
+expect layout 0
+sysex F0 7D 53 59 31 08 00 7F F7
+wait 100
+expect mode 0

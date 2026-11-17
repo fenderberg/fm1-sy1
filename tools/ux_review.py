@@ -81,7 +81,7 @@ def main():
     script = ["wait 600", "turn PRESET 1", "wait 1400"]
     for style, prefix in (("Nord", ""), ("Green LED", "green-"), ("Green LCD", "lcd-")):
         if prefix:
-            script += ["tap REC", "tap GLO", "turn SELECT -20", "turn SELECT 5", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
+            script += ["tap REC", "tap GLO", "turn SELECT -20", "spin SELECT 5", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
         for page, (slug, button, title, rows) in enumerate(PAGES):
             if button == "ARP":
                 script += ["press ARP", "wait 550", "release ARP", "tap ARP", "tap SEQ",

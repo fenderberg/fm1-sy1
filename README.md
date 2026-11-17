@@ -36,7 +36,7 @@ The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.3.1 uses its
 | App: screen, panel, keys, MIDI, patch storage | Passes in fm1-base's simulator (`app/tests/basic.txt`) and in `make test-app` |
 | Browser emulator with a patch loader | Works: drop `.sy1` files or a `.zip` bank on the page |
 | Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
-| Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. The second core is not used yet |
+| Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. Bitimbral (unreleased) renders its second part on the second core: measured, two parts of 8 voices cost what one does |
 | Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
 | Patch library and hardware manager | 3,174 hosted patches; local nested-ZIP import; search, favourites, in-page preview; staged slot editing (add, move, rename, sort, sets) with acknowledged USB sync |
 

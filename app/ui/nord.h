@@ -29,11 +29,11 @@ static void ux_center(int32_t x, int32_t y, int32_t width, const felucca_font_t 
 
 static int32_t ux_lo(uint32_t id)
 {
-    return id < S1_NPARAMS ? s1_param_min[id] : id == X_TEMPO ? 30 : id == X_CATEGORY ? CAT_BASS : id == X_DRONE || id == X_DISPLAY ? 0 : 1;
+    return id < S1_NPARAMS ? s1_param_min[id] : id == X_TEMPO ? 30 : id == X_CATEGORY ? CAT_BASS : id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT ? 0 : 1;
 }
 static int32_t ux_hi(uint32_t id)
 {
-    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE ? 1 : S1_MAX_VOICES;
+    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE || id == X_BI ? 1 : id == X_LAYOUT ? LAY_COUNT-1 : S1_MAX_VOICES;
 }
 static int32_t ux_norm_value(uint32_t id, int32_t value)
 {
@@ -186,7 +186,7 @@ static void ux_status(void)
     cv_begin(240, 24, UX_BG);
     cv_rect(0, 0, 240, 1, UX_RULE);
     int_text((int32_t)shown_voices, text); text_cat(text, "/");
-    int_text(set.voices, n); text_cat(text, n);
+    int_text((int32_t)(set.voices + (BI_ON ? set.voices_b : 0u)), n); text_cat(text, n);   /* (each part has its limit) */
     ux_display_text(6, 1, &FONT_T, text, UX_TEXT);
     text[0] = 0; text_cat(text, "OCT ");
     text[4] = set.octave < 0 ? '-' : '+';
@@ -213,7 +213,7 @@ static const char *ux_row_title(void)
         {"LFO 1", "LFO 1 / MOD", "LFO 2", "LFO 2 / MOD"},
         {"FX / EFFECT", "FX / MIX", "FX / EQ", "FX / DELAY", "FX / DELAY MIX", "FX / CHORUS", "FX / CHORUS MOD"},
         {"ARP", "ARP / GATE"},
-        {"VOICE", "VOICE / UNISON", "VOICE / SPREAD", "VOICE / SETUP", "DIAGNOSTIC", "DISPLAY"}
+        {"VOICE", "VOICE / UNISON", "VOICE / SPREAD", "VOICE / SETUP", "DIAGNOSTIC", "DISPLAY", "BITIMBRAL"}
     };
     return titles[ui.page][ui.row];
 }
@@ -398,6 +398,14 @@ static void ux_voice(void)
         ux_caption(cur.values[S1P_UNISON_ON] ? "UNISON ON" : "UNISON OFF", "SPREAD / PITCH");
     } else if(ui.row==3) {
         ux_big("PATCH CATEGORY",CATEGORY[cur_category],set.drone_replace ? "DRONE / REPLACE" : "DRONE / STACK");
+    } else if(ui.row==6) {
+        if(!BI_ON) ux_big("ONE SOUND","STANDARD","OCT- AND OCT+ TOGETHER / BITIMBRAL");
+        else {
+            text[0]=0;text_cat(text,cur_part?"R ":"L ");ux_append(text,20,cur.name);
+            ux_append(text,sizeof text,cur_part?" / L ":" / R ");ux_append(text,sizeof text,other.cur.name);
+            ux_big(BI_LAYOUT==LAY_SPLIT?"L LEFT / R RIGHT":BI_LAYOUT==LAY_STEREO?"L AND R IN STEREO":"ONE NOTE PLAYS L AND R",
+                LAYOUT[BI_LAYOUT],text);
+        }
     } else if(ui.row==5) {
         ux_big("DISPLAY STYLE", UX_LCD ? "GREEN LCD" : UX_GREEN ? "GREEN LED" : "NORD", "KNOB 1 / CHOOSE YOUR DISPLAY");
     } else {
@@ -444,7 +452,12 @@ static void ux_header(void)
     char text[40];
     cv_begin(240,40,UX_BG);
     index_text(cur_index,text);ux_display_text(6,0,&FONT_XS,text,UX_MUTED);
-    ux_fit(text,sizeof text,CATEGORY[set.category],&FONT_XS,90);ux_display_text(62,0,&FONT_XS,text,UX_MUTED);
+    ux_fit(text,sizeof text,CATEGORY[set.category],&FONT_XS,BI_ON?58:90);ux_display_text(62,0,&FONT_XS,text,UX_MUTED);
+    if(BI_ON) {                          /* the part the panel is on, and the output */
+        text[0]=0;text_cat(text,cur_part?"R ":"L ");text_cat(text,LAYOUT[BI_LAYOUT]);
+        ux_display_text(198-ux_display_width(&FONT_XS,text),0,&FONT_XS,text,
+            UX_GREEN ? UX_AMBER : cur_part ? RGB(255,104,92) : RGB(104,224,132));   /* L green, R red: as PLAY's light */
+    }
     if(cur_dirty) ux_display_text(205,0,&FONT_XS,"EDIT",UX_AMBER);
     ux_fit(text,sizeof text,cur.name,&FONT_M,228);ux_display_text(6,14,&FONT_M,text,UX_TEXT);
     cv_blit(0,0);
@@ -481,7 +494,7 @@ static uint32_t ux_hash(uint32_t hash, uint32_t value) { return (hash^value)*167
 static void ux_draw(uint32_t areas)
 {
     uint32_t keys[5]={2166136261u,2166136261u,2166136261u,2166136261u,2166136261u},i;
-    for(i=0;i<5;i++) keys[i]=ux_hash(keys[i],set.display);
+    for(i=0;i<5;i++) keys[i]=ux_hash(ux_hash(ux_hash(keys[i],set.display),set.bi),other.index);
     keys[0]=ux_hash(ux_hash(ux_hash(keys[0],cur_index),set.category),cur_dirty);
     for(i=0;i<S1_NAME_LEN && cur.name[i];i++) keys[0]=ux_hash(keys[0],(uint8_t)cur.name[i]);
     for(i=1;i<4;i++) keys[i]=ux_hash(ux_hash(keys[i],ui.page),ui.row);
@@ -507,7 +520,7 @@ static void ux_draw(uint32_t areas)
         if(id!=X_NONE) keys[3]=ux_hash(keys[3],(uint32_t)cell_value(id));
     }
     keys[4]=ux_hash(ux_hash(ux_hash(ux_hash(keys[4],shown_voices),shown_midi),set.octave),ui.status);
-    keys[4]=ux_hash(ux_hash(ux_hash(keys[4],ext_tempo?ext_tempo:set.tempo),ext_tempo!=0),set.voices);
+    keys[4]=ux_hash(ux_hash(ux_hash(keys[4],ext_tempo?ext_tempo:set.tempo),ext_tempo!=0),(uint32_t)set.voices<<8|set.voices_b);
     keys[4]=ux_hash(ux_hash(keys[4],set.drone_replace),cpu_sheds);
     for(i=0;i<5;i++) if((areas&(1u<<i)) && (!(ux_cache_valid&(1u<<i)) || ux_cache[i]!=keys[i])) {
         if(i==0) ux_header();else if(i==1) ux_module();else if(i==2) ux_graph();else if(i==3) ux_controls();else ux_status();

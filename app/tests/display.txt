@@ -4,7 +4,8 @@ turn PRESET 1
 wait 1400
 expect display 0
 tap GLO
-turn SELECT 5
+turn SELECT -20
+spin SELECT 5
 expect page 7
 expect row 5
 shot nord-choice.png
@@ -40,7 +41,8 @@ expect patch 1
 shot green-reboot.png
 listen
 tap GLO
-turn SELECT 5
+turn SELECT -20
+spin SELECT 5
 where
 said DISPLAY
 turn K1 1
@@ -69,7 +71,8 @@ expect display 2
 expect patch 1
 shot lcd-reboot.png
 tap GLO
-turn SELECT 5
+turn SELECT -20
+spin SELECT 5
 where
 said LCD
 turn K1 -1

@@ -71,6 +71,15 @@ int plat_store_save(uint32_t obj, const void *src, uint32_t len)
     return 0;
 }
 uint32_t plat_cpu_pct(void) { return 12; }
+/* the second core, as fm1-base's simulator has it: a job runs at once (the measurement build's part B) */
+void plat_play_red(int red) { (void)red; }
+int plat_cpu2_set(int on) { (void)on; return 0; }
+int plat_cpu2_on(void) { return 1; }
+int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { fn(arg); return 1; }
+int plat_cpu2_wait(void) { return 0; }
+int plat_cpu2_gave_up(void) { return 0; }
+uint32_t plat_cpu2_bad(void) { return 0; }
+uint32_t plat_cpu2_stack(void) { return 0; }
 
 typedef struct { int h; } felucca_font_t;
 static const felucca_font_t FONT_T = {10}, FONT_XS = {12}, FONT_S = {16}, FONT_M = {24};
@@ -417,7 +426,8 @@ static void test_display_styles(void)
     uint32_t page, row, i, mode, previous[5];
     settings_t old;
     s1_patch before;
-    CHECK(sizeof(settings_t)==16 && (uint32_t)((uint8_t *)&set.display-(uint8_t *)&set)==SET_LEGACY_BYTES,
+    CHECK(sizeof(settings_t)==24 && (uint32_t)((uint8_t *)&set.display-(uint8_t *)&set)==SET_LEGACY_BYTES &&
+          (uint32_t)((uint8_t *)&set.ch_l-(uint8_t *)&set)==SET_V2_BYTES,
           "settings no longer append after the legacy prefix");
     patch_select(1);
     set.octave=-2;set.tempo=137;set.voices=6;set.category=CAT_PAD;set.drone_replace=1;

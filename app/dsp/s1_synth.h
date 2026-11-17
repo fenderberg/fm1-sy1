@@ -103,6 +103,8 @@ typedef struct s1_synth {
     int arp_n, arp_step, arp_dir, arp_vel, arp_playing;
     int arp_count, arp_gate;
     float arp_acc;
+    uint8_t arp_ext;                   /* 1: MIDI clock steps the arpeggiator (s1_clock) */
+    uint32_t clk_pos;                  /* clocks since Start */
     uint32_t rng;
 
     /* effects' state */
@@ -123,6 +125,9 @@ void s1_set_volume(s1_synth *s, float gain);
 
 void s1_note_on(s1_synth *s, int key, int velocity);
 void s1_note_off(s1_synth *s, int key);
+enum { S1_CLOCK_TICK, S1_CLOCK_START, S1_CLOCK_OFF };
+void s1_clock(s1_synth *s, int what);   /* MIDI clock: a tick (24 a quarter note), Start, or no clock any more.
+                                        * With a clock the arpeggiator steps on its grid, counted from Start */
 void s1_set_hold(s1_synth *s, int on);   /* arp: replace chord after key-up; otherwise drone */
 void s1_control_change(s1_synth *s, int cc, int value);
 void s1_pitch_bend(s1_synth *s, int value14);

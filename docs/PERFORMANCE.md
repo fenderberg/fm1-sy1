@@ -35,6 +35,14 @@ Een patchwissel, panic of herstart laat geen hold/drone achter. Automatisch
 instellingen bewaren wacht tot er geen actieve stemmen zijn. Als een volle eventqueue een note-off zou
 verliezen, stopt de engine de noten. Zonder MIDI-clock keert het interne tempo na twee seconden terug.
 
+## Bitimbraal (nog niet uitgebracht)
+
+Twee partijen L en R met elk een eigen klank, arp, hold/drone en effecten; R rendert op de tweede core. OCT- en
+OCT+ samen wisselen tussen standaard en bitimbraal; uitgang SPLIT, STEREO of DOUBLE op GLO rij 7. De acht
+macroknoppen van de Circuit Tracks sturen per partij de passende parameters, en de arp stapt op de MIDI-clock
+(voorstel 5 hieronder is daarmee gedaan). Zie de handleiding, hoofdstuk 4, en `app/tests/bitimbral.txt`.
+Gemeten op één FM-1: twee partijen van 8 stemmen kosten op twee cores evenveel rekentijd als één partij.
+
 ## Voorstel voor de volgende stappen
 
 Dit zijn voorstellen; ze zijn nog niet geïmplementeerd.

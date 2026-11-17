@@ -8,6 +8,9 @@ o2 = ["dsp/s1_synth.c", "dsp/s1_fx.c", "dsp/s1_patch.c", "dsp/s1_tables.c"]   # 
 words = "words.tsv"
 font_full = ["M"]              # lower case in the medium font: the patches' names
 emu = ["midi"]                 # the emulator's MIDI and SysEx: the page's patch loader (web/emu/app.js) sends through it
+cpu2 = true                    # bitimbral: part R renders on the second core
+cpu2_fallback = true           # a unit whose second core fails keeps playing on one
+cpu2_stack = 8192
 ble = false                    # no radio yet: nothing of JieLi's linked
 # the site
 tagline = "A polysynth with 500 included Synth1 presets"

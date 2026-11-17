@@ -406,6 +406,44 @@ static int arp_next(s1_synth *s)
     return key > 127 ? 127 : key;
 }
 
+static void arp_play_step(s1_synth *s, int step)   /* the next note, for a step of that many frames */
+{
+    if (s->arp_playing >= 0)
+        voice_note_off(s, s->arp_playing);
+    s->arp_playing = arp_next(s);
+    if (P(ARP_GATE) > 0)   /* (m) gate 0 = silent */
+        voice_note_on(s, s->arp_playing, s->arp_vel, 0);
+    else
+        s->arp_playing = -1;
+    s->arp_gate = step * P(ARP_GATE) / 127;
+    if (s->arp_gate < 1)
+        s->arp_gate = 1;
+}
+
+void s1_clock(s1_synth *s, int what)
+{
+    /* the beats of arp_advance in clocks: every one is a whole number of them */
+    static const uint8_t ticks[19] = {96, 84, 72, 48, 42, 36, 32, 24, 21, 18, 16, 12, 9, 8, 6, 4, 3, 2, 1};
+    if (what == S1_CLOCK_OFF) {
+        s->arp_ext = 0;
+        s->arp_count = 0;
+        return;
+    }
+    if (what == S1_CLOCK_START) {        /* the pattern from its top, on the bar (the first clock steps it) */
+        s->clk_pos = 0;
+        s->arp_step = -1;
+        s->arp_dir = 1;
+        return;
+    }
+    s->arp_ext = 1;
+    if (P(ARP_ON) && s->arp_n > 0) {
+        const int t = ticks[s1_clampi(P(ARP_BEAT), 0, 18)];
+        if (s->clk_pos % (uint32_t)t == 0u)
+            arp_play_step(s, (int)((float)t * 2.5f / s->tempo * s->cfg.sample_rate));
+    }
+    s->clk_pos++;
+}
+
 static void arp_advance(s1_synth *s, int elapsed)
 {
     static const float beats[19] = {4.0f, 3.5f, 3.0f, 2.0f, 1.75f, 1.5f, 4.0f / 3, 1.0f, 0.875f, 0.75f,
@@ -418,6 +456,10 @@ static void arp_advance(s1_synth *s, int elapsed)
         voice_note_off(s, s->arp_playing);
         s->arp_playing = -1;
     }
+    if (s->arp_ext) {                    /* s1_clock steps it */
+        s->arp_count = 0;
+        return;
+    }
     if (s->arp_count <= 0 && s->arp_n > 0) {
         int step;
         s->arp_acc += beats[s1_clampi(P(ARP_BEAT), 0, 18)] * 60.0f / s->tempo * s->cfg.sample_rate;
@@ -425,17 +467,8 @@ static void arp_advance(s1_synth *s, int elapsed)
         if (step < 1)
             step = 1;
         s->arp_acc -= (float)step;
-        if (s->arp_playing >= 0)
-            voice_note_off(s, s->arp_playing);
-        s->arp_playing = arp_next(s);
-        if (P(ARP_GATE) > 0)   /* (m) gate 0 = silent */
-            voice_note_on(s, s->arp_playing, s->arp_vel, 0);
-        else
-            s->arp_playing = -1;
+        arp_play_step(s, step);
         s->arp_count += step;
-        s->arp_gate = step * P(ARP_GATE) / 127;
-        if (s->arp_gate < 1)
-            s->arp_gate = 1;
     }
 }
 

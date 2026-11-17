@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+**Bitimbral: two sounds at once, made for the Novation Circuit Tracks.**
+
+- **Two parts, L and R**, each with its own patch, arpeggiator, HOLD/Drone and effects. Part R renders on the
+  FM-1's second processor core, so each part has the voices one SY1 had. An FM-1 whose second core does not run
+  plays both on one. Standard mode is SY1 as before and does not use the second core.
+- **OCT- and OCT+ together** switch between standard and bitimbral. In bitimbral a tap on OCT- or OCT+ puts the
+  panel and the keys on L or R (its light on; PLAY green for L, red for R); holding one moves the octave.
+- **Output: SPLIT** (L left, R right, each mono, for two inputs of a mixer or the Circuit), **STEREO**, or
+  **DOUBLE** (every note plays both patches). GLO's new last subpage has the mode, the output and the parts' MIDI
+  channels (3 and 4 to begin with, the Circuit Tracks' MIDI tracks).
+- **The Circuit's eight macro knobs** move what their labels say (controllers 1, 2, 5, 11, 71, 74, 12, 13), from
+  the patch as it is in the knob's middle, gliding, with the knob, its parameter and value on the screen.
+- **The arpeggiator steps on the MIDI clock**, counted from Start, instead of following a measured tempo.
+- Each part keeps its own category, octave, VOICES limit, Drone mode and panel page; the tempo is shared.
+- Settings grow from 16 to 24 bytes; older settings load as they are. An older SY1 installed over this one starts
+  with default settings (the patches stay).
+- `tools/sy1_send.py` asks again when an answer is lost over USB.
+
+Validation: `make test`, `make test-app`, the simulator scripts with the new `app/tests/bitimbral.txt` (mode,
+parts, channels, outputs, knobs, lights, clock). On one FM-1: the load of two parts on two cores and on one,
+the mode switch, the part switch and the channel routing. **Not yet on the FM-1:** DOUBLE, the knobs with a real
+Circuit, the arpeggiator against a real clock, and a long run of the second core.
+
 **The Patch Manager becomes a librarian for the FM-1's 1,024 user slots.**
 
 - Two panes: the library on the left, **My FM-1** on the right, with a map of all 1,024 slots coloured by

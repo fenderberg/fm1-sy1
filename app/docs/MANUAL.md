@@ -121,7 +121,8 @@ further. This navigation memory is not written to flash. A restart begins on HOM
 The screen reader announces the subpage and the same displayed value/unit when you turn a knob. Read whole
 screen also includes the four controls and the current playing state. Animations do not generate spoken updates.
 
-PLAY silences every note. OCT- and OCT+ move the keys by an octave.
+PLAY silences every note. OCT- and OCT+ move the keys by an octave. Pressed together they switch between standard
+and bitimbral (below).
 
 ### Arp, HOLD and Drone
 
@@ -142,6 +143,55 @@ sustain still decays naturally. There is no sequencer or note recording.
 
 VOICES, on the Play and Voice pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about
 seven. When the processor runs out of time, SY1 lowers it by one and says CPU FULL.
+
+### Bitimbral: two sounds, for a Novation Circuit Tracks
+
+SY1 has two modes. **Standard** is one sound on every MIDI channel. **Bitimbral** is two parts, **L** and **R**,
+each with its own patch, arpeggiator, HOLD/Drone and effects. It is made for the Circuit Tracks' two MIDI tracks
+and two audio inputs, and works with any sequencer or keyboard.
+
+| Control | What it does |
+| --- | --- |
+| **OCT- and OCT+ together** | Standard or bitimbral |
+| **OCT-** (tap, in bitimbral) | The panel and the keys on part **L**. OCT- lights, PLAY is green |
+| **OCT+** (tap, in bitimbral) | The panel and the keys on part **R**. OCT+ lights, PLAY is red |
+| OCT- or OCT+ held half a second (in bitimbral) | The octave |
+| GLO, last subpage (7), KNOB1 | MODE: standard or bitimbral |
+| GLO, last subpage, KNOB2 | OUTPUT: SPLIT, STEREO or DOUBLE |
+| GLO, last subpage, KNOB3 and KNOB4 | The MIDI channels of L and R (3 and 4 to begin with) |
+
+The three outputs:
+
+- **SPLIT:** part L on the left output only, part R on the right only, each in mono, effects included. With a
+  stereo-to-two-mono cable each part reaches its own input of the Circuit, to mix and mute there.
+- **STEREO:** both parts in stereo on both outputs.
+- **DOUBLE:** every note plays both parts at once, in stereo: two patches layered.
+
+Everything the panel does (PRESETS, ALGORITHM, the pages, ARP, SEQ, SAVE, REC) acts on the part it is on; the top
+of the screen shows `L` or `R` and the output. The parts are two synths: each keeps its own patch, category,
+octave, VOICES limit, Drone mode and the page the panel was on. Only the tempo is shared. Each part plays up to VOICES voices: part R is rendered by the
+FM-1's second processor core, so a second sound does not take voices from the first. On an FM-1 whose second core
+does not run, the two parts share one core and the overload protection lowers VOICES as usual. Part R's delay
+line is half as long as part L's: an echo longer than 0.37 s plays at half its time. The mode, the output, the
+channels and both patches are remembered. Changing the mode, the output or a channel stops the notes.
+
+**The Circuit's eight knobs.** In bitimbral, with the Circuit Tracks' factory MIDI template on its MIDI tracks,
+each macro knob moves what its label says on the part of its channel. The knob in the middle is the patch as it
+is; turning either way adds to it or takes from it, and a new patch starts from the middle again. The screen
+names the knob, what it moves and the value.
+
+| Circuit knob | Controller | SY1 |
+| --- | --- | --- |
+| 1 OSCILLATOR | 1 | The balance of the two oscillators |
+| 2 OSC MOD | 2 | Detune: the detuned copies, and oscillator 2 a little |
+| 3 AMP ENV | 5 | Amp release and decay (the attack stays) |
+| 4 FILTER ENV | 11 | Filter envelope amount, and a little of its decay |
+| 5 FILTER FREQ | 71 | Cutoff |
+| 6 RESONANCE | 74 | Resonance |
+| 7 MODULATION | 12 | LFO 1's depth (above the middle LFO 1 is switched on) |
+| 8 FX | 13 | The delay's level (above the middle the delay is switched on) |
+
+In standard mode these controllers do what the patch routes them to, as before.
 
 ## 5. Loading your own patches
 
@@ -209,8 +259,13 @@ MIDI comes in over USB and the TRS jack. SY1 plays notes with velocity, pitch be
 channel pressure. The modulation wheel and other controllers do what the patch routes them to. A program change
 selects the patch of that number. A MIDI clock sets the tempo of the arpeggiator, the delay and the LFOs that
 are synced to the tempo. After two seconds without clock ticks SY1 returns to the internal tempo.
-MIDI Stop releases all notes and disables hold/drone. The arp follows the clock's measured tempo; it does not
-yet align its step phase to the external transport grid.
+MIDI Stop releases all notes and disables hold/drone. With a clock coming in, the arpeggiator steps on the clock
+itself, counted from MIDI Start: it stays on the sequencer's grid, a new chord begins on the next step, and Start
+plays the pattern from its top.
+
+In standard mode SY1 listens on every channel. In bitimbral, part L listens on channel 3 and part R on channel 4
+(the Circuit Tracks' MIDI 1 and MIDI 2; GLO's last subpage changes them) and other channels are ignored. In DOUBLE
+the notes of either channel play both parts; controllers, pitch bend and program changes stay with their part.
 
 The FM-1's own keys also go out as notes over USB.
 

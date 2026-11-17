@@ -37,15 +37,18 @@ def find_port(names, want):
 
 def ask(out, inp, data, answer, timeout):
     """a frame out (the bytes between F0 and F7), its answer back: the bytes after the command, or None"""
-    for _ in inp.iter_pending():
-        pass
-    out.send(mido.Message("sysex", data=data))
-    end = time.time() + timeout
-    while time.time() < end:
-        for m in inp.iter_pending():
-            if m.type == "sysex" and list(m.data[:4]) == HEAD and len(m.data) > 4 and m.data[4] == answer:
-                return list(m.data[5:])
-        time.sleep(0.005)
+    # about one exchange in fifty is lost over USB: every frame here is safe to send again (a count, an erase, one
+    # slot written with the same patch), so ask up to three times
+    for _ in range(3):
+        for _ in inp.iter_pending():
+            pass
+        out.send(mido.Message("sysex", data=data))
+        end = time.time() + timeout
+        while time.time() < end:
+            for m in inp.iter_pending():
+                if m.type == "sysex" and list(m.data[:4]) == HEAD and len(m.data) > 4 and m.data[4] == answer:
+                    return list(m.data[5:])
+            time.sleep(0.005)
     return None
 
 
