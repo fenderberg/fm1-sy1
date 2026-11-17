@@ -345,7 +345,8 @@ sysex F0 7D 53 59 31 08 01 02 F7
 wait 100
 expect mode 1
 expect layout 2
-expect_sysex F0 7D 53 59 31 48 01 02 00 F7
+# (mode, output, the panel's part, the channels less one, then the user slot + 1 each part plays: 0, built-ins)
+expect_sysex F0 7D 53 59 31 48 01 02 00 02 03 00 00 00 00 F7
 sysex F0 7D 53 59 31 08 7F 00 F7
 wait 100
 expect mode 1

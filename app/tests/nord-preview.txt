@@ -84,6 +84,7 @@ expect row 1
 turn K3 1
 expect tempo 121
 tap HOME
+turn SELECT -20
 expect row 0
 expect ux_focus -1
 turn K1 100
