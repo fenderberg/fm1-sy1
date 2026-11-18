@@ -50,7 +50,7 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
 #pm .prow .ic { flex: none; width: 28px; height: 28px; padding: 0; background: none; border-color: transparent; color: var(--muted); font-size: 13px; }
 #pm .prow .ic:hover:not(:disabled) { border-color: #5a5d5e; color: var(--ink); }
 #pm .prow .ic.on { color: var(--amber); }
-#pm .prow select { flex: none; width: 72px; padding: 2px 4px; font-size: 11px; background: none; border-color: transparent; color: var(--muted); }
+#pm .prow select { flex: none; width: 126px; padding: 2px 4px; font-size: 11px; background: none; border-color: transparent; color: var(--muted); }
 #pm .prow select:hover:not(:disabled) { border-color: #5a5d5e; }
 #pm .prow input.rename { flex: 1.5 1 0; padding: 3px 6px; }
 #pm .badge { flex: none; width: 62px; font: 10px ui-monospace, monospace; text-align: center; border-radius: 3px; padding: 2px 0; font-variant-numeric: tabular-nums; }
@@ -72,6 +72,8 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
 /* The characters' colours: after the map's plain squares, and as specific, so a used slot shows its own. */
 #pm i.c0 { background: var(--c0); } #pm i.c1 { background: var(--c1); } #pm i.c2 { background: var(--c2); } #pm i.c3 { background: var(--c3); }
 #pm i.c4 { background: var(--c4); } #pm i.c5 { background: var(--c5); } #pm i.c6 { background: var(--c6); } #pm i.c7 { background: var(--c7); }
+#pm i.c8 { background: #e85c70; } #pm i.c9 { background: #a9c961; } #pm i.c10 { background: #e2a036; }
+#pm i.c11 { background: #8e92de; } #pm i.c12 { background: #d876ab; }
 #pm .slotmap i.pend { outline: 1px solid var(--ink); outline-offset: -1px; }
 #pm .slotmap i.hit { outline: 2px solid #fff; position: relative; z-index: 1; }
 #pm .slotmap i.dim { opacity: .22; }

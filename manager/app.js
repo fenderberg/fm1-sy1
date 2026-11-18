@@ -1,8 +1,8 @@
 // The Patch Manager: a library on the left, the FM-1's 1,024 user slots on the right.
 // Every edit is staged in the browser; MIDI writes happen only through the explicit Sync action.
 import { parseSy1, unzipSy1 } from '../emu/app_own.js';
-import { CATEGORIES, category, fold, patchName, bankName, asciiName, RECORD, PART, recordFrom, withMeta, recordName,
-  recordCategory, recordKey, fullKey, packFrame, unpack7, insertAt, appendSlots, arrange, changes } from './library.js';
+import { CATEGORIES, CATEGORY_ORDER, compareCategory, category, fold, patchName, bankName, asciiName, RECORD, PART, recordFrom, withMeta, recordName,
+  recordCategory, recordKey, fullKey, packFrame, unpack7, insertAt, appendSlots, arrange, changes } from './library.js?v=categories13';
 
 const $ = id => document.getElementById(id);
 const HEAD = [0xf0,0x7d,0x53,0x59,0x31], SLOTS = 1024, ROW = 36;
@@ -71,7 +71,7 @@ const drawDev = vlist($('dlist'), () => dview.length, (k, y) => {
   const s = dview[k], it = slots[s], st = status(s), badge = st ? `<span class="badge ${st[0]}">${st[1]}</span>` : '<span class="badge"></span>';
   if (!it) return `<div class="prow empty${st ? ' gone' : ''}" style="top:${y}px" data-k="${k}"><span class="no">${pad(s + 1)}</span><span class="nm">${st ? esc(base[s].name) : 'empty'}</span>${badge}</div>`;
   const sel = dsel.has(it.uid), name = esc(it.name), fixed = it.locked || busy ? ' disabled' : '';
-  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORIES.map((c, i) => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${c}</option>`).join('')}</select>${partButtons(s, it, name)}<button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
+  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORY_ORDER.map(i => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${esc(CATEGORIES[i])}</option>`).join('')}</select>${partButtons(s, it, name)}<button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
 });
 /** Play this slot on the FM-1: on part L, or in bitimbral on L or R. Only a slot the FM-1 already holds. */
 function partButtons(s, it, name) {
@@ -84,17 +84,17 @@ $('llist').dataset.none = 'No sounds match. Try another search, bank or characte
 
 function chips(el, counts, active, extra = '') {
   el.innerHTML = `<button type="button" class="chip" data-cat="-1" aria-pressed="${active < 0}">All</button>` +
-    CATEGORIES.map((c, i) => `<button type="button" class="chip" data-cat="${i}" aria-pressed="${active === i}"><i class="dot c${i}"></i>${c} <b>${num(counts[i])}</b></button>`).join('') + extra;
+    CATEGORY_ORDER.map(i => `<button type="button" class="chip" data-cat="${i}" aria-pressed="${active === i}"><i class="dot c${i}"></i>${esc(CATEGORIES[i])} <b>${num(counts[i])}</b></button>`).join('') + extra;
 }
 function filterLib() {
-  const words = fold($('search').value).split(/\s+/).filter(Boolean), bank = $('bank').value, sort = $('lsort').value, counts = new Array(8).fill(0);
+  const words = fold($('search').value).split(/\s+/).filter(Boolean), bank = $('bank').value, sort = $('lsort').value, counts = new Array(CATEGORIES.length).fill(0);
   lview = [];
   for (const p of entries) {
     if (bank && p.bank !== bank || lfav && !favorites.has(p.id) || lnew && libSlot.has(p.id) || lfactory && !factoryIds.has(p.id) || !words.every(w => p.search.includes(w))) continue;
     counts[p.cat]++; if (lcat < 0 || p.cat === lcat) lview.push(p);
   }
   const byName = (a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : a.n - b.n;
-  if (sort === 'name') lview.sort(byName); else if (sort === 'cat') lview.sort((a, b) => a.cat - b.cat || byName(a, b));
+  if (sort === 'name') lview.sort(byName); else if (sort === 'cat') lview.sort((a, b) => compareCategory(a.cat, b.cat) || byName(a, b));
   chips($('lchips'), counts, lcat, `<button type="button" class="chip" data-tog="fav" aria-pressed="${lfav}">★ Favourites</button><button type="button" class="chip" data-tog="new" aria-pressed="${lnew}">Not on my FM-1</button><button type="button" class="chip" data-tog="factory" id="factory-only" aria-pressed="${lfactory}"${factoryIds.size ? '' : ' disabled'}>Factory ${factoryIds.size || ''}</button>`);
   $('lcount').textContent = `${num(lview.length)} of ${num(entries.length)} sounds`;
   const b = banks.get(bank); $('bank-info').hidden = !b;
@@ -105,7 +105,7 @@ function filterLib() {
   drawLib();
 }
 function filterDev() {
-  const words = fold($('dq').value).split(/\s+/).filter(Boolean), empty = $('dempty').checked, pend = $('dpend').checked, counts = new Array(8).fill(0), filtering = words.length > 0 || dcat >= 0;
+  const words = fold($('dq').value).split(/\s+/).filter(Boolean), empty = $('dempty').checked, pend = $('dpend').checked, counts = new Array(CATEGORIES.length).fill(0), filtering = words.length > 0 || dcat >= 0;
   dview = []; let used = 0;
   for (let s = 0; s < SLOTS; s++) {
     const it = slots[s];
@@ -150,12 +150,13 @@ function refresh() {
 
 // ---- the library: the hosted catalogue and local imports
 function addEntry(p, bank) {
-  const e = {...p, bank: bank.id, n: entries.length, cat: Math.max(0, CATEGORIES.indexOf(p.category)), k: fold(p.name), search: fold(`${p.name} ${bank.name} ${bank.author} ${p.category}`)};
+  const character = CATEGORIES.includes(p.category) ? p.category : category(p.name);
+  const e = {...p, bank: bank.id, n: entries.length, cat: CATEGORIES.indexOf(character), k: fold(p.name), search: fold(`${p.name} ${bank.name} ${bank.author} ${character}`)};
   entries.push(e); byId.set(e.id, e);
 }
 async function catalogue() {
   try {
-    const r = await fetch('../library/catalog.json'); if (!r.ok) throw new Error('Catalogue unavailable');
+    const r = await fetch('../library/catalog.json?v=categories13'); if (!r.ok) throw new Error('Catalogue unavailable');
     const data = await r.json();
     try {
       const response = await fetch('../library/factory500.json');
@@ -370,7 +371,10 @@ function adopt(device) {
 function fromLibrary(list) {
   const fresh = list.filter(p => !libSlot.has(p.id));
   if (fresh.length < list.length) toast(`${list.length - fresh.length} already on your FM-1, skipped.`);
-  return fresh.map(p => newItem(asciiName(p.name), p.cat, {entry: p}));
+  return fresh.map(p => {
+    const name = asciiName(p.name);
+    return newItem(name, p.cat, {entry: p, explicit: category(name) !== CATEGORIES[p.cat]});
+  });
 }
 const selectedEntries = () => { const seen = new Set(lview.filter(p => lsel.has(p.id))); return [...seen, ...[...lsel].map(id => byId.get(id)).filter(p => p && !seen.has(p))]; };
 function addSelected() {
@@ -381,7 +385,11 @@ function addSelected() {
 }
 const selectedSlots = () => [...dsel].map(u => curSlot.get(u)).sort((a, b) => a - b);
 const lastUsed = () => { let last = -1; slots.forEach((it, s) => { if (it) last = s; }); return last; };
-function edit(s, change) { const next = slots.slice(); next[s] = {...slots[s], ...change}; commit(next); }
+function edit(s, change) {
+  const next = slots.slice(), it = {...slots[s], ...change};
+  if (change.name && !it.explicit) it.cat = CATEGORIES.indexOf(category(it.name));
+  next[s] = it; commit(next);
+}
 function pick(sel, keys, k, e, anchor) {
   const key = keys[k]; if (key == null) return anchor;
   if (e.shiftKey) { for (let i = Math.min(anchor, k); i <= Math.max(anchor, k); i++) if (keys[i] != null) sel.add(keys[i]); return anchor; }
@@ -478,7 +486,7 @@ function stageSet(set) {
     if (!Number.isInteger(o.s) || o.s < 0 || o.s >= SLOTS || typeof o.n !== 'string') { missing++; continue; }
     let rec = null, entry = null; try { if (o.r) { rec = unb64(o.r); if (rec.length !== RECORD) rec = null; } else entry = byId.get(o.e) || null; } catch { rec = null; }
     if (!rec && !entry) { missing++; continue; }
-    const explicit = o.c >= 0 && o.c < 8, name = asciiName(o.n), it = {name, explicit, cat: explicit ? o.c : Math.max(0, CATEGORIES.indexOf(category(name))), rec, entry: entry || (rec && byId.get(known[recordKey(rec)])) || null, locked: false};
+    const explicit = Number.isInteger(o.c) && o.c >= 0 && o.c < CATEGORIES.length, name = asciiName(o.n), it = {name, explicit, cat: explicit ? o.c : Math.max(0, CATEGORIES.indexOf(category(name))), rec, entry: entry || (rec && byId.get(known[recordKey(rec)])) || null, locked: false};
     const k = sig(it), here = base[o.s] && sig(base[o.s]) === k ? take(k, base[o.s]) : null;
     if (here) out[o.s] = here; else later.push([o.s, k, it]);
   }
