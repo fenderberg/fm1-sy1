@@ -7,18 +7,36 @@ fm1-base owns the firmware installer, manual conversion and emulator packaging.
 This app-owned layer adds SY1's design without modifying the base submodule.
 """
 import html
+import csv
+import io
 import json
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "app" / "site"
 PAGES = (("", "Overview"), ("emu", "Play"), ("manager", "Patch Manager"),
          ("install", "Install"), ("manual", "Manual"))
 SOURCE = "https://github.com/fenderberg/fm1-sy1"
+
+
+def bundle_library(directory, catalog):
+    index = io.StringIO(newline="")
+    rows = csv.writer(index)
+    rows.writerow(("Bank", "Author", "Patch", "Category", "Bank ZIP", "Patch file", "Patch ID"))
+    with ZipFile(directory / "sy1-community-library.zip", "w") as bundle:
+        for bank in catalog["banks"]:
+            filename = f'banks/{bank["name"]}.zip'
+            bundle.writestr(ZipInfo(filename), (directory / bank["file"]).read_bytes())
+            for patch in bank["patches"]:
+                rows.writerow((bank["name"], bank["author"], patch["name"], patch["category"],
+                               filename, patch["path"], patch["id"]))
+        bundle.writestr(ZipInfo("presets.csv"), index.getvalue().encode("utf-8-sig"), ZIP_DEFLATED)
+        bundle.writestr(ZipInfo("CREDITS.md"), (directory / "CREDITS.md").read_bytes(), ZIP_DEFLATED)
 
 
 def navigation(current, up):
@@ -83,6 +101,7 @@ def main(pkg, version, destination=None):
     document = document.replace("De eerdere pixelproef A", "Back to the manual")
     (screens / "index.html").write_text(document, encoding="utf-8")
     catalog = json.loads((SITE / "library/catalog.json").read_text(encoding="utf-8"))
+    bundle_library(out / "library", catalog)
     landing = (SITE / "index.html").read_text(encoding="utf-8")
     landing = landing.replace("{{PRESET_COUNT}}", f'{catalog["patchCount"]:,}').replace("{{BANK_COUNT}}", str(catalog["bankCount"]))
     landing = landing.replace("{{VERSION}}", html.escape(version)).replace(
