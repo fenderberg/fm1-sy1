@@ -4,12 +4,13 @@ turn ALGO 2
 wait 50
 expect category 2
 expect patch 1
+# the built-in Strings are STRINGS since 0.5: PAD goes on to the factory pads (F023, F024)
 turn PRESET 1
 wait 50
-expect patch 6
+expect patch 1054
 turn PRESET 1
 wait 50
-expect patch 1067
+expect patch 1055
 turn PRESET -2
 expect patch 1
 tap ARP

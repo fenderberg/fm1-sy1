@@ -3,7 +3,7 @@ wait 600
 expect factory 256
 expect count 0
 turn ALGO -1
-expect category 10
+expect category 15
 expect patch 1032
 shot factory-first.png
 listen
@@ -32,11 +32,11 @@ expect dirty 1
 tap SAVE
 expect count 1
 expect patch 8
-expect category 9
+expect category 14
 expect dirty 0
 shot user-copy.png
 turn ALGO 1
-expect category 10
+expect category 15
 expect patch 1032
 expect dirty 0
 shot factory-restored.png

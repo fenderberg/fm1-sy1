@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 #define PLAT_HOST
+#define FM1B_MIDI_STAMP 1
 #include "plat.h"
 #include "app.h"
 
@@ -16,8 +17,11 @@ static uint32_t now_ms, btn_held, keys_held, sysex_n, store_len[OBJ_NOBJ], midi_
 static int32_t enc_turn[NE];
 static uint8_t flash[0x100000], store[OBJ_NOBJ][64], sysex_last[256];
 static uint32_t midi_q[64];
+static uint32_t midi_stamp[64], ticks24;
 
 uint32_t plat_ms(void) { return now_ms; }
+uint32_t plat_ticks24(void) { return ticks24; }
+uint32_t plat_midi_in_t24(void) { return midi_stamp[(midi_r - 1u) & 63u]; }
 uint32_t plat_buttons(void) { return btn_held; }
 int32_t plat_enc(int role) { const int32_t e = enc_turn[role]; enc_turn[role] = 0; return e; }
 void plat_leds(uint32_t buttons, uint32_t keys) { leds_btn = buttons; (void)keys; }
@@ -150,6 +154,7 @@ static void run(uint32_t ms)             /* the FM-1 for ms: a frame every 16 ms
     peak = 0;
     for (t = 0; t < ms; t++) {
         now_ms++;
+        ticks24 += 24000u;
         if (now_ms % 16u == 0)
             app_frame();
         frames_due += 441;               /* 44.1 frames a millisecond, in tenths */
@@ -165,7 +170,11 @@ static void run(uint32_t ms)             /* the FM-1 for ms: a frame every 16 ms
 
 static void tap(uint32_t b) { btn_held |= 1u << b; run(40); btn_held &= ~(1u << b); run(40); }
 static void turn(int e, int32_t d) { enc_turn[e] += d; run(40); }
-static void midi(uint32_t st, uint32_t d1, uint32_t d2) { midi_q[midi_n++ & 63u] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24; }
+static void midi(uint32_t st, uint32_t d1, uint32_t d2)
+{
+    midi_stamp[midi_n & 63u] = ticks24;
+    midi_q[midi_n++ & 63u] = (st >> 4) | st << 8 | d1 << 16 | d2 << 24;
+}
 static void power_on(void)
 {
     memset(&ui, 0, sizeof ui);
@@ -252,21 +261,34 @@ static void test_live_controls(void)
     CHECK(set.category == CAT_BASS && cur_index == 0, "ALGORITHM did not choose BASS");
     turn(EN_ALGO, 1);
     CHECK(set.category == CAT_PAD && cur_index == 1, "ALGORITHM did not choose first PAD");
-    turn(EN_PRESET, 1);
-    CHECK(cur_index == 6, "PAD browsing did not select Strings");
-    turn(EN_PRESET, 1);
+    turn(EN_PRESET, 1);                 /* the built-in Strings are STRINGS now: on to the factory pads */
     CHECK(factory500_has(cur_index) && cur_category == CAT_PAD, "PAD browsing missed factory pads");
     turn(EN_PRESET, -1);
-    CHECK(cur_index == 6, "PAD browsing backwards left category");
+    CHECK(cur_index == 1, "PAD browsing backwards left category");
     turn(EN_ALGO, 4);                   /* LEAD, KEYS, PLUCK, ARP */
     CHECK(set.category == CAT_ARP && cur_index == 7, "category traversal gave %u patch %u", set.category, cur_index);
-    turn(EN_ALGO, 1);
-    CHECK(set.category == CAT_FX, "factory FX category was skipped");
-    turn(EN_ALGO,1);CHECK(set.category == CAT_OTHER,"factory Other category was skipped");
+    {
+        /* then the Patch Manager's order: the instruments, FX and OTHER, each with factory sounds */
+        static const uint8_t next[] = {CAT_DRUMS, CAT_STRINGS, CAT_BRASS, CAT_ORGAN, CAT_VOCAL, CAT_FX, CAT_OTHER};
+        for (k = 0; k < sizeof next; k++) {
+            turn(EN_ALGO, 1);
+            CHECK(set.category == next[k] && cur_category == next[k], "category %u was skipped (at %u)", next[k], set.category);
+        }
+    }
     turn(EN_ALGO,1);CHECK(set.category == CAT_FACTORY,"empty USER was not skipped for FACTORY");
     turn(EN_ALGO,1);CHECK(set.category == CAT_ALL,"FACTORY did not wrap to ALL");
-    CHECK(category_guess("deep bass") == CAT_BASS && category_guess("STRINGS 1") == CAT_PAD &&
+    CHECK(category_guess("deep bass") == CAT_BASS && category_guess("STRINGS 1") == CAT_STRINGS &&
           category_guess("unknown") == CAT_OTHER, "legacy names not classified");
+    /* the Patch Manager's rules (app/site/manager/library.js): whole words, camelCase, the order of the tests */
+    CHECK(category_guess("FM Bell") == CAT_PLUCK && category_guess("HARPSICHORD 001") == CAT_KEYS &&
+          category_guess("HARPEGGIO 001") == CAT_ARP && category_guess("909 KICK 002") == CAT_DRUMS &&
+          category_guess("Sharp Arp") == CAT_ARP && category_guess("SharpTone") == CAT_OTHER &&
+          category_guess("Bassoon") == CAT_BRASS && category_guess("HardKick") == CAT_DRUMS &&
+          category_guess("ELECTRO CELLO 001") == CAT_STRINGS && category_guess("FM JAZZ ORGAN 001") == CAT_ORGAN &&
+          category_guess("Fairy Voice") == CAT_VOCAL && category_guess("Organ Pad") == CAT_PAD &&
+          category_guess("EP Thing") == CAT_KEYS && category_guess("Step 3") == CAT_OTHER &&
+          category_guess("LEAD2") == CAT_LEAD && category_guess("NOISE PERC 001") == CAT_DRUMS,
+          "names not classified as the Patch Manager does");
 
     bank_pack(&cur, rec);
     memcpy(rec + 4, "Unknown", 8);
@@ -278,7 +300,8 @@ static void test_live_controls(void)
     tap(B_HOME);
     turn(EN_SELECT, -10);              /* pages now remember their last row */
     turn(EN_SELECT, 4);                /* PLAY / SPREAD: the patch's category on KNOB4 */
-    turn(EN_K4, -3);                   /* accelerate 9 steps: OTHER -> BASS */
+    turn(EN_K4, -3);                   /* accelerated, in the browser's order: OTHER .. down to BASS */
+    turn(EN_K4, -3);
     CHECK(cur_category == CAT_BASS && cur_dirty, "manual category could not be edited");
     tap(B_SAVE);
     CHECK(bank_category[20] == CAT_BASS && bank_rec(20)[3] == CAT_MARK, "saved category missing");
@@ -601,10 +624,14 @@ static void test_factory500(void)
     }
     printf("  factory render: %u / %u audible, all finite; maximum pre-limiter peak %.2f\n",audible,(unsigned)FACTORY500_COUNT,(double)factory_peak);
     CHECK(audible==FACTORY500_COUNT,"factory selection contains %u inaudible sounds",(unsigned)FACTORY500_COUNT-audible);
-    CHECK(counts[CAT_BASS]==35 && counts[CAT_PAD]==35 && counts[CAT_LEAD]==34 && counts[CAT_KEYS]==34 &&
-          counts[CAT_PLUCK]==34 && counts[CAT_ARP]==34 && counts[CAT_FX]==34 && counts[CAT_OTHER]==16,
+    CHECK(counts[CAT_BASS]==22 && counts[CAT_PAD]==22 && counts[CAT_LEAD]==22 && counts[CAT_KEYS]==22 &&
+          counts[CAT_PLUCK]==22 && counts[CAT_ARP]==22 && counts[CAT_DRUMS]==22 && counts[CAT_STRINGS]==22 &&
+          counts[CAT_BRASS]==21 && counts[CAT_ORGAN]==21 && counts[CAT_VOCAL]==9 && counts[CAT_FX]==21 &&
+          counts[CAT_OTHER]==8 && !counts[CAT_ALL] && !counts[CAT_USER] && !counts[CAT_FACTORY],
           "factory category balance changed");
-    for(i=0;i<FACTORY500_COUNT;i++)CHECK(FACTORY500[i][3]==CAT_MARK && FACTORY500[i][2]>=CAT_BASS && FACTORY500[i][2]<=CAT_OTHER,
+    for(i=1;i<FACTORY500_COUNT;i++)CHECK(category_position(FACTORY500[i][2])>=category_position(FACTORY500[i-1][2]),
+                                         "factory %u is out of the browser's category order",i);
+    for(i=0;i<FACTORY500_COUNT;i++)CHECK(FACTORY500[i][3]==CAT_MARK && FACTORY500[i][2]>=CAT_BASS && FACTORY500[i][2]<=CAT_LAST,
                                          "factory %u has no explicit category",i);
     memset(flash,0xFF,sizeof flash);memset(store_len,0,sizeof store_len);power_on();
     CHECK(bank_count==0,"factory sounds consumed user storage");
@@ -634,6 +661,152 @@ static void test_factory500(void)
     set.category=CAT_FACTORY;patch_select(FACTORY500_BASE);tap(B_SAVE);
     CHECK(factory500_has(cur_index) && bank_count==BANK_SLOTS && !strcmp(ui.msg[1],"BANK FULL"),"full user bank allowed factory overwrite");
     CHECK(bank_used(0) && bank_used(1023),"full-bank SAVE damaged user slots");
+}
+
+static void test_circuit_macros(void)
+{
+    /* Hardware specification, independent of MACRO_CC: Circuit Tracks' default template in knob order. */
+    static const uint8_t cc[8] = {1, 2, 5, 11, 12, 13, 71, 74};
+    static const uint8_t parameter[8] = {S1P_OSC_MIX, S1P_OSC1_DETUNE, S1P_AMP_RELEASE,
+        S1P_FILTER_AMOUNT, S1P_FILTER_FREQ, S1P_FILTER_RES, S1P_LFO1_DEPTH, S1P_DELAY_DRY_WET};
+    int32_t values[S1_NPARAMS], other_values[S1_NPARAMS];
+    uint32_t p, state, knob, i;
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    mode_set(1);
+    run(50);
+    for (i = 0; i < S1_NPARAMS; i++) values[i] = s1_param_def[i];
+    for (i = 0; i < 8; i++) values[parameter[i]] = 64;
+    values[S1P_ARP_ON] = values[S1P_UNISON_ON] = values[S1P_PLAY_MODE] = 0;
+    values[S1P_LFO1_ON] = values[S1P_DELAY_ON] = 0;
+    values[S1P_AMP_ATTACK] = 0;
+    values[S1P_AMP_SUSTAIN] = 127;
+    for (p = 0; p < 2; p++)
+        for (state = 0; state < 3; state++)  /* silent, held, and released */
+            for (knob = 0; knob < 8; knob++) {
+                s1_synth *const part = PART[p];
+                s1_voice before[S1_MAX_VOICES];
+                uint32_t notes = midi_notes;
+                s1_set_patch(part, values);
+                macro_patch(p, values);
+                if (state) {
+                    s1_note_on(part, 60, 100);
+                    s1_render(part, buf_l, buf_r, APP_BLOCK);
+                    if (state == 2) s1_note_off(part, 60);
+                }
+                memcpy(before, part->voice, sizeof before);
+                memcpy(other_values, PART[p ^ 1u]->base, sizeof other_values);
+                midi_event((0xB0u | w_ch[p]) << 8 | (uint32_t)cc[knob] << 16 | 127u << 24);
+                for (i = 0; i < 24; i++) macro_run(p);
+                CHECK(s1_get_param(part, parameter[knob]) == 127,
+                      "Circuit knob %u (CC%u) did not reach its parameter on part %u",
+                      (unsigned)knob + 1, cc[knob], (unsigned)p);
+                CHECK(!memcmp(before, part->voice, sizeof before) && midi_notes == notes,
+                      "Circuit knob %u changed a voice/envelope or generated a note", (unsigned)knob + 1);
+                CHECK(!memcmp(other_values, PART[p ^ 1u]->base, sizeof other_values),
+                      "Circuit knob changed the other part");
+                CHECK(s1_get_param(part, S1P_FILTER_FREQ) == (knob == 4 ? 127 : 64),
+                      "Circuit knob %u unexpectedly swept the cutoff", (unsigned)knob + 1);
+                CHECK(s1_get_param(part, S1P_FILTER_RES) == (knob == 5 ? 127 : 64),
+                      "Circuit knob %u unexpectedly changed resonance", (unsigned)knob + 1);
+                CHECK(s1_get_param(part, S1P_LFO1_ON) == (knob == 6) &&
+                      s1_get_param(part, S1P_DELAY_ON) == (knob == 7),
+                      "Circuit knob %u enabled the wrong modulation/effect", (unsigned)knob + 1);
+                s1_render(part, buf_l, buf_r, APP_BLOCK);
+                for (i = 0; i < S1_MAX_VOICES; i++)
+                    CHECK(part->voice[i].age == before[i].age &&
+                          (!part->voice[i].gate || before[i].gate),
+                          "Circuit knob retriggered voice %u while rendering", (unsigned)i);
+            }
+    mode_set(0);
+    run(50);
+    s1_set_patch(&synth, values);
+    midi_event(0xB0u << 8 | 12u << 16 | 127u << 24);
+    CHECK(synth.cc[12] == 127 && s1_get_param(&synth, S1P_FILTER_FREQ) == 64,
+          "standard mode unexpectedly used the Circuit macro mapping");
+}
+
+static void test_midi_timing(void)
+{
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    s1_set_param(&synth, S1P_ARP_ON, 0);
+    s1_set_param(&synth, S1P_PLAY_MODE, 0);
+    s1_set_param(&synth, S1P_UNISON_ON, 0);
+    s1_set_param(&synth, S1P_POLYPHONY, 2);
+    synth.now = UINT32_MAX - 127u;
+    /* One block spans both the 24 MHz timer wrap and the 32-bit sample boundary. */
+    ticks24 = UINT32_MAX - 90000u;
+    midi(0x90, 60, 100);
+    ticks24 += 87075u;                  /* 160 frames later */
+    midi(0x90, 64, 100);
+    ticks24 += 26122u;                  /* 48 frames before the render */
+    app_render(audio, APP_BLOCK, 4096);
+    CHECK(synth.voice[0].note == 60 && synth.voice[1].note == 64 &&
+          synth.voice[1].age - synth.voice[0].age == 160u, "two MIDI attacks lost their spacing");
+    midi(0x90, 67, 100);
+    app_render(audio, APP_BLOCK, 4096);
+    CHECK(synth.voice[0].note == 67 && synth.voice[1].note == 64,
+          "voice stealing cut the newest note across the sample counter wrap");
+}
+
+static uint32_t frame_ticks(uint64_t frame)
+{
+    return (uint32_t)(frame * 240000u / 441u);
+}
+
+static void test_external_sixteenths(void)
+{
+    const unsigned bpm = 145, minutes = 18;
+    const unsigned pulses = minutes * bpm * 24u;
+    uint64_t block, onset = 0;
+    unsigned pulse = 0, note = 0, misses = 0, max_error[2] = {0}, wrong_tempo = 0;
+    int32_t values[S1_NPARAMS];
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    memcpy(values, s1_param_def, sizeof values);
+    values[S1P_ARP_ON] = values[S1P_UNISON_ON] = values[S1P_PLAY_MODE] = 0;
+    values[S1P_DELAY_ON] = values[S1P_CHORUS_ON] = values[S1P_EFFECT_ON] = 0;
+    values[S1P_AMP_ATTACK] = values[S1P_AMP_RELEASE] = 0;
+    s1_set_patch(&synth, values);
+    synth.now = 0;
+    ticks24 = 0;
+    midi(0xFA, 0, 0);
+    for (block = 0; pulse < pulses; block += APP_BLOCK) {
+        const uint64_t end = block + APP_BLOCK;
+        int attack = 0;
+        while (pulse < pulses) {
+            const uint64_t frame = (uint64_t)pulse * 60u * 44100u / (24u * bpm);
+            if (frame >= end) break;
+            ticks24 = frame_ticks(frame);
+            midi(0xF8, 0, 0);
+            if (pulse % 6u == 0) {
+                note = 60u + pulse / 6u % 8u;
+                midi(0x90, note, 100);
+                onset = frame;
+                attack = 1;
+            } else if (pulse % 6u == 3u)
+                midi(0x80, note, 0);
+            pulse++;
+        }
+        ticks24 = frame_ticks(end);
+        app_render(audio, APP_BLOCK, 4096);
+        if (attack) {
+            const s1_voice *v = &synth.voice[synth.last_voice];
+            if (!v->gate || v->note != note)
+                misses++;
+            else {
+                const unsigned error = (unsigned)(onset > v->age ? onset - v->age : v->age - onset);
+                const unsigned late_session = onset >= 15u * 60u * 44100u;
+                if (error > max_error[late_session]) max_error[late_session] = error;
+            }
+        }
+        if (pulse > 24u && ext_tempo != bpm) wrong_tempo++;
+    }
+    CHECK(!misses && max_error[0] < S1_CHUNK && max_error[1] < S1_CHUNK,
+          "external sixteenths: %u misses, max onset error %u / %u frames before / after 15 minutes",
+          misses, max_error[0], max_error[1]);
+    CHECK(!wrong_tempo, "steady external clock gave the wrong BPM for %u blocks", wrong_tempo);
 }
 
 int main(void)
@@ -709,7 +882,7 @@ int main(void)
     run(100);
     CHECK(cur_index == 3, "program change 3 gives %u", (unsigned)cur_index);
     for (i = 0; i < 60; i++) {           /* 140 bpm: a tick every 17.857 ms */
-        midi_q[midi_n++ & 63u] = 0x0F | 0xF8u << 8;
+        midi(0xF8, 0, 0);
         run(i % 7 == 6 ? 17 : 18);
     }
     CHECK(ext_tempo >= 137 && ext_tempo <= 143, "MIDI clock at 140 read as %u", (unsigned)ext_tempo);
@@ -834,6 +1007,9 @@ int main(void)
     test_global_page();
     test_randomizer();
     test_factory500();
+    test_circuit_macros();
+    test_midi_timing();
+    test_external_sixteenths();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

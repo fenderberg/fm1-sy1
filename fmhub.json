@@ -1,5 +1,5 @@
 {
-  "what": "A Synth1-inspired polysynth that plays two sounds at once in bitimbral mode: layered, split or on two MIDI channels. 256 presets by category, 1,024 user slots. Two oscillators plus sub, FM, ring mod, sync, four filters, arp, drone and effects. 3,174 more sounds in the Patch Manager.",
+  "what": "A Synth1-inspired polysynth that plays two sounds at once in bitimbral mode: layered, split or on two MIDI channels. 256 presets in 13 categories, 1,024 user slots. Two oscillators plus sub, FM, ring mod, sync, four filters, arp, drone and effects. 3,174 more sounds in the Patch Manager.",
   "author": "Fenderberg",
   "kinds": [
     "synth"
@@ -7,7 +7,7 @@
   "play": "https://fenderberg.github.io/fm1-sy1/emu/",
   "editor": "https://fenderberg.github.io/fm1-sy1/manager/",
   "cheat": "https://fenderberg.github.io/fm1-sy1/manual/",
-  "image": "docs/img/screen-factory-lcd.png",
+  "image": "docs/img/hub-card.png",
   "sounds": "licensed: Synth1 community banks by AZur Studio, Christoph Mueller, Lunatique, Nolwenn, Reinhard Reschner and SOS; CC0 or original author redistribution terms. See app/site/library/CREDITS.md and app/presets/CREDITS.txt.",
   "color": "#FF8A3D"
 }

@@ -23,7 +23,7 @@ noten toevoegen zolang er nog een toets ingedrukt is, daarna begint het volgende
 De release van de oude klank kan doorlopen onder de attack van de nieuwe, binnen de bestaande voice-limiet.
 Arp aan/uit wisselt hetzelfde vastgehouden akkoord tussen hold en drone. Het sustainpedaal blijft onafhankelijk.
 
-Categorieën: ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX, OTHER en USER. Naamherkenning helpt bestaande
+Categorieën (sinds 0.5.0 dezelfde 13 als de Patch Manager): ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, DRUMS, STRINGS, BRASS, ORGAN, VOCAL, FX, OTHER, USER en FACTORY. Naamherkenning helpt bestaande
 banken op weg; handmatig indelen blijft nodig bij namen als "Preset 037". De categorie staat buiten de 99
 Synth1-parameters. Oude patches en bestaande importtools blijven werken.
 

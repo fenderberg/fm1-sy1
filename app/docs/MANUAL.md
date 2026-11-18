@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.4.2** plays two sounds at once in bitimbral mode, keeps everything on GLO out of the patch, and sorts its 256 factory presets evenly into eight categories; bitimbral mode is (two sounds at once, made for a Novation Circuit Tracks) and a Patch Manager that arranges all 1,024 user slots; it keeps the community factory presets and the NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **0.5.0** has a new factory bank: 256 community presets, a cross-section of all 13 sound categories, the same categories the Patch Manager uses. It plays two sounds at once in bitimbral mode (layered, split, or on two MIDI channels), keeps everything on GLOBAL out of the patch, and has a Patch Manager that arranges all 1,024 user slots and the NORD, GREEN LED and GREEN LCD display styles.
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -81,16 +81,21 @@ selected patch, octave, voice limit, tempo, category and drone preference, and s
 
 Turn ALGORITHM to choose a category, and PRESETS for the next or previous patch within it. Both wrap at the
 ends. Empty categories are skipped. ALL contains every patch; USER contains every patch in the user bank. FACTORY contains the 256 bundled community presets.
-The musical categories are BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX and OTHER.
+The 13 sound categories are the Patch Manager's, in its order: BASS, PAD, LEAD, KEYS, PLUCK, ARP, DRUMS, STRINGS, BRASS, ORGAN, VOCAL, FX and OTHER. DRUMS covers drums and percussion,
+BRASS brass and woodwinds, VOCAL voices and choirs. ALGORITHM steps ALL, the 13, USER, FACTORY.
 
 **256 community presets are ready from the first boot**, numbered **F001–F256**. From ALL, turn
 **ALGORITHM left once to FACTORY**, then use PRESETS. No import or USB transfer is needed.
-![F001 FM Slap Bass in the included factory bank, using the Green LCD display](img/screen-factory-lcd.png)
+![The first preset of the included factory bank, using the Green LCD display](img/screen-factory-lcd.png)
 
-Each factory preset has a category, and the bank is shared out nearly evenly: 35 Bass, 35 Pad, 34 Lead, 34 Keys,
-34 Pluck, 34 Arp, 34 FX and 16 Other (drums, brass, sax, flute, horns and chords). A preset is only included when
-its name and its sound agree on the category: a pad has a slow or long envelope, a pluck a short decay without
-sustain, an arpeggio the arpeggiator on. Turn ALGORITHM to a category to browse just those, factory and your own.
+Each factory preset has a category, and the bank is a cross-section of all 13: 22 each of Bass, Pad, Lead, Keys,
+Pluck, Arp, Drums and Strings, 21 each of Brass, Organ and FX, 9 Vocal and 8 Other (chords, hits and poly
+synths). They are numbered in that order: F001–F022 are basses, F023–F044 pads, and so on. A preset is only
+included when its sound agrees with the category its name gives: a pad has a slow or long envelope, a pluck a
+short decay, a drum a hit that dies away, an organ a note held at full level, an arpeggio the arpeggiator on.
+At most two presets come from one name series (VOICES 001, 002 ...), so Vocal has fewer: the library has few
+distinct voices. 211 of the 256 were not in the 0.4 factory bank. Turn ALGORITHM to a category to browse just
+those, factory and your own.
 
 These presets live in program flash and leave the 1,024 user slots available. Existing user slots,
 stored selections and MIDI program numbers are preserved when upgrading.
@@ -205,10 +210,14 @@ names the knob, what it moves and the value.
 | 2 OSC MOD | 2 | Detune: the detuned copies, and oscillator 2 a little |
 | 3 AMP ENV | 5 | Amp release and decay (the attack stays) |
 | 4 FILTER ENV | 11 | Filter envelope amount, and a little of its decay |
-| 5 FILTER FREQ | 71 | Cutoff |
-| 6 RESONANCE | 74 | Resonance |
-| 7 MODULATION | 12 | LFO 1's depth (above the middle LFO 1 is switched on) |
-| 8 FX | 13 | The delay's level (above the middle the delay is switched on) |
+| 5 FILTER FREQ | 12 | Cutoff |
+| 6 RESONANCE | 13 | Resonance |
+| 7 MODULATION | 71 | LFO 1's depth (above the middle LFO 1 is switched on) |
+| 8 FX | 74 | The delay's level (above the middle the delay is switched on) |
+
+These numbers follow the Circuit Tracks' [default MIDI template](https://userguides.novationmusic.com/hc/en-gb/articles/26207128061458-Using-Circuit-Tracks-Synths-MIDI-Tracks-and-Drums).
+Versions through 0.4.2 assigned knobs 5–8 in the wrong order. Recorded knob movements on the Circuit are replayed
+with every pattern loop, including after changing its MIDI template; they keep changing the sound until cleared.
 
 In standard mode these controllers do what the patch routes them to, as before.
 

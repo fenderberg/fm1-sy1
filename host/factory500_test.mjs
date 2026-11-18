@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {unzipEntries,unzipSy1,parseSy1,nameText} from '../app/web/emu/app.js';
-import {classify} from '../tools/factory_pick.mjs';
+import {CATEGORIES,classify} from '../tools/factory_pick.mjs';
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const root=new URL('../',import.meta.url),read=p=>readFile(new URL(p,root));
 const manifest=JSON.parse(await read('app/site/library/factory500.json'));
@@ -28,16 +28,18 @@ for(const [i,p] of manifest.patches.entries()){
  for(let param=0;param<99;param++)assert.equal(record.readUInt16LE(28+param*2),parsed.values[param]&0xffff);
  const original=files.get('patches/'+String(i+1).padStart(3,'0')+'-'+p.bank+'/'+p.path);assert.deepEqual(Buffer.from(original),Buffer.from(raw));
  counts[p.category]=(counts[p.category]||0)+1;
- // name and sound still agree on the category the firmware gets (record[2]: 1 Bass .. 8 Other)
+ // name and sound still agree on the category the firmware gets (record[2]: the Patch Manager's index + 1)
  assert.equal(classify(p.name,parsed.values).category,p.category,p.name);
- assert.equal(['','Bass','Pad','Lead','Keys','Pluck','Arp','FX','Other'][record[2]],p.category);
+ assert.equal(CATEGORIES[record[2]-1],p.category);
 }
-// near even: every category but Other within 2 of the others, Other at most a sixteenth
-const shares=Object.entries(counts).filter(([c])=>c!=='Other').map(([,n])=>n);
-assert.ok(Math.max(...shares)-Math.min(...shares)<=2);assert.ok(counts.Other<=256/16);
+// a cross-section: all 13 categories, the full ones within 2 of each other (a category short of variety, such as
+// Vocal & Choir, has fewer), Other at most a sixteenth
+assert.deepEqual(Object.keys(counts).sort(),[...CATEGORIES].sort());
+const shares=Object.entries(counts).filter(([c,n])=>c!=='Other'&&n>=20).map(([,n])=>n);
+assert.ok(shares.length>=11&&Math.max(...shares)-Math.min(...shares)<=2);assert.ok(counts.Other<=256/16);
 assert.deepEqual(counts,manifest.categories);
 for(const [id,file] of bankNotes)assert.deepEqual(Buffer.from(files.get('readmes/'+id+'/'+file.name)),Buffer.from(file.bytes));
 const credits=await read('app/presets/CREDITS.txt');assert.equal(hash(credits),manifest.creditsSha256);assert.deepEqual(await read('app/site/library/factory500-credits.txt'),credits);
 assert.deepEqual(Buffer.from(files.get('CREDITS.txt')),credits);
 assert.ok(credits.toString().includes('If you want to spread this preset bank around'));
-console.log('Factory: all 256 sounds match source files and firmware records; 27 banks, parameter uniqueness, name-and-sound categories, near-even balance and complete original readmes verified.');
+console.log('Factory: all 256 sounds match source files and firmware records; 27 banks, parameter uniqueness, name-and-sound categories, 13-category balance and complete original readmes verified.');

@@ -230,19 +230,19 @@ expect mode 1
 expect part 0
 expect p19 46
 expect e19 46
-# FILTER FREQ (controller 71) on channel 3 is part L's cutoff: the middle is the patch, the ends add and take 64
-midi B2 47 40
+# FILTER FREQ (knob 5, controller 12 in the default template) on channel 3 is part L's cutoff
+midi B2 0C 40
 wait 100
 expect e19 46
-midi B2 47 7F
+midi B2 0C 7F
 wait 300
 expect e19 109
 expect p19 46
-midi B2 47 00
+midi B2 0C 00
 wait 300
 expect e19 0
 # the panel's edit moves what the knob adds to
-midi B2 47 50
+midi B2 0C 50
 wait 300
 expect e19 62
 tap HOME
@@ -252,7 +252,7 @@ wait 100
 expect p19 47
 expect e19 63
 # channel 4's knob is part R's; L is not touched
-midi B3 4A 7F
+midi B3 0D 7F
 wait 300
 expect e19 63
 tap OCT+
@@ -266,7 +266,7 @@ spin PRESET 1
 wait 400
 expect patch 1
 expect e19 72
-# standard: controller 71 is not a Circuit knob
+# standard: controller 12 is not a Circuit knob
 tap REC
 wait 100
 # the parts' channels: GLO's last row, KNOB 3 and 4

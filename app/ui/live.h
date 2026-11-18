@@ -13,7 +13,8 @@ static volatile ux_live_t ux_audio;
 static ux_live_t ux_live;
 static int16_t ux_lfo_history[2][32];
 static uint8_t ux_lfo_position;
-static uint32_t ux_audio_frames, ux_track_age;
+static uint32_t ux_audio_frames;
+static uint64_t ux_track_age;
 static int32_t ux_track = -1;
 static volatile uint32_t ux_wanted_generation;
 static uint32_t ux_render_generation;
@@ -27,9 +28,9 @@ static void ux_publish(uint32_t frames)
     if (ux_audio_frames < 2940u) return;    /* 44100 / 15; no floating-point timing */
     ux_audio_frames %= 2940u;
     for (i = 0; i < (uint32_t)S->cfg.max_voices; i++)
-        if (S->voice[i].active && (newest < 0 || (int32_t)(S->voice[i].age - S->voice[newest].age) > 0))
+        if (S->voice[i].active && (newest < 0 || S->voice[i].age > S->voice[newest].age))
             newest = (int32_t)i;
-    if (newest >= 0 && (ux_track < 0 || (int32_t)(S->voice[newest].age - ux_track_age) > 0)) {
+    if (newest >= 0 && (ux_track < 0 || S->voice[newest].age > ux_track_age)) {
         ux_track = newest;
         ux_track_age = S->voice[newest].age;
     }

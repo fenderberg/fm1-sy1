@@ -441,7 +441,8 @@ void s1_clock(s1_synth *s, int what)
         if (s->clk_pos % (uint32_t)t == 0u)
             arp_play_step(s, (int)((float)t * 2.5f / s->tempo * s->cfg.sample_rate));
     }
-    s->clk_pos++;
+    if (++s->clk_pos == 2016u)           /* LCM of ticks[]: every division starts a step here */
+        s->clk_pos = 0;
 }
 
 static void arp_advance(s1_synth *s, int elapsed)

@@ -30,7 +30,7 @@ typedef struct { float g, b, x1[2], y1[2]; uint8_t hp, bypass; } s1_onepole;
 
 typedef struct {
     uint8_t active, gate, note, vel, fresh, slot_i, uni_k;
-    uint32_t age;
+    uint64_t age;
     float glide, glide_aim;          /* the pitch now (semitones), and how far past the target a glide aims */
     float uni_semis, pan_l, pan_r;
     float vel_gain, fvel;
@@ -86,7 +86,7 @@ typedef struct s1_synth {
     s1_voice voice[S1_MAX_VOICES];
     s1_lfo lfo[2];
     int last_voice;
-    uint32_t now;
+    uint64_t now;                      /* sample time, shared by voices that start together */
 
     /* keys */
     uint8_t key_down[128], sustained[128], key_vel[128];
@@ -104,7 +104,7 @@ typedef struct s1_synth {
     int arp_count, arp_gate;
     float arp_acc;
     uint8_t arp_ext;                   /* 1: MIDI clock steps the arpeggiator (s1_clock) */
-    uint32_t clk_pos;                  /* clocks since Start */
+    uint32_t clk_pos;                  /* position in the repeating grid of all arp divisions */
     uint32_t rng;
 
     /* effects' state */

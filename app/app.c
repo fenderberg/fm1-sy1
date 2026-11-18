@@ -59,6 +59,7 @@ static void settings_defaults(void)
     set.tempo = 120;
     set.category = CAT_ALL;
     set.drone_replace = 0;
+    set.spare[0] = CAT_COUNT;
 }
 
 /* ----------------------------------------------------------------- engine --- */
@@ -95,7 +96,8 @@ static volatile int32_t want_program[2] = {-1, -1};   /* a program change from M
 static volatile uint32_t ext_tempo;          /* MIDI clock's tempo, 0 none yet */
 static volatile uint8_t shed;                /* the render ran out of time: the main loop lowers the voices */
 static volatile uint32_t midi_notes;         /* notes in from MIDI (the screen's activity mark) */
-static uint32_t clk_n, clk_t0, clk_last;
+static uint32_t clk_n;
+static uint64_t clk_t0, clk_last;
 static uint8_t clk_live;                 /* clocks are coming in: the arpeggiators step on them */
 
 static uint8_t cur_part;                 /* the part the panel is on: 0 L, 1 R (always L in standard mode) */
@@ -121,7 +123,8 @@ static void ev_push_to(uint32_t part, uint32_t type, uint32_t a, int32_t b)
  * middle again. Audio interrupt, but macro_param: the main loop's popup uses it too. */
 #define NMACRO 8u
 typedef struct { uint8_t id; int8_t depth; } mtarget_t;   /* depth: knob units at the knob's end, from its middle */
-static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 71, 74, 12, 13};
+/* Circuit Tracks' default MIDI template, in physical knob order (5..8 are 12, 13, 71, 74). */
+static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 12, 13, 71, 74};
 static const char *const MACRO_NAME[NMACRO] = {"OSCILLATOR", "OSC MOD", "AMP ENV", "FILTER ENV", "FILTER FREQ",
                                                "RESONANCE", "MODULATION", "FX"};
 static const mtarget_t MACRO[NMACRO][2] = {
@@ -296,80 +299,76 @@ static void events(void)                 /* audio interrupt */
     }
 }
 
-static void midi_in(void)                /* audio interrupt: USB, the TRS jack, Bluetooth */
+static void midi_event(uint32_t pkt)
 {
-    uint32_t pkt;
-    int port;
-    while (plat_midi_in(&pkt, &port)) {
-        const uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
-        /* Standard: every channel plays L. Bitimbral: channel 3 is part L, channel 4 part R (the Circuit Tracks'
-         * MIDI 1 and MIDI 2), the other channels are not ours; DOUBLE: the notes of either play both parts */
-        const uint32_t ch = st & 0x0Fu, kind = st & 0xF0u, note = kind == 0x90u || kind == 0x80u;
-        const uint32_t mask = st >= 0xF0u ? 0u : !a_bi ? 1u : ch != w_ch[0] && ch != w_ch[1] ? 0u :
-            note && a_layout == LAY_DOUBLE ? 3u : ch == w_ch[0] ? 1u : 2u;
-        uint32_t p;
-        if (st < 0xF0u) {
-            for (p = 0; p < 2u; p++) {
-                s1_synth *const part = PART[p];
-                if (!(mask & (1u << p)))
-                    continue;
-                switch (kind) {
-                case 0x90u:
-                    if (d2) {
-                        s1_note_on(part, (int)d1, (int)d2);
-                        midi_notes++;
-                        break;
-                    }
-                    /* fall through */
-                case 0x80u: s1_note_off(part, (int)d1); break;
-                case 0xB0u:
-                    if (!a_bi || !macro_cc(p, d1, d2))
-                        s1_control_change(part, (int)d1, (int)d2);
+    const uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
+    /* Standard: every channel plays L. Bitimbral: channel 3 is part L, channel 4 part R (the Circuit Tracks'
+     * MIDI 1 and MIDI 2), the other channels are not ours; DOUBLE: the notes of either play both parts */
+    const uint32_t ch = st & 0x0Fu, kind = st & 0xF0u, note = kind == 0x90u || kind == 0x80u;
+    const uint32_t mask = st >= 0xF0u ? 0u : !a_bi ? 1u : ch != w_ch[0] && ch != w_ch[1] ? 0u :
+        note && a_layout == LAY_DOUBLE ? 3u : ch == w_ch[0] ? 1u : 2u;
+    uint32_t p;
+    if (st < 0xF0u) {
+        for (p = 0; p < 2u; p++) {
+            s1_synth *const part = PART[p];
+            if (!(mask & (1u << p)))
+                continue;
+            switch (kind) {
+            case 0x90u:
+                if (d2) {
+                    s1_note_on(part, (int)d1, (int)d2);
+                    midi_notes++;
                     break;
-                case 0xC0u: want_program[p] = (int32_t)d1; break;
-                case 0xD0u: s1_pressure(part, (int)d1); break;
-                case 0xE0u: s1_pitch_bend(part, (int)(d1 | d2 << 7)); break;
-                default: break;
                 }
+                /* fall through */
+            case 0x80u: s1_note_off(part, (int)d1); break;
+            case 0xB0u:
+                if (!a_bi || !macro_cc(p, d1, d2))
+                    s1_control_change(part, (int)d1, (int)d2);
+                break;
+            case 0xC0u: want_program[p] = (int32_t)d1; break;
+            case 0xD0u: s1_pressure(part, (int)d1); break;
+            case 0xE0u: s1_pitch_bend(part, (int)(d1 | d2 << 7)); break;
+            default: break;
             }
-            continue;
         }
-        switch (st & 0xF0u) {
-        default:
-            if (st == 0xF8u) {           /* MIDI clock: the tempo over each quarter note (24 ticks) */
-                clk_last = synth.now;
-                clk_live = 1;
-                if (clk_n == 0u)
-                    clk_t0 = synth.now;
-                else if (clk_n == 24u) {
-                    const uint32_t span = synth.now - clk_t0;
-                    if (span > 4000u && span < 100000u) {
-                        const float exact = 60.0f * SR / (float)span;
-                        const uint32_t bpm = (uint32_t)(exact + 0.5f);
-                        if (bpm != ext_tempo) {
-                            ext_tempo = bpm;     /* (the screen's; the delay and LFOs follow the whole number too) */
-                            s1_set_tempo(&synth, (float)bpm);
-                            s1_set_tempo(&synth_b, (float)bpm);
-                        }
-                    }
-                    clk_t0 = synth.now;
-                    clk_n = 0u;
-                }
-                clk_n++;
-                s1_clock(&synth, S1_CLOCK_TICK);   /* the arpeggiators step on the clock's grid */
-                s1_clock(&synth_b, S1_CLOCK_TICK);
-            } else if (st == 0xFAu || st == 0xFCu) {
-                clk_n = 0u;
-                if (st == 0xFAu) {       /* Start: the arpeggiators' patterns from the top, on the bar */
-                    s1_clock(&synth, S1_CLOCK_START);
-                    s1_clock(&synth_b, S1_CLOCK_START);
-                }
-                if (st == 0xFCu)
-                    all_off();
-            }
-            break;
-        }
+        return;
     }
+    if (st == 0xF8u) {           /* MIDI clock: the tempo over each quarter note (24 ticks) */
+        clk_last = synth.now;
+        clk_live = 1;
+        if (clk_n == 0u)
+            clk_t0 = synth.now;
+        else if (clk_n == 24u) {
+            const uint32_t span = (uint32_t)(synth.now - clk_t0);
+            if (span > 4000u && span < 100000u) {
+                const float exact = 60.0f * SR / (float)span;
+                const uint32_t bpm = (uint32_t)(exact + 0.5f);
+                if (bpm != ext_tempo) {
+                    ext_tempo = bpm;     /* (the screen's; the delay and LFOs follow the whole number too) */
+                    s1_set_tempo(&synth, (float)bpm);
+                    s1_set_tempo(&synth_b, (float)bpm);
+                }
+            }
+            clk_t0 = synth.now;
+            clk_n = 0u;
+        }
+        clk_n++;
+        s1_clock(&synth, S1_CLOCK_TICK);   /* the arpeggiators step on the clock's grid */
+        s1_clock(&synth_b, S1_CLOCK_TICK);
+    } else if (st == 0xFAu || st == 0xFCu) {
+        clk_n = 0u;
+        if (st == 0xFAu) {       /* Start: the arpeggiators' patterns from the top, on the bar */
+            s1_clock(&synth, S1_CLOCK_START);
+            s1_clock(&synth_b, S1_CLOCK_START);
+        }
+        if (st == 0xFCu)
+            all_off();
+    }
+}
+
+static void clock_timeout(void)
+{
     if (clk_live && synth.now - clk_last > 88200u) {  /* unplugged clock: return to the internal tempo */
         ext_tempo = 0;
         clk_live = 0;
@@ -392,36 +391,78 @@ static inline float soft(float x)
     return x < 0.0f ? -y : y;
 }
 
+/* Render between MIDI events. Both parts finish this span before the next event is applied. */
+static void render_span(int32_t *lr, uint32_t m, float step)
+{
+    uint32_t i;
+    const int two = a_bi, on2 = two && plat_cpu2_on() && plat_cpu2_run(part_b_job, m);
+    s1_render(&synth, buf_l, buf_r, (int)m);
+    if (two) {
+        if (!on2 || plat_cpu2_wait() != 0) {
+            part_b_job(m);           /* one core, or the second dropped the job */
+            dual_self++;
+        } else
+            dual_jobs++;
+    }
+    for (i = 0; i < m; i++) {
+        /* SPLIT: L on the left only, R on the right only, each part summed to mono; else both in stereo */
+        const float l = !two ? buf_l[i] : a_layout == LAY_SPLIT ? 0.5f * (buf_l[i] + buf_r[i]) : buf_l[i] + buf2_l[i];
+        const float r = !two ? buf_r[i] : a_layout == LAY_SPLIT ? 0.5f * (buf2_l[i] + buf2_r[i]) : buf_r[i] + buf2_r[i];
+        gain_now += step;
+        lr[2u * i] = (int32_t)(soft(l * OUT_GAIN) * gain_now);
+        lr[2u * i + 1u] = (int32_t)(soft(r * OUT_GAIN) * gain_now);
+    }
+}
+
+static uint32_t midi_offset(uint32_t end_ticks, uint32_t n)
+{
+#if FM1B_MIDI_STAMP
+    /* Replay the previous block's arrivals on this block's DSP grid. Subtract before converting:
+     * the hardware timer wraps every 179 seconds. An overdue packet plays at the start. */
+    const uint32_t age = end_ticks - plat_midi_in_t24();
+    const uint32_t frames_ago = (uint32_t)((float)age * (SR / (PLAT_TICKS_PER_US * 1000000.0f)) + 0.5f);
+    if (frames_ago < n)
+        return (n - frames_ago) / S1_CHUNK * S1_CHUNK;
+#else
+    (void)end_ticks;
+    (void)n;
+#endif
+    return 0;
+}
+
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
+#if FM1B_MIDI_STAMP
+    const uint32_t end_ticks = plat_ticks24();
+#else
+    const uint32_t end_ticks = 0;
+#endif
     const float gain = (float)master_q12 * (1.0f / 4096.0f) * 8388607.0f;
-    uint32_t pos, i;
+    const float step = n ? (gain - gain_now) / (float)n : 0.0f;
+    uint32_t pkt, pos = 0;
+    int port, pending;
     events();
-    midi_in();
-    macro_run(0);
-    macro_run(1);
-    for (pos = 0; pos < n; pos += APP_BLOCK) {
-        const uint32_t m = n - pos < APP_BLOCK ? n - pos : APP_BLOCK;
-        const float step = (gain - gain_now) / (float)m;   /* MASTER glides over the block: no click */
-        const int two = a_bi, on2 = two && plat_cpu2_on() && plat_cpu2_run(part_b_job, m);
-        s1_render(&synth, buf_l, buf_r, (int)m);
-        if (two) {
-            if (!on2 || plat_cpu2_wait() != 0) {
-                part_b_job(m);           /* one core, or the second dropped the job */
-                dual_self++;
-            } else
-                dual_jobs++;
+    pending = plat_midi_in(&pkt, &port);
+    for (;;) {
+        const uint32_t at = pending ? midi_offset(end_ticks, n) : n;
+        if (pos < at) {
+            if (!pos) {
+                clock_timeout();
+                macro_run(0);
+                macro_run(1);
+            }
+            while (pos < at) {
+                const uint32_t m = at - pos < APP_BLOCK ? at - pos : APP_BLOCK;
+                render_span(lr + 2u * pos, m, step);
+                pos += m;
+            }
         }
-        for (i = 0; i < m; i++) {
-            /* SPLIT: L on the left only, R on the right only, each part summed to mono; else both in stereo */
-            const float l = !two ? buf_l[i] : a_layout == LAY_SPLIT ? 0.5f * (buf_l[i] + buf_r[i]) : buf_l[i] + buf2_l[i];
-            const float r = !two ? buf_r[i] : a_layout == LAY_SPLIT ? 0.5f * (buf2_l[i] + buf2_r[i]) : buf_r[i] + buf2_r[i];
-            gain_now += step;
-            lr[2u * (pos + i)] = (int32_t)(soft(l * OUT_GAIN) * gain_now);
-            lr[2u * (pos + i) + 1u] = (int32_t)(soft(r * OUT_GAIN) * gain_now);
-        }
-        gain_now = gain;
+        if (!pending)
+            break;
+        midi_event(pkt);                 /* keep wire order for simultaneous or overdue events */
+        pending = plat_midi_in(&pkt, &port);
     }
+    gain_now = gain;
     ux_publish(n);
 }
 
@@ -648,15 +689,22 @@ static void other_select(uint32_t i)     /* a patch for the part the panel is no
     part_swap();
 }
 
+static uint32_t category_position(uint32_t cat)   /* where a category is in the browser's order */
+{
+    uint32_t k;
+    for (k = 0; k < CAT_COUNT && CAT_ORDER[k] != cat; k++) {}
+    return k < CAT_COUNT ? k : 0u;
+}
+
 static void category_step(int32_t d)
 {
     const uint32_t n = list_count();
-    uint32_t cat = set.category, tries, i;
+    uint32_t pos = category_position(set.category), tries, i;
     int32_t left = d < 0 ? -d : d;
     while (left-- > 0) {
         for (tries = 0; tries < CAT_COUNT; tries++) {
-            cat = d > 0 ? (cat + 1u) % CAT_COUNT : (cat + CAT_COUNT - 1u) % CAT_COUNT;
-            set.category = (uint8_t)cat;
+            pos = d > 0 ? (pos + 1u) % CAT_COUNT : (pos + CAT_COUNT - 1u) % CAT_COUNT;
+            set.category = CAT_ORDER[pos];
             for (i = 0; i < n && !category_matches(i); i++) {}
             if (i < n)
                 break;                  /* skip categories with no sounds */
@@ -804,7 +852,7 @@ static void value_text(uint32_t id, int32_t v, char *t)
     switch (id) {
     case X_RANDOM: if (v == 0) s = "BASE"; break;
     case X_DISPLAY: s = v == DISPLAY_LCD ? "LCD" : v == DISPLAY_GREEN ? "GREEN" : "NORD"; break;
-    case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_OTHER)]; break;
+    case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_LAST)]; break;
     case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
     case X_BI: s = v ? "BITIMB" : "STANDARD"; break;
     case X_LAYOUT: s = LAYOUT[clamp(v, 0, LAY_COUNT - 1)]; break;
@@ -1057,7 +1105,8 @@ static void cell_edit(uint32_t id, int32_t d)
         *ch = (uint8_t)v;
         mode_push();                     /* (the notes stop: none is left hanging on the old channel) */
     } else if (id == X_CATEGORY) {
-        v = clamp(cur_category + d, CAT_BASS, CAT_OTHER);
+        /* in the browser's order: BASS .. ARP, DRUMS .. VOCAL, FX, OTHER */
+        v = CAT_ORDER[clamp((int32_t)category_position(cur_category) + d, 1, CAT_LAST)];
         if (v == cur_category)
             return;
         cur_category = (uint8_t)v;
@@ -1533,6 +1582,11 @@ void app_init(void)
         set.octave < -3 || set.octave > 3 || set.voices < 1u || set.voices > S1_MAX_VOICES || set.tempo < 30u ||
         set.tempo > 300u)
         settings_defaults();
+    if (set.spare[0] != CAT_COUNT) {     /* saved before 0.5's 13 categories: USER was 9 and FACTORY 10 */
+        if (set.category == 9u || set.category == 10u) set.category += CAT_USER - 9u;
+        if (set.category_b == 9u || set.category_b == 10u) set.category_b += CAT_USER - 9u;
+        set.spare[0] = CAT_COUNT;
+    }
     if (set.category >= CAT_COUNT)
         set.category = CAT_ALL;
     if (set.drone_replace > 1)
@@ -1555,7 +1609,7 @@ void app_init(void)
         set.voices_b = set.voices;
         set.drone_b = set.drone_replace;
     }
-    set.spare[0] = set.spare[1] = 0;
+    set.spare[1] = 0;                    /* spare[0]: the category layout the settings were saved with */
     cfg.sample_rate = SR;
     cfg.max_voices = set.voices;
     cfg.delay_buf = delay_buf;

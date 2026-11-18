@@ -15,8 +15,9 @@ Historical package identities in older release records are retained as history.
 
 - [`fmhub.json`](../fmhub.json) is in the default branch root. Its description
   distinguishes **500 included presets** from **3,174 online presets in 27 banks**.
-- The card links the browser synth, manager and manual, and uses the existing
-  square 240 × 240 GREEN LCD factory screenshot (under 300 KB).
+- The card links the browser synth, manager and manual. Its image, `docs/img/hub-card.png`, is the NORD Play
+  screen enlarged three times pixel for pixel (720 × 720, about 10 KB): the 240 × 240 GREEN LCD screenshot it
+  used before was hard to read at the card's size.
 - `sy1-0.3.1.fwsc` includes the Felucca update loader. The package identity is decoded
   from its marker bytes by `base/tools/fm1_install.py`; it is not a plain-text file header.
 - fm1-base's `device/fm1_flash_ok.h` accepts both Puya **0x856014** and UC **0xB36014**.

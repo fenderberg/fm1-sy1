@@ -4,7 +4,7 @@ A polysynth for the [M-VAVE FM-1](https://github.com/m-vave/fm1_open) that plays
 
 **[Website](https://fenderberg.github.io/fm1-sy1/)** · [Try it in the browser](https://fenderberg.github.io/fm1-sy1/emu/) · [Install](https://fenderberg.github.io/fm1-sy1/install/) · [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) · [Manual](https://fenderberg.github.io/fm1-sy1/manual/)
 
-**256 community presets are included in the firmware**, ready from first boot and sorted into eight categories. From ALL, turn
+**256 community presets are included in the firmware**, ready from first boot: a cross-section of all 13 sound categories, from bass and pads to drums, organ, brass and choirs. From ALL, turn
 **ALGORITHM left once to FACTORY**, then browse **F001–F256** with PRESETS. They use program flash,
 leaving all **1,024 user slots** available; existing patches and program numbers stay unchanged.
 The eight original sounds P01–P08 remain available too.
@@ -28,9 +28,9 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.4.2](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.4.2) · [What changed](CHANGELOG.md)
+Latest release: [v0.5.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.5.0) · [What changed](CHANGELOG.md)
 
-The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.4.2 uses the USB identity **FM-1_51000402** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
+The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.5.0 uses the USB identity **FM-1_51000500** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
 
 ## Status: early
 
@@ -72,7 +72,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.4.2` after building the matching release package and
+Build the complete website with `make site VERSION=0.5.0` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -115,11 +115,13 @@ Original Synth1 presets may sound different in this lighter engine; see the manu
 The [factory selection](https://fenderberg.github.io/fm1-sy1/library/factory500.zip) is also downloadable
 with complete original bank notes and [credits](app/presets/CREDITS.txt). The manager's **Factory** filter
 shows the included sounds for preview; there is no need to transfer them again on version 0.3.0 or later.
-The selection contains 256 distinct parameter sets from all 27 public banks: 35 Bass, 35 Pad, 34 Lead, 34 Keys,
-34 Pluck, 34 Arp, 34 FX and 16 Other. `tools/factory_pick.mjs` admits a patch only when its name and its sound agree
-on one category (a pad's slow or long envelope, a pluck's short decay, an arpeggio's arpeggiator), leaving out
-names that point two ways, init and test patches and closed or silent sounds; at most two of one name series are
-taken. Every one renders audible, finite audio in the host test. This is automated curation, not a listening test.
+The selection (new in 0.5.0: 211 of the 256 were not in the 0.4 bank) contains 256 distinct parameter sets from all
+27 public banks, a cross-section of the Patch Manager's 13 categories: 22 each of Bass, Pad, Lead, Keys, Plucks, Arp,
+Drums & Percussion and Strings, 21 each of Brass & Woodwinds, Organ and FX, 9 Vocal & Choir and 8 Other.
+`tools/factory_pick.mjs` takes the category from the name by the manager's own rules and admits a patch only when its
+sound agrees (a pad's slow or long envelope, a pluck's short decay, a drum's dying hit, an organ's held note, an
+arpeggio's arpeggiator), leaving out init and test patches and closed or silent sounds; at most two of one name
+series are taken, so a category short of variety gives its places to the others. Every one renders audible, finite audio in the host test. This is automated curation, not a listening test.
 
 SAVE on an F preset creates a user copy and keeps its factory original. Erasing user patches leaves the
 factory bank available. Full readmes are also embedded in the firmware and can be read over SysEx command
@@ -168,14 +170,14 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.4.2**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
+All three display styles remain available in **0.5.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
 NORD remains the default. This is a global preference, saved while idle; old settings migrate without
-losing the selected patch or other controls. Build with `./build.sh --release 0.4.2` and
-`./build.sh --web --release 0.4.2`, or on GitHub with the *Release build* workflow
-(`gh workflow run release.yml -f version=0.4.2`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
+losing the selected patch or other controls. Build with `./build.sh --release 0.5.0` and
+`./build.sh --web --release 0.5.0`, or on GitHub with the *Release build* workflow
+(`gh workflow run release.yml -f version=0.5.0`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
 with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
 
 See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).
@@ -184,7 +186,7 @@ HOLD replaces the latched chord when you play again after releasing every key. D
 play one again to remove it) and REPLACE (new gesture replaces the chord), selected on Arp row 2 or Voice row 4.
 Both work with the panel and MIDI. PLAY and MIDI Stop clear all held notes. A patch change also clears hold.
 
-Categories: ALL, BASS, PAD, LEAD, KEYS, PLUCK, ARP, FX, OTHER USER (every stored patch), and FACTORY (the 256 bundled community presets).
+Categories: ALL, then the 13 sound categories of the Patch Manager (BASS, PAD, LEAD, KEYS, PLUCK, ARP, DRUMS, STRINGS, BRASS, ORGAN, VOCAL, FX and OTHER), USER (every stored patch) and FACTORY (the 256 bundled community presets).
 Imported names suggest a category; Voice row 4 lets you correct it and SAVE keeps it with the patch.
 The header shows the browser category; ARP/SEQ lights and the footer show ARP, HLD or DRN.
 

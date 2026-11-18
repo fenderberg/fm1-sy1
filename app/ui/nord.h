@@ -35,7 +35,7 @@ static int32_t ux_lo(uint32_t id)
 static int32_t ux_hi(uint32_t id)
 {
     if (id == X_RANDOM) return VARIATION_COUNT;
-    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE || id == X_BI ? 1 : id == X_LAYOUT ? LAY_COUNT-1 : S1_MAX_VOICES;
+    return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_LAST : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE || id == X_BI ? 1 : id == X_LAYOUT ? LAY_COUNT-1 : S1_MAX_VOICES;
 }
 static int32_t ux_norm_value(uint32_t id, int32_t value)
 {

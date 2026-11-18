@@ -1,6 +1,7 @@
 // Deterministic factory selection from the redistributable website banks: tools/factory_pick.mjs decides which
-// patches qualify and as what (name and sound must agree); here they are shared out near evenly across the
-// categories, round-robin across source banks, at most two of one name series (SYNTH BASS 001, 002 ..).
+// patches qualify and as what (name and sound must agree); here they are shared out near evenly across the 13
+// categories, round-robin across source banks, at most two of one name series (SYNTH BASS 001, 002 ..). Sounds
+// that were in the previous factory bank come last in every pool, so a new bank is new where the library allows.
 // (The files keep their factory500 names: links and firmware identifiers stay as they were.)
 // Archive contents are data; original selected .sy1 files and full readmes are retained.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
@@ -8,14 +9,17 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {unzipEntries,parseSy1,nameText} from '../app/web/emu/app.js';
-import {CATEGORIES,classify,quotas as share} from './factory_pick.mjs';
-const COUNT=256,OTHER=16,PER_SERIES=2;
+import {CATEGORIES,ORDER,classify,quotas as share} from './factory_pick.mjs';
+const COUNT=256,OTHER=8,PER_SERIES=2;
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const lib=path.join(root,'app/site/library');
 const catalog=JSON.parse(await readFile(path.join(lib,'catalog.json')));
+const previous=new Set(await readFile(path.join(lib,'factory500.json')).then(b=>JSON.parse(b).patches.map(p=>p.soundSha256)).catch(()=>[]));
+const keep=process.argv.includes('--keep');   // rebuild the same bank: the previous one is not avoided
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const encode=s=>new TextEncoder().encode(s);
 const ascii=s=>s.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/[^\x20-\x7e]/g,'?');
+const series=n=>n.toUpperCase().replace(/[^A-Z]+/g,' ').trim(),seriesSeen=new Map();
 const pools=new Map(CATEGORIES.map(c=>[c,new Map()])),bankFiles=new Map(),available={},seenAll=new Set();
 for(const bank of catalog.banks){
  const entries=await unzipEntries(await readFile(path.join(lib,bank.file)));
@@ -25,17 +29,21 @@ for(const bank of catalog.banks){
   const patch=parseSy1(bytes);if(!patch.lines)throw new Error('Invalid '+meta.path);
   const soundHash=hash(Buffer.from(patch.values.join(',')));
   const verdict=classify(meta.name,patch.values);if(!verdict.category||seenAll.has(soundHash))continue;
-  seenAll.add(soundHash);available[verdict.category]=(available[verdict.category]||0)+1;
+  seenAll.add(soundHash);
+  // what a category can offer: at most PER_SERIES of one name series, so VOICES 001..013 count as two
+  const key=verdict.category+'|'+series(meta.name);seriesSeen.set(key,(seriesSeen.get(key)||0)+1);
+  if(seriesSeen.get(key)<=PER_SERIES)available[verdict.category]=(available[verdict.category]||0)+1;
   const pool=pools.get(verdict.category);if(!pool.has(bank.id))pool.set(bank.id,[]);
   pool.get(bank.id).push({meta:{...meta,category:verdict.category},bank,patch,bytes,soundHash});
  }
 }
-const quotas=share(available,COUNT,OTHER),series=n=>n.toUpperCase().replace(/[^A-Z]+/g,' ').trim();
+if(!keep)for(const pool of pools.values())for(const list of pool.values())list.sort((a,b)=>previous.has(a.soundHash)-previous.has(b.soundHash));
+const quotas=share(available,COUNT,OTHER);
 const selected=[],chosen=new Set();
-for(const category of CATEGORIES){
+for(const category of ORDER){
  const count=quotas[category],taken=new Map();let added=0;
- // first at most PER_SERIES of one name series; then, only if still short, the rest
- for(const limit of [PER_SERIES,Infinity]){
+ // at most PER_SERIES of one name series (the quotas already allow for it)
+ for(const limit of [PER_SERIES]){
   const banks=[...pools.get(category).values()].map(e=>e.slice());
   for(let progress=true;added<count&&progress;){progress=false;
    for(const entries of banks){
@@ -54,7 +62,7 @@ const bankIndex=new Map(sourceBanks.map((b,i)=>[b.id,i]));
 const records=selected.map(({patch,meta})=>{
  const r=new Uint8Array(226);r[0]=0xa5;r[1]=1;r[3]=0xc1;
  // Map the stable firmware category IDs explicitly.
- r[2]=['','Bass','Pad','Lead','Keys','Pluck','Arp','FX','Other'].indexOf(meta.category);
+ r[2]=CATEGORIES.indexOf(meta.category)+1;
  for(let i=0;i<23&&i<patch.name.length&&patch.name[i];i++)r[4+i]=patch.name[i]>=32&&patch.name[i]<127?patch.name[i]:63;
  for(let i=0;i<99;i++){r[28+2*i]=patch.values[i]&255;r[29+2*i]=(patch.values[i]>>8)&255;}
  return r;
@@ -75,11 +83,11 @@ function zip(files){const local=[],central=[];let offset=0;for(const [name,raw] 
 const download=selected.map((p,i)=>['patches/'+String(i+1).padStart(3,'0')+'-'+p.bank.id+'/'+p.meta.path,p.bytes]);
 for(const b of sourceBanks)for(const f of bankFiles.get(b.id))if(/\.txt$/i.test(f.name))download.push(['readmes/'+b.id+'/'+f.name,f.bytes]);
 download.push(['CREDITS.txt',creditBytes]);
-const manifest={schema:1,title:'SY1 Factory '+COUNT,count:COUNT,selection:'Unique parameter sets whose name and sound agree on one category (tools/factory_pick.mjs): near-even category shares, Other kept small, round-robin across source banks, at most two of one name series. Every one renders audible, finite audio in the host test. This is not a claim of individual listening tests.',categories:Object.fromEntries(CATEGORIES.map(c=>[c,quotas[c]])),bankCount:sourceBanks.length,source:catalog.source,creditsFile:'factory500-credits.txt',download:'factory500.zip',creditsSha256:hash(creditBytes),patches:selected.map((p,i)=>({number:i+1,id:p.meta.id,name:p.meta.name,deviceName:nameText(p.patch),category:p.meta.category,bank:p.bank.id,bankName:p.bank.name,author:p.bank.author,path:p.meta.path,soundSha256:p.soundHash,recordSha256:hash(records[i])}))};
+const manifest={schema:1,title:'SY1 Factory '+COUNT,count:COUNT,selection:'Unique parameter sets whose sound agrees with the category their name gives in the Patch Manager (tools/factory_pick.mjs): near-even shares of 13 categories, Other kept small, round-robin across source banks, at most two of one name series (a category short of variety gives its places to the others), sounds new to the factory bank first. Every one renders audible, finite audio in the host test. This is not a claim of individual listening tests.',categories:Object.fromEntries(ORDER.map(c=>[c,quotas[c]])),bankCount:sourceBanks.length,source:catalog.source,creditsFile:'factory500-credits.txt',download:'factory500.zip',creditsSha256:hash(creditBytes),patches:selected.map((p,i)=>({number:i+1,id:p.meta.id,name:p.meta.name,deviceName:nameText(p.patch),category:p.meta.category,bank:p.bank.id,bankName:p.bank.name,author:p.bank.author,path:p.meta.path,soundSha256:p.soundHash,recordSha256:hash(records[i])}))};
 await mkdir(path.join(root,'app/presets'),{recursive:true});
 await writeFile(path.join(root,'app/presets/factory500.h'),header);
 await writeFile(path.join(root,'app/presets/CREDITS.txt'),creditBytes);
 await writeFile(path.join(lib,'factory500-credits.txt'),creditBytes);
 await writeFile(path.join(lib,'factory500.json'),JSON.stringify(manifest));
 await writeFile(path.join(lib,'factory500.zip'),zip(download));
-console.log('Factory:',selected.length,'sounds',JSON.stringify(manifest.categories),'from available',JSON.stringify(available),';','unique sounds from',sourceBanks.length,'banks;',creditBytes.length,'bytes of full credits/readmes.');
+console.log('Factory:',selected.length,'sounds,',selected.filter(p=>!previous.has(p.soundHash)).length,'new;',JSON.stringify(manifest.categories),'from available',JSON.stringify(available),';','unique sounds from',sourceBanks.length,'banks;',creditBytes.length,'bytes of full credits/readmes.');

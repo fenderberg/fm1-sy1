@@ -135,7 +135,7 @@ static void bank_scan(void)
             for (k = 0; k < 23u; k++)
                 name[k] = (char)r[4u + k];
             name[23] = 0;
-            bank_category[i] = r[3] == CAT_MARK && r[2] >= CAT_BASS && r[2] <= CAT_OTHER ? r[2] : category_guess(name);
+            bank_category[i] = r[3] == CAT_MARK && r[2] >= CAT_BASS && r[2] <= CAT_LAST ? r[2] : category_guess(name);
             bank_count = i + 1u;
         }
 }

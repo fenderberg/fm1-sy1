@@ -1,9 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-18
 
+**A new factory bank: 256 presets, a cross-section of all 13 sound categories.**
+
+- **New factory presets.** F001–F256 are a fresh selection from the 27 community banks: 211 of the 256 were not
+  in the 0.4 bank. They cover all 13 categories of the Patch Manager: 22 each of Bass, Pad, Lead, Keys, Pluck,
+  Arp, Drums and Strings, 21 each of Brass, Organ and FX, 9 Vocal and 8 Other, numbered in that order. A preset
+  is only included when its sound agrees with the category its name gives, and at most two come from one name
+  series (VOICES 001, 002 ...), so no category is filled with variations of one sound.
+- **13 categories on the FM-1**, the same as in the Patch Manager: BASS, PAD, LEAD, KEYS, PLUCK, ARP, DRUMS,
+  STRINGS, BRASS, ORGAN, VOCAL, FX and OTHER. ALGORITHM steps through them in that order, then USER and FACTORY;
+  the category on PLAY / SPREAD (KNOB4) follows the same order. Categories the manager writes into user slots
+  (DRUMS to VOCAL) are now kept on the FM-1 instead of being guessed again from the name. Patches without a
+  category are sorted by the manager's own naming rules: "Strings" is STRINGS now, "FM Bell" PLUCK, an organ
+  ORGAN. A browser filter saved on USER or FACTORY stays on it after the update.
+- The Firmware Hub card shows the NORD Play screen enlarged three times pixel for pixel, readable at the card's
+  size, instead of the small GREEN LCD screenshot.
 - GLO → PART, KNOB3 (RANDOM) browses eight variations of the active sound, including any unsaved edits.
   Each part has its own starting sound. Turn back to BASE to restore it, or press SAVE to keep a variation.
+- MIDI from USB and the TRS jack keeps its timing inside each audio block (fm1-base's `midi_stamp`), and the
+  voices' age counter no longer wraps around after long sessions.
+- Correct the Circuit Tracks' default MIDI template mapping for knobs 5–8: CC12 is cutoff, CC13 resonance,
+  CC71 modulation and CC74 FX. Previously the modulation knob swept the cutoff and the FX knob changed
+  resonance. The browser demo and manual now use the same physical knob order.
 
 ## 0.4.2 — 2026-11-17
 
