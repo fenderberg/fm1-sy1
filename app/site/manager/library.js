@@ -1,14 +1,27 @@
 // Pure library helpers, shared by the catalogue importer, manager and tests.
-export const CATEGORIES = ['Bass','Pad','Lead','Keys','Pluck','Arp','FX','Other'];
+// Saved sets store the index, and slot records store index + 1. Keep existing IDs stable.
+export const CATEGORIES = ['Bass','Pad','Lead','Keys','Plucks','Arp','FX','Other',
+  'Drums & Percussion','Strings','Brass & Woodwinds','Organ','Vocal & Choir'];
+export const CATEGORY_ORDER = [0,1,2,3,4,5,8,9,10,11,12,6,7];
+export const compareCategory = (a,b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b);
 export function category(name) {
-  const s=name.toUpperCase();
-  if (/BASS|BS |BAS /.test(s)) return 'Bass';
-  if (/PAD|STRING|CHOIR/.test(s)) return 'Pad';
-  if (/LEAD|LD /.test(s)) return 'Lead';
-  if (/PLUCK|HARP|PIZZ/.test(s)) return 'Pluck';
-  if (/ARP/.test(s)) return 'Arp';
-  if (/KEY|PIANO|BELL|ORGAN|EP |CLAV/.test(s)) return 'Keys';
-  if (/FX|NOISE|WIND|SWEEP/.test(s)) return 'FX';
+  const s=name.replace(/([a-z])([A-Z])/g,'$1 $2').toUpperCase().replace(/[^A-Z]+/g,' ').trim();
+  if (/KICK|SNARE|DRUM|CYMBAL|HI ?HAT|COW ?BELL|\b(BD|SD|HH|CLAPS?|HATS?|TOMS?|SYNTOM|RIM ?SHOT|SHAKER|TAMBOURINE|CONGAS?|BONGOS?)\b/.test(s)) return 'Drums & Percussion';
+  if (/BASSOON/.test(s)) return 'Brass & Woodwinds';
+  if (/BASS|\b(BS|BAS)\b/.test(s)) return 'Bass';
+  if (/PAD/.test(s)) return 'Pad';
+  if (/LEAD|\bLD\b/.test(s)) return 'Lead';
+  if (/\b(ARPS?|SEQ|SEQUENCES?)\b|ARPEG/.test(s)) return 'Arp';
+  if (/HARPSICHORD/.test(s)) return 'Keys';
+  if (/PLUCK|GUITAR|\bGTR\b|\bHARP|PIZZ|\bBELLS?\b|MALLET|MARIMBA|VIBRAPHONE|CELESTA|GLOCKENSPIEL|\bVIBES\b/.test(s)) return 'Plucks';
+  if (/ORGAN|HAMMOND|DRAWBAR/.test(s)) return 'Organ';
+  if (/STRING|VIOLIN|VIOLA|CELLO/.test(s)) return 'Strings';
+  if (/BRASS|TRUMPET|TROMBONE|TUBA|\bHORNS?\b|SAX|FLUTE|CLARINET|OBOE|PICCOLO|WOODWIND/.test(s)) return 'Brass & Woodwinds';
+  if (/CHOIR|VOICE|VOCAL|\bVOX\b/.test(s)) return 'Vocal & Choir';
+  if (/PERCUSSION|\bPERC\b/.test(s)) return 'Drums & Percussion';
+  if (/KEY|PIANO|\bEP\b|CLAV|RHODES|WURLI/.test(s)) return 'Keys';
+  if (/ARP/.test(s) && !/SHARP|WARP|CARP/.test(s)) return 'Arp';
+  if (/FX|NOISE|WIND|SWEEP|RISER/.test(s)) return 'FX';
   return 'Other';
 }
 export const fold = text => text.normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase();
@@ -32,11 +45,11 @@ export function placement(first, count, occupied, append=false) {
 }
 
 // ---- A user slot's record, as the FM-1 stores it (app/bank.h): 226 bytes.
-//   [0] 0xA5 used  [1] format 1  [2] category 1..8  [3] 0xC1 when [2] is explicit  [4..27] name  [28..225] 99 values, int16 LE
+//   [0] 0xA5 used  [1] format 1  [2] category index + 1  [3] 0xC1 when [2] is explicit  [4..27] name  [28..225] 99 values, int16 LE
 export const RECORD = 226, PART = 119;
 /** A name as the FM-1 shows it: accents folded, printable ASCII, 23 characters. */
 export const asciiName = text => [...text.normalize('NFKD').replace(/[̀-ͯ]/g,'')].map(c=>c>=' '&&c<='~'?c:'?').join('').slice(0,23);
-/** A copy with another name (null: keep) and an explicit category index 0..7 (-1: keep). */
+/** A copy with another name (null: keep) and an explicit category index (-1: keep). */
 export function withMeta(rec, name, cat=-1) {
   const r=rec.slice();
   if(name!==null){ r.fill(0,4,28); const n=asciiName(name); for(let i=0;i<n.length;i++)r[4+i]=n.charCodeAt(i); }
@@ -51,9 +64,9 @@ export function recordFrom(values, name, cat=-1) {
 export function recordName(rec) {
   let t=''; for(let i=4;i<27&&rec[i];i++)t+=rec[i]>=32&&rec[i]<127?String.fromCharCode(rec[i]):'?'; return t;
 }
-/** The category the FM-1 browses this record under: explicit, else guessed from the name as the firmware does. */
+/** The manager honours explicit categories and otherwise suggests one from the patch name. */
 export function recordCategory(rec) {
-  const explicit=rec[3]===0xc1&&rec[2]>=1&&rec[2]<=8;
+  const explicit=rec[3]===0xc1&&rec[2]>=1&&rec[2]<=CATEGORIES.length;
   return {explicit,cat:explicit?rec[2]-1:CATEGORIES.indexOf(category(recordName(rec)))};
 }
 /** The sound alone (the 99 values), for recognising a library patch that is already on the FM-1. */
@@ -99,7 +112,7 @@ export function appendSlots(slots, items) {
 export function arrange(slots, how, bankOf=()=>'') {
   const key=it=>fold(it.name),cmp=(a,b)=>key(a)<key(b)?-1:key(a)>key(b)?1:0,items=slots.filter(Boolean);
   if(how==='name')items.sort(cmp);
-  else if(how==='cat')items.sort((a,b)=>a.cat-b.cat||cmp(a,b));
+  else if(how==='cat')items.sort((a,b)=>compareCategory(a.cat,b.cat)||cmp(a,b));
   else if(how==='bank')items.sort((a,b)=>bankOf(a).localeCompare(bankOf(b))||cmp(a,b));
   return items.concat(new Array(slots.length-items.length).fill(null));
 }

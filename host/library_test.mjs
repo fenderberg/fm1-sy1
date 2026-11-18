@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {CATEGORIES,category,fold,patchName,bankName,placement,RECORD,PART,asciiName,recordFrom,withMeta,recordName,recordCategory,
+import {CATEGORIES,CATEGORY_ORDER,category,fold,patchName,bankName,placement,RECORD,PART,asciiName,recordFrom,withMeta,recordName,recordCategory,
   recordKey,fullKey,packFrame,unpack7,insertAt,appendSlots,arrange,changes} from '../app/site/manager/library.js';
 import {unzipSy1,parseSy1,frameFor,nameText} from '../app/web/emu/app.js';
 const catalog=JSON.parse(await readFile(new URL('../app/site/library/catalog.json',import.meta.url)));
@@ -16,12 +16,21 @@ for(const bank of catalog.banks){
   const files=await unzipSy1(raw),byPath=new Map(files.map(f=>[f.name,f.bytes]));
   assert.equal(files.length,bank.count);assert.equal(bank.patches.length,bank.count);
   for(const p of bank.patches){
-    assert.ok(!ids.has(p.id));ids.add(p.id);assert.ok(CATEGORIES.includes(p.category));
+    assert.ok(!ids.has(p.id));ids.add(p.id);assert.ok(CATEGORIES.includes(p.category));assert.equal(p.category,category(p.name),p.name);
     const parsed=parseSy1(byPath.get(p.path));assert.ok(parsed.lines);assert.equal(patchName(parsed,p.path),p.name);total++;
   }
 }
 assert.equal(total,catalog.patchCount);
-assert.equal(fold('Écho PÄD'),'echo pad');assert.equal(category('Warm Strings'),'Pad');
+assert.equal(fold('Écho PÄD'),'echo pad');
+assert.deepEqual(CATEGORY_ORDER.map(i=>CATEGORIES[i]),['Bass','Pad','Lead','Keys','Plucks','Arp','Drums & Percussion',
+  'Strings','Brass & Woodwinds','Organ','Vocal & Choir','FX','Other']);
+for(const [name,expected] of [
+  ['Bass Drum','Drums & Percussion'],['909 Snare w/o Noise','Drums & Percussion'],['Hi-Hat','Drums & Percussion'],
+  ['Warm Strings','Strings'],['French Horn','Brass & Woodwinds'],['Bassoon','Brass & Woodwinds'],
+  ['Jazz Flute','Brass & Woodwinds'],['Phantom Organ','Organ'],['FM Choir','Vocal & Choir'],
+  ['FM Bell','Plucks'],['Electric Guitar','Plucks'],['Marimba','Plucks'],['Mallet','Plucks'],
+  ['Choir Pad','Pad'],['Harpsichord','Keys'],['[ARP]RezoBells','Arp']
+]) assert.equal(category(name),expected,name);
 assert.equal(bankName('collection/Bass.zip/folder/001.sy1'),'Bass');assert.equal(bankName('folder/001.sy1'),'folder');
 assert.equal(patchName({name:new Uint8Array()},'a/Empty.sy1'),'Empty');
 assert.equal(patchName({name:new Uint8Array([0xe9,0x63,0x68,0x6f])}),'écho');
@@ -48,6 +57,10 @@ assert.equal(placement(1,0,occupied).fits,false);assert.equal(placement(1,1024,n
   const rec=recordFrom(new Array(99).fill(0).map((_,i)=>i===86?45057:i-9),'Écho Pad with a very long name');
   assert.equal(recordName(rec),'Echo Pad with a very lo');assert.equal(rec[27],0);assert.equal(rec[28+2*86]|rec[29+2*86]<<8,45057);
   const lead=withMeta(rec,null,2);assert.deepEqual(recordCategory(lead),{explicit:true,cat:2});assert.equal(recordName(lead),recordName(rec));
+  for(const cat of CATEGORY_ORDER) {
+    const frame=packFrame(withMeta(rec,null,cat),127);
+    assert.deepEqual(recordCategory(unpack7(frame,8,frame.length-1,RECORD)),{explicit:true,cat});
+  }
   assert.equal(recordKey(lead),recordKey(withMeta(rec,'Other name')));assert.notEqual(recordKey(rec),recordKey(recordFrom(new Array(99).fill(1),'x')));
   assert.notEqual(fullKey(lead),fullKey(rec));assert.equal(asciiName('日本 Bass'),'?? Bass');
 }
