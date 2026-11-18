@@ -466,9 +466,24 @@ static int32_t saved_values[S1_NPARAMS];
 static uint8_t saved_category;
 static char saved_name[S1_NAME_LEN];
 
+/* Small offsets in Synth1 parameter units keep each variation close to the starting sound. */
+static const struct { uint8_t id, radius; } variation_params[] = {
+    {S1P_OSC_MIX, 12}, {S1P_OSC_PULSE_WIDTH, 10}, {S1P_FILTER_FREQ, 18},
+    {S1P_FILTER_RES, 8}, {S1P_FILTER_AMOUNT, 10}, {S1P_FILTER_DECAY, 10},
+    {S1P_AMP_ATTACK, 5}, {S1P_AMP_RELEASE, 8}
+};
+enum { VARIATION_COUNT = 8, VARIATION_PARAMS = sizeof variation_params / sizeof variation_params[0] };
+typedef struct {
+    uint8_t position, base[VARIATION_PARAMS];
+    uint32_t seed;
+} variation_t;
+static variation_t variations[2];
+
 static void patch_reference(void)
 {
     uint32_t i;
+    variations[cur_part].position = 0;
+    variations[cur_part].seed = 0;
     for (i = 0; i < S1_NPARAMS; i++) saved_values[i] = cur.values[i];
     for (i = 0; i < S1_NAME_LEN; i++) saved_name[i] = cur.name[i];
     saved_category = cur_category;
@@ -702,7 +717,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_NONE = 255 };
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_RANDOM, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -756,10 +771,9 @@ static const uint8_t R_FX[][4] = {
 static const uint8_t R_ARP[][4] = {
     {S1P_ARP_ON, S1P_ARP_TYPE, S1P_ARP_OCT_RANGE, S1P_ARP_BEAT},
     {S1P_ARP_GATE, X_TEMPO, X_DRONE, X_NONE}};
-/* GLOBAL: nothing of the patch. The part's voice limit and Drone mode (per part in bitimbral), the shared tempo,
- * the mode and output, the display, and the read-only diagnostics */
+/* Global and per-part controls. RANDOM edits the active sound in memory. */
 static const uint8_t R_GLOBAL[][4] = {
-    {X_VOICES, X_TEMPO, X_NONE, X_DRONE},
+    {X_VOICES, X_TEMPO, X_RANDOM, X_DRONE},
     {X_BI, X_LAYOUT, X_CHL, X_CHR},
     {X_DISPLAY, X_NONE, X_NONE, X_NONE},
     {X_CPU, X_PEAK, X_SHED, X_RAW}};
@@ -788,6 +802,7 @@ static void value_text(uint32_t id, int32_t v, char *t)
     const char *s = 0;
     t[0] = 0;
     switch (id) {
+    case X_RANDOM: if (v == 0) s = "BASE"; break;
     case X_DISPLAY: s = v == DISPLAY_LCD ? "LCD" : v == DISPLAY_GREEN ? "GREEN" : "NORD"; break;
     case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_OTHER)]; break;
     case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
@@ -819,11 +834,13 @@ static void value_text(uint32_t id, int32_t v, char *t)
 
 static const char *cell_name(uint32_t id)
 {
+    if (id == X_RANDOM) return "RANDOM";
     return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id == X_DRONE ? "DRONE" :
         id == X_CATEGORY ? "CAT" : id == X_DISPLAY ? "STYLE" : id == X_BI ? "MODE" : id == X_LAYOUT ? "OUTPUT" : id == X_CHL ? "L CH" : id == X_CHR ? "R CH" : id < S1_NPARAMS ? PNAME[id] : "";
 }
 static int32_t cell_value(uint32_t id)
 {
+    if (id == X_RANDOM) return variations[cur_part].position;
     if (id == X_DISPLAY) return set.display;
     if (id == X_BI) return (int32_t)BI_ON;
     if (id == X_LAYOUT) return (int32_t)BI_LAYOUT;
@@ -965,6 +982,31 @@ static void layout_set(int32_t v)
     app_say("OUTPUT", LAYOUT[v]);
 }
 
+static void variation_select(int32_t position)
+{
+    variation_t *const variation = &variations[cur_part];
+    if (!variation->seed) {
+        variation->seed = plat_ms() | 1u;
+        for (uint32_t i = 0; i < VARIATION_PARAMS; i++)
+            variation->base[i] = (uint8_t)cur.values[variation_params[i].id];
+    }
+    /* Regenerate a position from the same seed, so browsing in either direction is reversible. */
+    uint32_t rng = variation->seed + (uint32_t)position * 2654435761u;
+    for (uint32_t i = 0; i < VARIATION_PARAMS; i++) {
+        const uint32_t id = variation_params[i].id;
+        const int32_t radius = variation_params[i].radius;
+        rng = rng * 1664525u + 1013904223u;
+        const int32_t offset = (int32_t)((rng >> 16) % (2u * radius + 1u)) - radius;
+        const int32_t value = clamp(variation->base[i] + (position ? offset : 0), s1_param_min[id], s1_param_max[id]);
+        if (value != cur.values[id]) {
+            cur.values[id] = value;
+            ev_push(EV_PARAM, id, value);
+        }
+    }
+    variation->position = (uint8_t)position;
+    refresh_dirty();
+}
+
 static void cell_edit(uint32_t id, int32_t d)
 {
     char t[32];
@@ -972,7 +1014,11 @@ static void cell_edit(uint32_t id, int32_t d)
     int32_t v;
     if (id == X_NONE || (id >= X_CPU && id <= X_RAW) || d == 0)
         return;
-    if (id == X_TEMPO) {
+    if (id == X_RANDOM) {
+        v = clamp(variations[cur_part].position + d, 0, VARIATION_COUNT);
+        if (v == variations[cur_part].position) return;
+        variation_select(v);
+    } else if (id == X_TEMPO) {
         v = clamp((int32_t)set.tempo + d, 30, 300);
         if (v == (int32_t)set.tempo)
             return;
@@ -1023,6 +1069,9 @@ static void cell_edit(uint32_t id, int32_t d)
         if (v == cur.values[id])
             return;
         cur.values[id] = v;
+        /* A manual sound edit becomes the starting point for the next set of variations. */
+        variations[cur_part].position = 0;
+        variations[cur_part].seed = 0;
         refresh_dirty();
         ev_push(EV_PARAM, id, v);
     }
@@ -1207,7 +1256,8 @@ static void input(void)
                     PAGES[ui.page].rows[ui.row][k] : ui.ux_last_id;
                 ui.redraw |= UX_GRAPH | UX_CELLS; /* also at a parameter's limit */
             }
-            cell_edit(PAGES[ui.page].rows[ui.row][k], e * (e < 0 ? -e : e));
+            const uint32_t id = PAGES[ui.page].rows[ui.row][k];
+            cell_edit(id, id == X_RANDOM ? e : e * (e < 0 ? -e : e));
         }
     if (keys != ui.keys || btn != ui.btn)
         ui.redraw = UX_ALL;

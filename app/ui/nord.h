@@ -29,10 +29,12 @@ static void ux_center(int32_t x, int32_t y, int32_t width, const felucca_font_t 
 
 static int32_t ux_lo(uint32_t id)
 {
+    if (id == X_RANDOM) return 0;
     return id < S1_NPARAMS ? s1_param_min[id] : id == X_TEMPO ? 30 : id == X_CATEGORY ? CAT_BASS : id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT ? 0 : 1;
 }
 static int32_t ux_hi(uint32_t id)
 {
+    if (id == X_RANDOM) return VARIATION_COUNT;
     return id < S1_NPARAMS ? s1_param_max[id] : id == X_TEMPO ? 300 : id == X_CATEGORY ? CAT_OTHER : id == X_DISPLAY ? DISPLAY_COUNT-1 : id == X_DRONE || id == X_BI ? 1 : id == X_LAYOUT ? LAY_COUNT-1 : S1_MAX_VOICES;
 }
 static int32_t ux_norm_value(uint32_t id, int32_t value)
@@ -405,7 +407,7 @@ static void ux_global(void)
     char text[40];
     if(ui.row==GLOBAL_PART) {
         char n[8];int_text((int32_t)set.voices,n);text[0]=0;text_cat(text,n);text_cat(text," VOICES");
-        ux_big(BI_ON ? (cur_part ? "PART R / NOT IN THE PATCH" : "PART L / NOT IN THE PATCH") : "NOT IN THE PATCH",text,
+        ux_big(BI_ON ? (cur_part ? "PART R" : "PART L") : "PART",text,
                set.drone_replace ? "DRONE / REPLACE" : "DRONE / STACK");
     } else if(ui.row==GLOBAL_BI) {
         if(!BI_ON) ux_big("ONE SOUND","STANDARD","OCT- AND OCT+ TOGETHER / BITIMBRAL");

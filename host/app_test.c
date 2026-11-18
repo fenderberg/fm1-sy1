@@ -522,6 +522,52 @@ static void test_global_page(void)    /* GLOBAL holds nothing that is stored in 
           "PLAY does not hold the voice settings and the category");
 }
 
+static void test_randomizer(void)
+{
+    memset(flash, 0xFF, sizeof flash);
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    turn(EN_K1, -2);                     /* an unsaved cutoff edit on HOME */
+    const s1_patch start = cur;
+    tap(B_GLO);
+    turn(EN_K3, 2);
+    const s1_patch second = cur;
+    CHECK(cell_value(X_RANDOM) == 2 && cur_dirty && memcmp(cur.values, start.values, sizeof cur.values),
+          "GLO / PART knob 3 did not make a variation");
+    CHECK(!memcmp(synth.base, cur.values, sizeof cur.values) && bank_count == 0,
+          "variation did not reach the engine or wrote a user patch");
+    turn(EN_K3, 20);
+    CHECK(cell_value(X_RANDOM) == VARIATION_COUNT, "randomizer upper bound");
+    turn(EN_K3, -6);
+    CHECK(!memcmp(cur.values, second.values, sizeof cur.values), "revisiting a variation changed it");
+    turn(EN_K3, -20);
+    CHECK(!memcmp(cur.values, start.values, sizeof cur.values) && cur_dirty, "BASE lost an unsaved edit");
+    turn(EN_K3, 2);
+    mode_set(1);
+    focus_set(1);
+    CHECK(cell_value(X_RANDOM) == 0, "part R inherited L's variation");
+    tap(B_GLO);
+    turn(EN_K3, 1);
+    focus_set(0);
+    CHECK(cell_value(X_RANDOM) == 2 && !memcmp(cur.values, second.values, sizeof cur.values), "part R changed L");
+    tap(B_SEL);
+    turn(EN_K2, -1);
+    const s1_patch edited = cur;
+    CHECK(cell_value(X_RANDOM) == 0, "editing a variation did not establish a new base");
+    tap(B_GLO);
+    turn(EN_K3, 1);
+    turn(EN_K3, -1);
+    CHECK(!memcmp(cur.values, edited.values, sizeof cur.values), "randomizer lost a subsequent edit");
+    turn(EN_K3, 1);
+    const s1_patch keep = cur;
+    tap(B_SAVE);
+    CHECK(cell_value(X_RANDOM) == 0 && !cur_dirty && bank_used(0), "SAVE did not commit the variant");
+    turn(EN_K3, 2);
+    tap(B_REC);
+    CHECK(!cur_dirty && cell_value(X_RANDOM) == 0 && !memcmp(cur.values, keep.values, sizeof cur.values),
+          "REC did not restore the saved variant");
+}
+
 static void test_factory500(void)
 {
     uint32_t i,j,counts[CAT_COUNT]={0},wr;
@@ -786,6 +832,7 @@ int main(void)
     test_nord_ux();
     test_display_styles();
     test_global_page();
+    test_randomizer();
     test_factory500();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;

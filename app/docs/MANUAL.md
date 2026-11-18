@@ -118,11 +118,17 @@ MIDI program changes select their original patch number; if necessary the browse
 | LFO | LFO | Both LFOs: destination, wave, speed, depth, tempo and key sync |
 | FX | Effects | The effect, the equalizer, the delay and the chorus |
 | Hold ARP 0.5 s | Arp | The arpeggiator: on, type, range, beat, gate, tempo; Drone mode |
-| GLO | Global | Only what is not stored in the patch: the part's voice limit and Drone mode, the tempo, bitimbral mode, output and channels, the display style, diagnostics |
+| GLO | Global | Patch randomizer, part voice limit and Drone mode, tempo, bitimbral mode, output and channels, display style, diagnostics |
 
 Press a page's button again for its next subpage (hold again for ARP), or turn SELECT to choose one. Each page
 remembers its last subpage during the session. KNOB1 to KNOB4 change the four displayed values; a fast turn goes
 further. This navigation memory is not written to flash. A restart begins on HOME.
+
+On **GLO → PART (1/4)**, turn **KNOB3 (RANDOM)** to audition eight variations of the active sound.
+Each click selects another oscillator mix, pulse width, filter and envelope variation around the same starting
+patch, including your unsaved edits. Turn back to a number to hear it again, or all the way left to **BASE**
+to restore your starting sound. Both parts have their own variations. Editing a sound parameter by hand
+starts a new set from that edit. Press **SAVE** to keep the current sound as a patch.
 
 The screen reader announces the subpage and the same displayed value/unit when you turn a knob. Read whole
 screen also includes the four controls and the current playing state. Animations do not generate spoken updates.

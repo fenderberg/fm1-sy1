@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- GLO → PART, KNOB3 (RANDOM) browses eight variations of the active sound, including any unsaved edits.
+  Each part has its own starting sound. Turn back to BASE to restore it, or press SAVE to keep a variation.
+
 ## 0.4.2 — 2026-11-17
 
 **Two sounds at once, for everyone, and a GLO page with nothing of the patch on it.**
