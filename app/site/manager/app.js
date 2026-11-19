@@ -26,7 +26,7 @@ let lview = [], dview = [], lsel = new Set(), dsel = new Set(), lanchor = 0, dan
 let lcat = -1, dcat = -1, lfav = false, lnew = false, lfactory = false, drag = null;
 let access = null, input = null, output = null, waiting = null, busy = false, cancelled = false, legacy = false;
 // Bitimbral (SY1 with SysEx 08/09): the FM-1's mode, output, channels and the user slots parts L and R play (-1: none).
-let partsOK = false, bi = null, pinned = null, lastR = null;
+let partsOK = false, quadOK = false, bi = null, pinned = null, lastR = null;
 const LAYOUTS = ['Split', 'Stereo', 'Double'];
 
 const bankOf = it => it.entry ? banks.get(it.entry.bank).name : 'On the FM-1';
@@ -77,8 +77,8 @@ const drawDev = vlist($('dlist'), () => dview.length, (k, y) => {
 function partButtons(s, it, name) {
   if (!output || !partsOK || !bi) return '';
   const synced = it === base[s] && !busy, off = synced ? '' : ' disabled', why = synced ? '' : ' (sync first)';
-  const one = (p, label) => `<button type="button" class="ic p${'lr'[p]}${bi.slot[p] === s ? ' on' : ''}" data-act="part" data-part="${p}" aria-pressed="${bi.slot[p] === s}" aria-label="Play ${name} on part ${label}" title="Play on the FM-1, part ${label}${why}"${off}>${label}</button>`;
-  return bi.on ? one(0, 'L') + one(1, 'R') : `<button type="button" class="ic pl${bi.slot[0] === s ? ' on' : ''}" data-act="part" data-part="0" aria-pressed="${bi.slot[0] === s}" aria-label="Play ${name} on the FM-1" title="Play on the FM-1${why}"${off}>▶</button>`;
+  const one = (p, label) => `<button type="button" class="ic p${bi.mode === 2 ? (p < 2 ? 'l' : 'r') : 'lr'[p]}${bi.slot[p] === s ? ' on' : ''}" data-act="part" data-part="${p}" aria-pressed="${bi.slot[p] === s}" aria-label="Play ${name} on part ${label}" title="Play on the FM-1, part ${label}${why}"${off}>${label}</button>`;
+  return bi.mode === 2 ? [0, 1, 2, 3].map(p => one(p, String(p + 1))).join('') : bi.on ? one(0, 'L') + one(1, 'R') : `<button type="button" class="ic pl${bi.slot[0] === s ? ' on' : ''}" data-act="part" data-part="0" aria-pressed="${bi.slot[0] === s}" aria-label="Play ${name} on the FM-1" title="Play on the FM-1${why}"${off}>▶</button>`;
 }
 $('llist').dataset.none = 'No sounds match. Try another search, bank or character.';
 
@@ -120,7 +120,7 @@ function filterDev() {
   $('capfill').style.width = used / SLOTS * 100 + '%';
   const shown = new Set(dview); let h = '';
   for (let s = 0; s < SLOTS; s++) { const it = slots[s];
-    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}${bi && bi.slot[0] === s ? ' pl' : ''}${bi && bi.on && bi.slot[1] === s ? ' pr' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}${bi && bi.slot[0] === s ? (bi.on ? ' · part L' : ' · playing') : ''}${bi && bi.on && bi.slot[1] === s ? ' · part R' : ''}"></i>`; }
+    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}${bi && (bi.slot[0] === s || bi.mode === 2 && bi.slot[1] === s) ? ' pl' : ''}${bi && bi.on && (bi.mode === 2 ? bi.slot[2] === s || bi.slot[3] === s : bi.slot[1] === s) ? ' pr' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}${bi ? bi.slot.map((slot, p) => slot === s ? bi.mode === 2 ? ' · part ' + (p + 1) : p === 0 ? bi.on ? ' · part L' : ' · playing' : bi.on ? ' · part R' : '' : '').join('') : ''}"></i>`; }
   $('map').innerHTML = h;
   // Always there, so the list does not jump under the pointer when the first patch is selected.
   $('selcount').textContent = dsel.size ? `${dsel.size} selected` : 'Select patches to move or remove them'; $('movebox').hidden = legacy;
@@ -271,12 +271,17 @@ function setConnected() {
   const on = !!output; $('connection').dataset.state = on ? 'connected' : 'disconnected';
   $('connection-label').textContent = on ? 'FM-1 CONNECTED' : 'FM-1 NOT CONNECTED'; $('connect').textContent = on ? 'Read again' : 'Connect to the FM-1';
   $('connect').className = on ? '' : 'primary'; $('connect').disabled = busy;
-  if (!on) { legacy = false; partsOK = false; bi = null; }
+  if (!on) { legacy = false; partsOK = false; quadOK = false; bi = null; }
 }
 /** The FM-1's parts, from an answer to 08. */
 function partsFrom(m) {
-  if (m.length < 16) return null;
-  return {on: !!m[6], layout: m[7], focus: m[8], ch: [m[9] + 1, m[10] + 1], slot: [(m[11] | m[12] << 7) - 1, (m[13] | m[14] << 7) - 1]};
+  if (m.length < 16 || m[6] > 2 || m[6] === 2 && m.length < 22) return null;
+  const state = {mode: m[6], on: !!m[6], layout: m[7], focus: m[8], ch: [m[9] + 1, m[10] + 1], slot: [(m[11] | m[12] << 7) - 1, (m[13] | m[14] << 7) - 1]};
+  if (state.mode === 2) {
+    state.ch.push(m[15] + 1, m[16] + 1);
+    state.slot.push((m[17] | m[18] << 7) - 1, (m[19] | m[20] << 7) - 1);
+  }
+  return state;
 }
 async function readParts() {
   if (!output || !partsOK) return;
@@ -286,20 +291,23 @@ async function readParts() {
 /** One request that changes the FM-1's parts, then its state read back. */
 async function partsDo(frame, answer, part, done) {
   if (busy || !output || !partsOK) return;
-  busy = true; refresh();
+  busy = true; setConnected(); refresh();
   try { const r = await askAgain(output, frame, answer, 1500, part); if (!r) throw new Error('The FM-1 did not answer. Press Read again.');
-    if (answer === 0x48) bi = partsFrom(r.data) || bi; else if (r.data[9]) throw new Error('That slot is empty on the FM-1. Press Read again.');
+    if (answer === 0x48) bi = partsFrom(r.data) || bi; else if (answer === 0x49 && r.data[9]) throw new Error('That slot is empty on the FM-1. Press Read again.');
     if (answer !== 0x48) await readParts(); if (done) toast(done()); }
   catch (e) { say(e.message, true); }
-  finally { busy = false; refresh(); }
+  finally { busy = false; setConnected(); refresh(); }
 }
 function drawParts() {
   const show = !!(output && partsOK && bi); $('parts').hidden = !show; if (!show) return;
-  for (const b of document.querySelectorAll('[data-mode]')) { b.setAttribute('aria-pressed', String(+b.dataset.mode === +bi.on)); b.disabled = busy; }
-  for (const b of document.querySelectorAll('[data-layout]')) { b.setAttribute('aria-pressed', String(+b.dataset.layout === bi.layout)); b.disabled = busy; }
+  for (const b of document.querySelectorAll('[data-mode]')) { b.setAttribute('aria-pressed', String(+b.dataset.mode === bi.mode)); b.disabled = busy; b.hidden = +b.dataset.mode === 2 && !quadOK; }
+  for (const b of document.querySelectorAll('[data-layout]')) { b.setAttribute('aria-pressed', String(+b.dataset.layout === bi.layout)); b.disabled = busy; b.hidden = bi.mode === 2 && +b.dataset.layout === 2; b.title = +b.dataset.layout === 0 && bi.mode === 2 ? 'Parts 1+2 left, parts 3+4 right' : +b.dataset.layout === 0 ? 'L on the left output, R on the right' : b.title; }
   $('layoutseg').hidden = !bi.on;
   const plays = p => bi.slot[p] >= 0 ? `${pad(bi.slot[p] + 1)} ${esc(slots[bi.slot[p]]?.name || base[bi.slot[p]]?.name || '')}` : 'a built-in or factory sound';
-  $('partinfo').innerHTML = bi.on ? `<span class="tl">L</span> ch ${bi.ch[0]} · ${plays(0)} <span class="tr">R</span> ch ${bi.ch[1]} · ${plays(1)}` : `Plays ${plays(0)}`;
+  $('quadchannels').hidden = bi.mode !== 2;
+  if (bi.mode === 2) for (let p = 0; p < 4; p++) { $('qch' + p).value = bi.ch[p]; $('qch' + p).disabled = busy; }
+  $('quadapply').disabled = busy;
+  $('partinfo').innerHTML = bi.mode === 2 ? bi.ch.map((ch, p) => `<span class="${p < 2 ? 'tl' : 'tr'}">${p + 1}</span> ch ${ch} · ${plays(p)}`).join(' / ') : bi.on ? `<span class="tl">L</span> ch ${bi.ch[0]} · ${plays(0)} <span class="tr">R</span> ch ${bi.ch[1]} · ${plays(1)}` : `Plays ${plays(0)}`;
 }
 function drawPair() {
   $('pairbar').hidden = !pinned; if (!pinned) return;
@@ -331,6 +339,7 @@ async function readDevice() {
     // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
     const old = !(a.data.length >= 12 && a.data[10] & 1);
     partsOK = a.data.length >= 12 && !!(a.data[10] & 2);
+    quadOK = a.data.length >= 12 && !!(a.data[10] & 4);
     for (let s = 0; s < used; s++) {
       if (!output) throw new Error('FM-1 disconnected.');
       if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
@@ -420,7 +429,7 @@ $('dlist').addEventListener('click', e => {
   const row = e.target.closest('.prow'); if (!row || e.target.matches('select, .rename')) return; const k = +row.dataset.k, s = dview[k];
   if (e.target.dataset.act === 'del') { const next = slots.slice(); next[s] = null; return void commit(next); }
   if (e.target.dataset.act === 'part') { const p = +e.target.dataset.part, it = slots[s];
-    return void partsDo(cmd(0x09, p, ...slotBytes(s)), 0x49, p, () => `${bi.on ? 'Part ' + 'LR'[p] : 'The FM-1'} now plays ${pad(s + 1)} ${it.name}.`); }
+    return void partsDo(cmd(0x09, p, ...slotBytes(s)), 0x49, p, () => `${bi.on ? 'Part ' + (bi.mode === 2 ? p + 1 : 'LR'[p]) : 'The FM-1'} now plays ${pad(s + 1)} ${it.name}.`); }
   // The second click of a double-click: the row was redrawn by the first, so a dblclick event would hit a dead node.
   if (e.detail === 2 && e.target.closest('.nm')) return rename(row, s);
   danchor = pick(dsel, devKeys(), k, e, danchor); filterDev();
@@ -444,10 +453,16 @@ for (const [el, set] of [[$('lchips'), v => { lcat = v; }], [$('dchips'), v => {
 for (const id of ['search', 'bank', 'lsort']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { $('llist').scrollTop = 0; filterLib(); });
 for (const id of ['dq', 'dempty', 'dpend']) $(id).addEventListener(id === 'dq' ? 'input' : 'change', () => { $('dlist').scrollTop = 0; filterDev(); });
 $('add').onclick = addSelected;
-for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { const on = +b.dataset.mode; if (!bi || on === +bi.on) return;
-  partsDo(cmd(0x08, on, 0x7f), 0x48, 0, () => on ? `Bitimbral: part L listens on channel ${bi.ch[0]}, part R on ${bi.ch[1]}.` : 'Standard: one sound on every channel.'); };
+for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { const on = +b.dataset.mode; if (!bi || on === bi.mode) return;
+  partsDo(cmd(0x08, on, 0x7f), 0x48, 0, () => on === 2 ? `Quad: four parts on channels ${bi.ch.join(', ')}.` : on ? `Bitimbral: part L listens on channel ${bi.ch[0]}, part R on ${bi.ch[1]}.` : 'Standard: one sound on every channel.'); };
 for (const b of document.querySelectorAll('[data-layout]')) b.onclick = () => { const v = +b.dataset.layout; if (!bi || v === bi.layout) return;
   partsDo(cmd(0x08, 0x7f, v), 0x48, 0, () => `Output: ${LAYOUTS[v]}.`); };
+$('quadchannels').onsubmit = e => {
+  e.preventDefault();
+  const channels = [0, 1, 2, 3].map(p => Number($('qch' + p).value));
+  if (!bi || bi.mode !== 2 || channels.some(ch => !Number.isInteger(ch) || ch < 1 || ch > 16)) return;
+  partsDo(cmd(0x0a, 0x7f, 0x7f, ...channels.map(ch => ch - 1)), 0x4a, 0, () => `Quad MIDI channels: ${channels.join(', ')}.`);
+};
 $('pairoff').onclick = () => { pinned = lastR = null; drawLib(); drawPair(); $('preview-status').textContent = '▶ plays a sound here in the page.'; };
 $('pairadd').onclick = () => {
   if (!pinned || !lastR) return; const items = fromLibrary([pinned, lastR]); if (!items.length) return;

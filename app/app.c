@@ -25,6 +25,12 @@ enum { DISPLAY_NORD, DISPLAY_GREEN, DISPLAY_LCD, DISPLAY_COUNT };
 #define SET_LEGACY_BYTES 12u
 #define SET_V2_BYTES 16u                 /* 0.3: up to patch_b */
 #define SET_V3_BYTES 20u                 /* up to octave_b */
+#define SET_V4_BYTES 24u                 /* standard/bitimbral settings before QUAD */
+typedef struct {
+    uint16_t patch;
+    int8_t octave;
+    uint8_t voices, drone, category;
+} quad_part_t;
 typedef struct {
     uint32_t magic;
     uint16_t patch;                      /* the list's index: the built-in ones, then the user's slots */
@@ -41,12 +47,18 @@ typedef struct {
     int8_t octave_b;                     /* and that part's octave. Bitimbral: octave, voices, category and
                                           * drone_replace above are the part's the panel is on; these the other's */
     uint8_t voices_b, drone_b, spare[2]; /* appended a third time: its voice limit and drone mode */
+    uint8_t quad_enabled, quad_layout, quad_focus, quad_version;
+    uint8_t quad_ch[4];                 /* Circuit Synth 1/2 and MIDI 1/2: 1,2,3,4 */
+    quad_part_t quad[4];                /* separate patches/settings from standard and bitimbral */
 } settings_t;
 static settings_t set;
 enum { LAY_SPLIT, LAY_STEREO, LAY_DOUBLE, LAY_COUNT };
 #define BI_ON (set.bi & 1u)
 #define BI_LAYOUT ((uint32_t)(set.bi >> 1) & 3u)
 #define CH_L (set.ch_l ? set.ch_l : 3u)   /* the Circuit Tracks' MIDI 1 */
+#define QUAD_ON (set.quad_enabled != 0u)
+#define MULTI_ON (QUAD_ON || BI_ON)
+#define MODE_VALUE (QUAD_ON ? 2 : (int)BI_ON)
 #define CH_R (set.ch_r ? set.ch_r : 4u)   /* and MIDI 2 */
 
 static void settings_defaults(void)
@@ -63,36 +75,61 @@ static void settings_defaults(void)
 }
 
 /* ----------------------------------------------------------------- engine --- */
-static s1_synth synth;
-static int16_t delay_buf[2u * DELAY_LEN] PLAT_POOL;
-static float chorus_buf[2u * CHORUS_LEN] PLAT_POOL;
-static float buf_l[APP_BLOCK], buf_r[APP_BLOCK];
-/* Bitimbral: a second part, R, beside part L (synth). Each has its own patch, arp, hold and effects; R renders on
- * the second core when it runs (fm1.toml cpu2), else after L on the first. Standard mode never renders R. */
-#define DELAY_LEN_B 16384u               /* 0.37 s a side: 64 KiB, what is left of the pool (longer echoes an octave shorter) */
-static s1_synth synth_b;
-static s1_synth *const PART[2] = {&synth, &synth_b};
-static int16_t delay_buf_b[2u * DELAY_LEN_B] PLAT_POOL;
-static float chorus_buf_b[2u * CHORUS_LEN] PLAT_POOL;
-static float buf2_l[APP_BLOCK], buf2_r[APP_BLOCK];
-static volatile uint8_t w_ch[2] = {2, 3};   /* the parts' channels in bitimbral, 0 .. 15 */
-static volatile uint8_t w_bi, w_layout, w_focus;   /* the main loop's: bitimbral on, its output, the part the panel is on */
-static uint8_t a_bi, a_layout;           /* as the render has them (taken at EV_MODE: the notes stop there) */
-static volatile uint8_t ux_refocus;      /* the panel moved to the other part: the live view starts again */
-static uint32_t dual_jobs, dual_self;    /* blocks R rendered on the second core / on the first */
-static void part_b_job(uint32_t m) { s1_render(&synth_b, buf2_l, buf2_r, (int)m); }
+#define NPARTS 4u
+#define DELAY_LEN_B 16384u
+#define QUAD_DELAY_LEN 8192u            /* 0.186 s per side, four independent stereo delays */
+#define QUAD_CORE_VOICES 6u             /* parts 1+3 on core 0; 2+4 on core 1 */
+static s1_synth synth, synth_b, synth_c, synth_d;
+static s1_synth *const PART[NPARTS] = {&synth, &synth_b, &synth_c, &synth_d};
+/* Only the audio interrupt switches this arena, with both cores idle. Legacy modes retain their exact buffers. */
+static union {
+    struct {
+        int16_t delay[2u * DELAY_LEN], delay_b[2u * DELAY_LEN_B];
+        float chorus[2u * CHORUS_LEN], chorus_b[2u * CHORUS_LEN];
+    } legacy;
+    struct {
+        int16_t delay[NPARTS][2u * QUAD_DELAY_LEN];
+        float chorus[NPARTS][2u * CHORUS_LEN];
+    } quad;
+} fx_arena PLAT_POOL;
+#define legacy_delay (fx_arena.legacy.delay)
+#define delay_buf_b (fx_arena.legacy.delay_b)
+#define legacy_chorus (fx_arena.legacy.chorus)
+#define chorus_buf_b (fx_arena.legacy.chorus_b)
+static float buf_l[APP_BLOCK], buf_r[APP_BLOCK], buf2_l[APP_BLOCK], buf2_r[APP_BLOCK];
+static float buf3_l[APP_BLOCK], buf3_r[APP_BLOCK], buf4_l[APP_BLOCK], buf4_r[APP_BLOCK];
+static float *const PART_L[NPARTS] = {buf_l, buf2_l, buf3_l, buf4_l};
+static float *const PART_R[NPARTS] = {buf_r, buf2_r, buf3_r, buf4_r};
+static volatile uint8_t w_ch[NPARTS] = {2, 3, 2, 3};
+static volatile uint8_t w_bi, w_quad, w_layout, w_focus, w_limit[NPARTS], w_drone[NPARTS];
+static uint8_t a_bi, a_quad, a_layout;
+static volatile uint8_t ux_refocus;
+static uint32_t dual_jobs, dual_self;
+static uint32_t audio_parts(void) { return a_quad ? NPARTS : a_bi ? 2u : 1u; }
+static void part_b_job(uint32_t m)
+{
+    s1_render(&synth_b, buf2_l, buf2_r, (int)m);
+    if (a_quad) s1_render(&synth_d, buf4_l, buf4_r, (int)m);
+}
+static void quad_defaults(void);
+static void quad_focus(uint32_t part);
+static void quad_enter(void);
+static void quad_leave(void);
+static void quad_sync(void);
+static int settings_save(void);
+static void queue_mode_patches(void);
 static float gain_now;
 #include "ui/live.h"
 
 /* main loop -> audio interrupt: a ring of small events, and a whole patch at a time */
-enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE, EV_MODE };   /* bit 7: part R */
+enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE, EV_MODE };   /* bits 6..7: part 0..3 */
 typedef struct { uint8_t type, a; int16_t b; } ev_t;
 static ev_t evq[64];
 static volatile uint32_t ev_w, ev_r;
 static volatile uint8_t ev_overflow;
-static int32_t patch_next[2][S1_NPARAMS];
-static volatile uint8_t patch_ready[2];
-static volatile int32_t want_program[2] = {-1, -1};   /* a program change from MIDI per part, for the main loop */
+static int32_t patch_next[NPARTS][S1_NPARAMS];
+static volatile uint8_t patch_ready[NPARTS];
+static volatile int32_t want_program[NPARTS] = {-1, -1, -1, -1};   /* a program change from MIDI per part, for the main loop */
 static volatile uint32_t ext_tempo;          /* MIDI clock's tempo, 0 none yet */
 static volatile uint8_t shed;                /* the render ran out of time: the main loop lowers the voices */
 static volatile uint32_t midi_notes;         /* notes in from MIDI (the screen's activity mark) */
@@ -110,7 +147,7 @@ static void ev_push_to(uint32_t part, uint32_t type, uint32_t a, int32_t b)
         ev_overflow = 1;                 /* a dropped note-off must never leave a latched sound */
         return;
     }
-    evq[w & 63u].type = (uint8_t)(type | part << 7);
+    evq[w & 63u].type = (uint8_t)(type | part << 6);
     evq[w & 63u].a = (uint8_t)a;
     evq[w & 63u].b = (int16_t)b;
     ev_w = w + 1u;
@@ -143,7 +180,7 @@ static struct {
     float pos[NMACRO];                   /* where each knob is now, gliding to target */
     uint8_t target[NMACRO];
     uint8_t live;                        /* the knobs still gliding */
-} mac[2];
+} mac[NPARTS];
 static volatile uint32_t macro_seen;     /* the last knob the Circuit moved: a count << 8 | part << 3 | knob */
 
 static int32_t macro_param(const int32_t *base, uint32_t m, uint32_t k, float pos)
@@ -195,7 +232,7 @@ static int macro_cc(uint32_t p, uint32_t cc, uint32_t value)   /* 1: one of the 
 {
     uint32_t m;
     for (m = 0; m < NMACRO; m++)
-        if (MACRO_CC[m] == cc) {
+        if ((a_quad && p < 2u ? 80u + m : MACRO_CC[m]) == cc) {
             mac[p].target[m] = (uint8_t)value;
             mac[p].live |= (uint8_t)(1u << m);
             macro_seen = ((macro_seen >> 8) + 1u) << 8 | p << 3 | m;
@@ -222,7 +259,7 @@ static void macro_run(uint32_t p)        /* once a render: a knob covers its who
 static void macro_release(void)          /* standard again: both parts as their patches are */
 {
     uint32_t p, m;
-    for (p = 0; p < 2u; p++) {
+    for (p = 0; p < NPARTS; p++) {
         for (m = 0; m < NMACRO; m++) {
             mac[p].pos[m] = 64.0f;
             mac[p].target[m] = 64;
@@ -234,18 +271,32 @@ static void macro_release(void)          /* standard again: both parts as their 
 
 static void all_off(void)
 {
-    s1_all_notes_off(&synth, 1);
-    s1_all_notes_off(&synth_b, 1);
+    for (uint32_t p = 0; p < NPARTS; p++) s1_all_notes_off(PART[p], 1);
 }
 
 static void mode_take(void)              /* audio interrupt: the mode as the main loop has it; nothing sounds across it */
 {
     all_off();
+    if (a_quad != w_quad) {
+        for (uint32_t p = 0; p < NPARTS; p++) {
+            s1_synth *S = PART[p];
+            S->cfg.delay_buf = w_quad ? fx_arena.quad.delay[p] : p == 0 ? legacy_delay : p == 1 ? delay_buf_b : 0;
+            S->cfg.delay_len = w_quad ? QUAD_DELAY_LEN : p == 0 ? DELAY_LEN : p == 1 ? DELAY_LEN_B : 0;
+            S->cfg.chorus_buf = w_quad ? fx_arena.quad.chorus[p] : p == 0 ? legacy_chorus : p == 1 ? chorus_buf_b : 0;
+            S->cfg.chorus_len = CHORUS_LEN;
+            S->cfg.max_voices = w_limit[p];
+            S->drone_replace = w_drone[p];
+            S->dirty = 1;
+        }
+        for (uint32_t p = 0; p < NPARTS; p++) s1_fx_reset(PART[p]);
+        macro_release();
+    }
     if (a_bi && !w_bi) {
         s1_fx_reset(&synth_b);           /* no echo of this session when R comes back */
         macro_release();
     }
     a_bi = w_bi;
+    a_quad = w_quad;
     a_layout = w_layout;
 }
 
@@ -260,7 +311,7 @@ static void ux_restart(void)             /* audio interrupt: the live view follo
 static void events(void)                 /* audio interrupt */
 {
     uint32_t p;
-    for (p = 0; p < 2u; p++)
+    for (p = 0; p < NPARTS; p++)
         if (patch_ready[p]) {
             s1_set_patch(PART[p], patch_next[p]);
             macro_patch(p, patch_next[p]);
@@ -280,14 +331,14 @@ static void events(void)                 /* audio interrupt */
     }
     while (ev_r != ev_w) {
         const ev_t e = evq[ev_r & 63u];
-        s1_synth *const part = PART[e.type >> 7];
+        s1_synth *const part = PART[e.type >> 6];
         ev_r++;
-        switch (e.type & 0x7Fu) {
+        switch (e.type & 0x3Fu) {
         case EV_NOTE_ON: s1_note_on(part, e.a, e.b); break;
         case EV_NOTE_OFF: s1_note_off(part, e.a); break;
-        case EV_PARAM: macro_param_set(e.type >> 7, e.a, e.b); break;
+        case EV_PARAM: macro_param_set(e.type >> 6, e.a, e.b); break;
         case EV_PANIC: all_off(); break;
-        case EV_TEMPO: s1_set_tempo(&synth, (float)e.b); s1_set_tempo(&synth_b, (float)e.b); break;
+        case EV_TEMPO: for (p = 0; p < NPARTS; p++) s1_set_tempo(PART[p], (float)e.b); break;
         case EV_HOLD: s1_set_hold(part, e.b); break;
         case EV_DRONE_MODE: part->drone_replace = (uint8_t)e.b; break;
         case EV_MODE: mode_take(); break;
@@ -305,11 +356,14 @@ static void midi_event(uint32_t pkt)
     /* Standard: every channel plays L. Bitimbral: channel 3 is part L, channel 4 part R (the Circuit Tracks'
      * MIDI 1 and MIDI 2), the other channels are not ours; DOUBLE: the notes of either play both parts */
     const uint32_t ch = st & 0x0Fu, kind = st & 0xF0u, note = kind == 0x90u || kind == 0x80u;
-    const uint32_t mask = st >= 0xF0u ? 0u : !a_bi ? 1u : ch != w_ch[0] && ch != w_ch[1] ? 0u :
-        note && a_layout == LAY_DOUBLE ? 3u : ch == w_ch[0] ? 1u : 2u;
+    uint32_t mask = st >= 0xF0u ? 0u : !a_quad && !a_bi ? 1u : 0u;
+    if (a_quad) {
+        for (uint32_t p = 0; p < NPARTS; p++) if (ch == w_ch[p]) mask |= 1u << p;
+    } else if (a_bi && (ch == w_ch[0] || ch == w_ch[1]))
+        mask = note && a_layout == LAY_DOUBLE ? 3u : ch == w_ch[0] ? 1u : 2u;
     uint32_t p;
     if (st < 0xF0u) {
-        for (p = 0; p < 2u; p++) {
+        for (p = 0; p < audio_parts(); p++) {
             s1_synth *const part = PART[p];
             if (!(mask & (1u << p)))
                 continue;
@@ -323,7 +377,7 @@ static void midi_event(uint32_t pkt)
                 /* fall through */
             case 0x80u: s1_note_off(part, (int)d1); break;
             case 0xB0u:
-                if (!a_bi || !macro_cc(p, d1, d2))
+                if ((!a_bi && !a_quad) || !macro_cc(p, d1, d2))
                     s1_control_change(part, (int)d1, (int)d2);
                 break;
             case 0xC0u: want_program[p] = (int32_t)d1; break;
@@ -346,21 +400,18 @@ static void midi_event(uint32_t pkt)
                 const uint32_t bpm = (uint32_t)(exact + 0.5f);
                 if (bpm != ext_tempo) {
                     ext_tempo = bpm;     /* (the screen's; the delay and LFOs follow the whole number too) */
-                    s1_set_tempo(&synth, (float)bpm);
-                    s1_set_tempo(&synth_b, (float)bpm);
+                    for (p = 0; p < NPARTS; p++) s1_set_tempo(PART[p], (float)bpm);
                 }
             }
             clk_t0 = synth.now;
             clk_n = 0u;
         }
         clk_n++;
-        s1_clock(&synth, S1_CLOCK_TICK);   /* the arpeggiators step on the clock's grid */
-        s1_clock(&synth_b, S1_CLOCK_TICK);
+        for (p = 0; p < audio_parts(); p++) s1_clock(PART[p], S1_CLOCK_TICK);
     } else if (st == 0xFAu || st == 0xFCu) {
         clk_n = 0u;
         if (st == 0xFAu) {       /* Start: the arpeggiators' patterns from the top, on the bar */
-            s1_clock(&synth, S1_CLOCK_START);
-            s1_clock(&synth_b, S1_CLOCK_START);
+            for (p = 0; p < audio_parts(); p++) s1_clock(PART[p], S1_CLOCK_START);
         }
         if (st == 0xFCu)
             all_off();
@@ -373,10 +424,10 @@ static void clock_timeout(void)
         ext_tempo = 0;
         clk_live = 0;
         clk_n = 0;
-        s1_set_tempo(&synth, (float)set.tempo);
-        s1_set_tempo(&synth_b, (float)set.tempo);
-        s1_clock(&synth, S1_CLOCK_OFF);
-        s1_clock(&synth_b, S1_CLOCK_OFF);
+        for (uint32_t p = 0; p < NPARTS; p++) {
+            s1_set_tempo(PART[p], (float)set.tempo);
+            s1_clock(PART[p], S1_CLOCK_OFF);
+        }
     }
 }
 
@@ -395,8 +446,9 @@ static inline float soft(float x)
 static void render_span(int32_t *lr, uint32_t m, float step)
 {
     uint32_t i;
-    const int two = a_bi, on2 = two && plat_cpu2_on() && plat_cpu2_run(part_b_job, m);
+    const int two = a_bi || a_quad, on2 = two && plat_cpu2_on() && plat_cpu2_run(part_b_job, m);
     s1_render(&synth, buf_l, buf_r, (int)m);
+    if (a_quad) s1_render(&synth_c, buf3_l, buf3_r, (int)m);
     if (two) {
         if (!on2 || plat_cpu2_wait() != 0) {
             part_b_job(m);           /* one core, or the second dropped the job */
@@ -406,8 +458,17 @@ static void render_span(int32_t *lr, uint32_t m, float step)
     }
     for (i = 0; i < m; i++) {
         /* SPLIT: L on the left only, R on the right only, each part summed to mono; else both in stereo */
-        const float l = !two ? buf_l[i] : a_layout == LAY_SPLIT ? 0.5f * (buf_l[i] + buf_r[i]) : buf_l[i] + buf2_l[i];
-        const float r = !two ? buf_r[i] : a_layout == LAY_SPLIT ? 0.5f * (buf2_l[i] + buf2_r[i]) : buf_r[i] + buf2_r[i];
+        float l = !two ? buf_l[i] : a_layout == LAY_SPLIT ? 0.5f * (buf_l[i] + buf_r[i]) : buf_l[i] + buf2_l[i];
+        float r = !two ? buf_r[i] : a_layout == LAY_SPLIT ? 0.5f * (buf2_l[i] + buf2_r[i]) : buf_r[i] + buf2_r[i];
+        if (a_quad) {
+            if (a_layout == LAY_SPLIT) {
+                l = 0.5f * (buf_l[i] + buf_r[i] + buf2_l[i] + buf2_r[i]);
+                r = 0.5f * (buf3_l[i] + buf3_r[i] + buf4_l[i] + buf4_r[i]);
+            } else {
+                l = buf_l[i] + buf2_l[i] + buf3_l[i] + buf4_l[i];
+                r = buf_r[i] + buf2_r[i] + buf3_r[i] + buf4_r[i];
+            }
+        }
         gain_now += step;
         lr[2u * i] = (int32_t)(soft(l * OUT_GAIN) * gain_now);
         lr[2u * i + 1u] = (int32_t)(soft(r * OUT_GAIN) * gain_now);
@@ -448,8 +509,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         if (pos < at) {
             if (!pos) {
                 clock_timeout();
-                macro_run(0);
-                macro_run(1);
+                for (uint32_t p = 0; p < audio_parts(); p++) macro_run(p);
             }
             while (pos < at) {
                 const uint32_t m = at - pos < APP_BLOCK ? at - pos : APP_BLOCK;
@@ -483,6 +543,7 @@ static struct {
     uint32_t page, row;
     uint32_t arp_ms;
     uint8_t arp_down;                   /* tap toggles; hold opens/advances the settings page */
+    uint8_t held_ch[NKEYS];             /* keep note-off on its original outgoing MIDI channel */
     uint8_t held_part[NKEYS];            /* the parts each held key plays (bit 0 L, bit 1 R) */
     uint32_t oct_ms;                     /* OCT- / OCT+: when the gesture began */
     uint8_t oct_used;                    /* it has acted (both: the mode; bitimbral, held: the octave) */
@@ -518,7 +579,7 @@ typedef struct {
     uint8_t position, base[VARIATION_PARAMS];
     uint32_t seed;
 } variation_t;
-static variation_t variations[2];
+static variation_t variations[NPARTS];
 
 static void patch_reference(void)
 {
@@ -650,7 +711,7 @@ static void patch_select(uint32_t i)
     patch_reference();
     ux_live_reset();
     {
-        uint16_t *const kept = cur_part ? &set.patch_b : &set.patch;
+        uint16_t *const kept = QUAD_ON ? &set.quad[cur_part].patch : cur_part ? &set.patch_b : &set.patch;
         if (*kept != i) {
             *kept = (uint16_t)i;
             set_dirty = 1;
@@ -688,6 +749,8 @@ static void other_select(uint32_t i)     /* a patch for the part the panel is no
     patch_select(i);
     part_swap();
 }
+
+#include "quad.h"
 
 static uint32_t category_position(uint32_t cat)   /* where a category is in the browser's order */
 {
@@ -765,7 +828,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_RANDOM, X_NONE = 255 };
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_RANDOM, X_QPART, X_QOUTPUT, X_QCH1, X_QCH2, X_QCH3, X_QCH4, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -824,8 +887,10 @@ static const uint8_t R_GLOBAL[][4] = {
     {X_VOICES, X_TEMPO, X_RANDOM, X_DRONE},
     {X_BI, X_LAYOUT, X_CHL, X_CHR},
     {X_DISPLAY, X_NONE, X_NONE, X_NONE},
-    {X_CPU, X_PEAK, X_SHED, X_RAW}};
-enum { GLOBAL_PART, GLOBAL_BI, GLOBAL_DISPLAY, GLOBAL_DIAG };
+    {X_CPU, X_PEAK, X_SHED, X_RAW},
+    {X_BI, X_QPART, X_QOUTPUT, X_VOICES},
+    {X_QCH1, X_QCH2, X_QCH3, X_QCH4}};
+enum { GLOBAL_PART, GLOBAL_BI, GLOBAL_DISPLAY, GLOBAL_DIAG, GLOBAL_QUAD, GLOBAL_QCHANNELS };
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
@@ -854,7 +919,8 @@ static void value_text(uint32_t id, int32_t v, char *t)
     case X_DISPLAY: s = v == DISPLAY_LCD ? "LCD" : v == DISPLAY_GREEN ? "GREEN" : "NORD"; break;
     case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_LAST)]; break;
     case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
-    case X_BI: s = v ? "BITIMB" : "STANDARD"; break;
+    case X_BI: s = v == 2 ? "QUAD" : v ? "BITIMB" : "STANDARD"; break;
+    case X_QOUTPUT: s = v ? "STEREO" : "SPLIT"; break;
     case X_LAYOUT: s = LAYOUT[clamp(v, 0, LAY_COUNT - 1)]; break;
     case S1P_OSC1_SHAPE: s = OSC1[v & 3]; break;
     case S1P_OSC2_SHAPE: s = OSC2[clamp(v - 1, 0, 3)]; break;
@@ -882,6 +948,10 @@ static void value_text(uint32_t id, int32_t v, char *t)
 
 static const char *cell_name(uint32_t id)
 {
+    if (id == X_QPART) return "PART";
+    if (id == X_QOUTPUT) return "OUTPUT";
+    if (id >= X_QCH1 && id <= X_QCH4) { static const char *const names[] = {"1 CH", "2 CH", "3 CH", "4 CH"}; return names[id - X_QCH1]; }
+    if (QUAD_ON && (id == X_CHL || id == X_CHR)) return id == X_CHL ? "1 CH" : "2 CH";
     if (id == X_RANDOM) return "RANDOM";
     return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id == X_DRONE ? "DRONE" :
         id == X_CATEGORY ? "CAT" : id == X_DISPLAY ? "STYLE" : id == X_BI ? "MODE" : id == X_LAYOUT ? "OUTPUT" : id == X_CHL ? "L CH" : id == X_CHR ? "R CH" : id < S1_NPARAMS ? PNAME[id] : "";
@@ -890,10 +960,13 @@ static int32_t cell_value(uint32_t id)
 {
     if (id == X_RANDOM) return variations[cur_part].position;
     if (id == X_DISPLAY) return set.display;
-    if (id == X_BI) return (int32_t)BI_ON;
-    if (id == X_LAYOUT) return (int32_t)BI_LAYOUT;
-    if (id == X_CHL) return (int32_t)CH_L;
-    if (id == X_CHR) return (int32_t)CH_R;
+    if (id == X_QPART) return QUAD_ON ? cur_part + 1 : set.quad_focus + 1;
+    if (id == X_QOUTPUT) return set.quad_layout;
+    if (id >= X_QCH1 && id <= X_QCH4) return set.quad_ch[id - X_QCH1];
+    if (id == X_BI) return MODE_VALUE;
+    if (id == X_LAYOUT) return QUAD_ON ? set.quad_layout : (int32_t)BI_LAYOUT;
+    if (id == X_CHL) return QUAD_ON ? set.quad_ch[0] : (int32_t)CH_L;
+    if (id == X_CHR) return QUAD_ON ? set.quad_ch[1] : (int32_t)CH_R;
     if (id == X_CPU) return (int32_t)shown_cpu;
     if (id == X_PEAK) return (int32_t)cpu_high;
     if (id == X_SHED) return (int32_t)cpu_sheds;
@@ -910,10 +983,10 @@ void app_say(const char *a, const char *b)
     uint32_t i;
     char t[48];
     const uint8_t priority = a && (ux_equal(a, "CPU FULL") || ux_equal(a, "SAVE")) ? 2 :
-        a && (a[0] == 'L' || a[0] == 'R') && a[1] == ' ' ? 1 :   /* a Circuit knob: its part and label */
+        a && (a[0] == 'L' || a[0] == 'R' || (a[0] >= '1' && a[0] <= '4')) && a[1] == ' ' ? 1 :   /* a Circuit knob: its part and label */
         a && (ux_equal(a, "SAVED") || ux_equal(a, "RECEIVED") || ux_equal(a, "REVERT") ||
               ux_equal(a, "ALL NOTES") || ux_equal(a, "BANK") || ux_equal(a, "PART L") || ux_equal(a, "PART R") ||
-              ux_equal(a, "BITIMBRAL") || ux_equal(a, "STANDARD") || ux_equal(a, "OUTPUT")) ? 1 : 0;
+              ux_equal(a, "QUAD") || ux_equal(a, "BITIMBRAL") || ux_equal(a, "STANDARD") || ux_equal(a, "OUTPUT")) ? 1 : 0;
     /* Speak every event, but don't let a routine parameter update erase a warning. */
     if (ann_on()) {
         t[0] = 0;
@@ -988,10 +1061,14 @@ static void speak(void)                  /* explicit WHERE: identity, subpage, v
 /* ---------------------------------------------------------- bitimbral --- */
 static void mode_push(void)              /* the render takes the mode at an event: every note stops there */
 {
-    w_bi = (uint8_t)BI_ON;
-    w_layout = (uint8_t)BI_LAYOUT;
-    w_ch[0] = (uint8_t)(CH_L - 1u);
-    w_ch[1] = (uint8_t)(CH_R - 1u);
+    w_bi = (uint8_t)(!QUAD_ON && BI_ON);
+    w_quad = (uint8_t)QUAD_ON;
+    w_layout = (uint8_t)(QUAD_ON ? set.quad_layout : BI_LAYOUT);
+    for (uint32_t p = 0; p < NPARTS; p++) {
+        w_ch[p] = (uint8_t)(QUAD_ON ? set.quad_ch[p] - 1u : p == 0 ? CH_L - 1u : CH_R - 1u);
+        w_limit[p] = QUAD_ON ? set.quad[p].voices : p == cur_part ? set.voices : p < 2 ? set.voices_b : MAX_VOICES_DEFAULT;
+        w_drone[p] = QUAD_ON ? set.quad[p].drone : p == cur_part ? set.drone_replace : p < 2 ? set.drone_b : 0;
+    }
     ev_push(EV_MODE, 0, 0);
     set_dirty = 1;
     ui.redraw = UX_ALL;
@@ -999,6 +1076,7 @@ static void mode_push(void)              /* the render takes the mode at an even
 
 static void focus_set(uint32_t part)     /* the panel and the keys on part L (0) or R (1) */
 {
+    if (QUAD_ON) { quad_focus(part); return; }
     if (!BI_ON)
         return;
     if (part != cur_part) {
@@ -1011,17 +1089,33 @@ static void focus_set(uint32_t part)     /* the panel and the keys on part L (0)
 
 static void mode_set(int on)             /* standard (one sound, as ever) or bitimbral (L and R) */
 {
-    if ((int)BI_ON == (on != 0))
+    on = clamp(on, 0, 2);
+    if (MODE_VALUE == on) return;
+    if (on == 2) {
+        quad_enter();
+        mode_push();
+        app_say("QUAD", "FOUR PARTS / CIRCUIT");
         return;
+    }
+    const int from_quad = QUAD_ON;
+    if (from_quad) quad_leave();
     if (!on && cur_part)
         part_swap();                     /* standard plays part L */
     set.bi = (uint8_t)((set.bi & ~9u) | (on ? 1u : 0u));
+    if (from_quad) queue_mode_patches();
     mode_push();
     app_say(on ? "BITIMBRAL" : "STANDARD", on ? LAYOUT[BI_LAYOUT] : "ONE SOUND");
 }
 
 static void layout_set(int32_t v)
 {
+    if (QUAD_ON) {
+        v = clamp(v, 0, 1);
+        if (v == set.quad_layout) return;
+        set.quad_layout = (uint8_t)v; mode_push();
+        app_say("OUTPUT", v ? "STEREO" : "L 1+2 / R 3+4");
+        return;
+    }
     v = clamp(v, 0, LAY_COUNT - 1);
     if ((uint32_t)v == BI_LAYOUT)
         return;
@@ -1075,7 +1169,7 @@ static void cell_edit(uint32_t id, int32_t d)
         ext_tempo = 0;
         ev_push(EV_TEMPO, 0, v);
     } else if (id == X_VOICES) {
-        v = clamp((int32_t)set.voices + (d > 0 ? 1 : -1), 1, S1_MAX_VOICES);
+        v = clamp((int32_t)set.voices + (d > 0 ? 1 : -1), 1, QUAD_ON ? (int32_t)(QUAD_CORE_VOICES - set.quad[cur_part ^ 2u].voices) : S1_MAX_VOICES);
         if (v == (int32_t)set.voices)
             return;
         set.voices = (uint8_t)v;
@@ -1092,15 +1186,34 @@ static void cell_edit(uint32_t id, int32_t d)
         set.display = (uint8_t)v;
         set_dirty = 1;
     } else if (id == X_BI) {
-        mode_set(d > 0);
+        const uint32_t page = ui.page, row = ui.row;
+        mode_set(clamp(MODE_VALUE + (d > 0 ? 1 : -1), 0, 2));
+        ui.page = page; ui.row = row; ui.redraw = UX_ALL;
         return;
     } else if (id == X_LAYOUT) {
-        layout_set((int32_t)BI_LAYOUT + (d > 0 ? 1 : -1));
+        layout_set(cell_value(X_LAYOUT) + (d > 0 ? 1 : -1));
         return;
+    } else if (id == X_QPART) {
+        if (QUAD_ON) {
+            const uint32_t page = ui.page, row = ui.row;
+            quad_focus((uint32_t)clamp((int32_t)cur_part + (d > 0 ? 1 : -1), 0, 3));
+            ui.page = page; ui.row = row; ui.redraw = UX_ALL; return;
+        }
+        set.quad_focus = (uint8_t)clamp((int32_t)set.quad_focus + (d > 0 ? 1 : -1), 0, 3);
+        set_dirty = 1; ui.redraw = UX_ALL; return;
+    } else if (id == X_QOUTPUT) {
+        set.quad_layout = (uint8_t)clamp((int32_t)set.quad_layout + (d > 0 ? 1 : -1), 0, 1);
+        if (QUAD_ON) mode_push();
+        set_dirty = 1; ui.redraw = UX_ALL; return;
+    } else if (id >= X_QCH1 && id <= X_QCH4) {
+        uint8_t *ch = &set.quad_ch[id - X_QCH1];
+        *ch = (uint8_t)clamp((int32_t)*ch + (d > 0 ? 1 : -1), 1, 16);
+        if (QUAD_ON) mode_push();
+        set_dirty = 1; ui.redraw = UX_ALL; return;
     } else if (id == X_CHL || id == X_CHR) {
-        uint8_t *const ch = id == X_CHL ? &set.ch_l : &set.ch_r;
-        v = clamp((int32_t)(id == X_CHL ? CH_L : CH_R) + (d > 0 ? 1 : -1), 1, 16);
-        if (v == (int32_t)(id == X_CHL ? CH_L : CH_R))
+        uint8_t *const ch = QUAD_ON ? &set.quad_ch[id == X_CHL ? 0 : 1] : id == X_CHL ? &set.ch_l : &set.ch_r;
+        v = clamp(cell_value(id) + (d > 0 ? 1 : -1), 1, 16);
+        if (v == cell_value(id))
             return;
         *ch = (uint8_t)v;
         mode_push();                     /* (the notes stop: none is left hanging on the old channel) */
@@ -1124,6 +1237,7 @@ static void cell_edit(uint32_t id, int32_t d)
         refresh_dirty();
         ev_push(EV_PARAM, id, v);
     }
+    if (QUAD_ON) quad_sync();
     ux_value(id, v, t, &unit);
     if (unit[0]) { text_cat(t, " "); text_cat(t, unit); }
     if (ann_on()) app_say(ux_label(id), t);
@@ -1149,8 +1263,8 @@ static void save_patch(void)
     cur_index = NFACT + (uint32_t)slot;
     if (!category_matches(cur_index)) set.category = CAT_USER;
     patch_reference();
-    *(cur_part ? &set.patch_b : &set.patch) = (uint16_t)cur_index;
-    plat_store_save(OBJ_SETTINGS, &set, sizeof set);
+    *(QUAD_ON ? &set.quad[cur_part].patch : cur_part ? &set.patch_b : &set.patch) = (uint16_t)cur_index;
+    settings_save();
     set_dirty = 0;
     app_say("SAVED", cur.name);
 }
@@ -1204,7 +1318,7 @@ static void input(void)
             ui.oct_ms = plat_ms();
             ui.oct_used = 0;
             ui.oct_step = 0;
-            if (!BI_ON) {
+            if (!MULTI_ON) {
                 const int8_t before = set.octave;
                 octave_step(oct & (1u << B_OCTDN) ? -1 : 1);
                 ui.oct_step = (int8_t)(set.octave - before);
@@ -1216,29 +1330,28 @@ static void input(void)
                 ui.oct_step = 0;
             }
             ui.oct_used = 2;
-            mode_set(!BI_ON);
+            mode_set(QUAD_ON ? 0 : !BI_ON);
         }
-        if (BI_ON && oct && oct != both && !ui.oct_used && plat_ms() - ui.oct_ms >= 500u) {
+        if (MULTI_ON && oct && oct != both && !ui.oct_used && plat_ms() - ui.oct_ms >= 500u) {
             ui.oct_used = 1;
             octave_step(oct & (1u << B_OCTDN) ? -1 : 1);
         }
-        if (!oct && was && was != both && !ui.oct_used && BI_ON)
-            focus_set(was & (1u << B_OCTUP) ? 1u : 0u);
+        if (!oct && was && was != both && !ui.oct_used && MULTI_ON)
+            focus_set(QUAD_ON ? (cur_part + (was & (1u << B_OCTUP) ? 1u : 3u)) % NPARTS : was & (1u << B_OCTUP) ? 1u : 0u);
     }
     for (k = 0; k < NKEYS; k++) {            /* key 0 is F3 (MIDI 53) */
         const uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit)) {
             const uint32_t note = (uint32_t)clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), v = touch_vel(k);
-            const uint32_t parts = BI_ON && BI_LAYOUT == LAY_DOUBLE ? 3u : 1u << cur_part;
+            const uint32_t parts = !QUAD_ON && BI_ON && BI_LAYOUT == LAY_DOUBLE ? 3u : 1u << cur_part;
             ui.held_note[k] = (uint8_t)note;
+            ui.held_ch[k] = QUAD_ON ? set.quad_ch[cur_part] - 1u : 0u;
             ui.held_part[k] = (uint8_t)parts;
-            if (parts & 1u) ev_push_to(0, EV_NOTE_ON, note, (int32_t)(v ? v : 1u));
-            if (parts & 2u) ev_push_to(1, EV_NOTE_ON, note, (int32_t)(v ? v : 1u));
-            plat_midi_send(0x09u | 0x90u << 8 | note << 16 | v << 24, TO_USB | TO_BLE);
+            for (uint32_t p = 0; p < NPARTS; p++) if (parts & (1u << p)) ev_push_to(p, EV_NOTE_ON, note, (int32_t)(v ? v : 1u));
+            plat_midi_send(0x09u | (0x90u | (uint32_t)ui.held_ch[k]) << 8 | note << 16 | v << 24, TO_USB | TO_BLE);
         } else if (!(keys & bit) && (ui.keys & bit)) {
-            if (ui.held_part[k] & 1u) ev_push_to(0, EV_NOTE_OFF, ui.held_note[k], 0);
-            if (ui.held_part[k] & 2u) ev_push_to(1, EV_NOTE_OFF, ui.held_note[k], 0);
-            plat_midi_send(0x08u | 0x80u << 8 | (uint32_t)ui.held_note[k] << 16, TO_USB | TO_BLE);
+            for (uint32_t p = 0; p < NPARTS; p++) if (ui.held_part[k] & (1u << p)) ev_push_to(p, EV_NOTE_OFF, ui.held_note[k], 0);
+            plat_midi_send(0x08u | (0x80u | (uint32_t)ui.held_ch[k]) << 8 | (uint32_t)ui.held_note[k] << 16, TO_USB | TO_BLE);
         }
     }
     for (k = 0; k < NB; k++) {
@@ -1326,9 +1439,9 @@ static void input(void)
     }
     if (cur_dirty)
         lit |= 1u << B_SAVE;
-    if (BI_ON)                           /* bitimbral: the part the panel is on. OCT- and green PLAY: L; OCT+ and red PLAY: R */
+    if (MULTI_ON)                        /* bitimbral: the part the panel is on. OCT- and green PLAY: L; OCT+ and red PLAY: R */
         lit |= 1u << (cur_part ? B_OCTUP : B_OCTDN) | 1u << B_PLAY;
-    plat_play_red(BI_ON && cur_part);
+    plat_play_red(MULTI_ON && (QUAD_ON ? cur_part >= 2u : cur_part));
     plat_glow(1);
     plat_leds(lit, keys);
 }
@@ -1388,11 +1501,11 @@ void app_log(void (*line)(const char *t))
 /* -------------------------------------------------------------------- SysEx --- */
 static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n data bytes, 7 bits each */
 {
-    uint8_t f[20];
+    uint8_t f[32];
     uint32_t k = 0, i;
     f[k++] = 0xF0; f[k++] = 0x7D; f[k++] = 0x53; f[k++] = 0x59; f[k++] = 0x31;
     f[k++] = (uint8_t)cmd;
-    for (i = 0; i < n && i < 12u; i++)
+    for (i = 0; i < n && i < 24u; i++)
         f[k++] = d[i] & 0x7Fu;
     f[k++] = 0xF7;
     plat_sysex_send(f, k);
@@ -1400,9 +1513,16 @@ static void sysex_reply(uint32_t cmd, const uint8_t *d, uint32_t n)   /* d: n da
 
 int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0 and F7 (bank.h) */
 {
-    uint8_t d[12];
+    uint8_t d[24];
     if (n < 5u || p[0] != 0x7Du || p[1] != 0x53u || p[2] != 0x59u || p[3] != 0x31u)
         return 0;
+    /* Keep the legacy librarian operating on its own panels, including while QUAD is active. */
+    if (QUAD_ON && (p[4] == 0x01u || p[4] == 0x02u || p[4] == 0x05u)) {
+        quad_leave();
+        const int handled = app_sysex(p, n);
+        quad_enter(); mode_push();
+        return handled;
+    }
     if (p[4] == 0x01u && n >= 7u) {          /* write a slot */
         const uint32_t slot = p[5] | (uint32_t)p[6] << 7;
         uint8_t rec[BANK_REC];
@@ -1426,6 +1546,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
             char t[8];
             num3(slot + 1u, t);
             app_say("RECEIVED", t);
+            quad_bank_refresh((int32_t)slot);
             if (other.index == NFACT + slot && !other.dirty)
                 other_select(other.index);
             if (cur_index == NFACT + slot) {
@@ -1446,6 +1567,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         ev_push(EV_PANIC, 0, 0);
         d[0] = bank_erase_all() ? 2u : 0u;
         sysex_reply(0x42, d, 1);
+        if (!d[0]) quad_bank_refresh(-1);
         if (user_index(other.index))
             other_select(0);
         if (user_index(cur_index))
@@ -1476,41 +1598,53 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[1] = p[6];
         d[2] = (uint8_t)status;
         sysex_reply(0x45, d, 3);
+        if (!status) quad_bank_refresh((int32_t)slot);
         if (!status && other.index == NFACT + slot)
             other_select(0);
         if (!status && cur_index == NFACT + slot)
             patch_select(0);                 /* the patch playing is gone */
     } else if (p[4] == 0x08u && n >= 7u) {   /* the mode (0 standard, 1 bitimbral) and the output (LAY_*); another
                                               * value leaves it as it is, so 7F 7F only asks */
-        if (p[5] <= 1u)
+        if (p[5] <= 2u)
             mode_set((int)p[5]);
-        if (p[6] < LAY_COUNT)
-            layout_set((int32_t)p[6]);
+        if (QUAD_ON) {
+            if (p[6] < 2u) { set.quad_layout = p[6]; mode_push(); }
+        } else if (p[6] < LAY_COUNT) layout_set((int32_t)p[6]);
         {
-            const uint32_t l = cur_part ? other.index : cur_index, r = cur_part ? cur_index : other.index;
+            const uint32_t l = QUAD_ON ? (cur_part == 0 ? cur_index : quad_panel[0].index) : cur_part ? other.index : cur_index;
+            const uint32_t r = QUAD_ON ? (cur_part == 1 ? cur_index : quad_panel[1].index) : cur_part ? cur_index : other.index;
             const uint32_t sl = user_index(l) ? l - NFACT + 1u : 0u, sr = user_index(r) ? r - NFACT + 1u : 0u;
-            d[0] = (uint8_t)BI_ON;
-            d[1] = (uint8_t)BI_LAYOUT;
+            d[0] = (uint8_t)MODE_VALUE;
+            d[1] = (uint8_t)(QUAD_ON ? set.quad_layout : BI_LAYOUT);
             d[2] = cur_part;
-            d[3] = (uint8_t)(CH_L - 1u);     /* the parts' channels, 0 .. 15 */
-            d[4] = (uint8_t)(CH_R - 1u);
+            d[3] = (uint8_t)(QUAD_ON ? set.quad_ch[0] - 1u : CH_L - 1u);     /* the parts' channels, 0 .. 15 */
+            d[4] = (uint8_t)(QUAD_ON ? set.quad_ch[1] - 1u : CH_R - 1u);
             d[5] = (uint8_t)(sl & 0x7Fu);    /* the user slot each part plays, 1 .. 1024 (0: a built-in or factory one) */
             d[6] = (uint8_t)(sl >> 7);
             d[7] = (uint8_t)(sr & 0x7Fu);
             d[8] = (uint8_t)(sr >> 7);
-            sysex_reply(0x48, d, 9);
+            if (QUAD_ON) {
+                d[9] = set.quad_ch[2] - 1u; d[10] = set.quad_ch[3] - 1u;
+                for (uint32_t part = 2; part < NPARTS; part++) {
+                    const uint32_t index = cur_part == part ? cur_index : quad_panel[part].index;
+                    const uint32_t slot = user_index(index) ? index - NFACT + 1u : 0;
+                    d[11u + (part - 2u) * 2u] = slot & 127u;
+                    d[12u + (part - 2u) * 2u] = slot >> 7;
+                }
+            }
+            sysex_reply(0x48, d, QUAD_ON ? 15 : 9);
         }
         return 1;
     } else if (p[4] == 0x09u && n >= 8u) {   /* part p[5] (0 L, 1 R) plays a user slot, as a program change would,
                                               * but any of the 1,024 */
-        const uint32_t part = p[5] ? 1u : 0u, slot = p[6] | (uint32_t)p[7] << 7;
+        const uint32_t part = p[5], slot = p[6] | (uint32_t)p[7] << 7;
         uint32_t status = 1;
-        if (slot < BANK_SLOTS && bank_used(slot)) {
+        if (part < (QUAD_ON ? NPARTS : 2u) && slot < BANK_SLOTS && bank_used(slot)) {
             if (part == cur_part) {
                 patch_select(NFACT + slot);
                 say_patch();
-            } else
-                other_select(NFACT + slot);
+            } else if (QUAD_ON) quad_select(part, NFACT + slot);
+            else other_select(NFACT + slot);
             status = 0;
         }
         d[0] = (uint8_t)part;
@@ -1518,6 +1652,20 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[2] = p[7] & 0x7Fu;
         d[3] = (uint8_t)status;
         sysex_reply(0x49, d, 4);
+    } else if (p[4] == 0x0Au && n >= 11u) { /* QUAD settings; 7F leaves each field unchanged */
+        int changed = 0;
+        if (p[5] < NPARTS) {
+            if (QUAD_ON) quad_focus(p[5]); else { set.quad_focus = p[5]; set_dirty = 1; }
+        }
+        if (p[6] < 2u && set.quad_layout != p[6]) { set.quad_layout = p[6]; set_dirty = 1; changed = 1; }
+        for (uint32_t part = 0; part < NPARTS; part++)
+            if (p[7u + part] < 16u && set.quad_ch[part] != p[7u + part] + 1u) { set.quad_ch[part] = p[7u + part] + 1u; set_dirty = 1; changed = 1; }
+        if (QUAD_ON && changed) mode_push();
+        ui.redraw = UX_ALL;
+        d[0] = set.quad_focus; d[1] = set.quad_layout;
+        for (uint32_t part = 0; part < NPARTS; part++) d[part + 2u] = set.quad_ch[part] - 1u;
+        sysex_reply(0x4A, d, 6);
+        return 1;
     } else if (p[4] == 0x06u && n >= 8u) {   /* complete credits/readmes, read-only and byte-preserving */
         const uint32_t offset = p[5] | (uint32_t)p[6] << 7 | (uint32_t)p[7] << 14;
         uint8_t frame[204];
@@ -1557,7 +1705,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[1] = (uint8_t)(bank_count >> 7);
         d[2] = (uint8_t)(BANK_SLOTS & 0x7Fu);
         d[3] = (uint8_t)(BANK_SLOTS >> 7);
-        d[4] = 3u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read);
+        d[4] = 7u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read);
                                               * bit 1, the parts: 08 with channels and slots, and 09 */
         sysex_reply(0x43, d, 5);
     } else
@@ -1578,7 +1726,7 @@ void app_init(void)
     ux_track = -1;
     set = (settings_t){0};
     loaded = plat_store_load(OBJ_SETTINGS, &set, sizeof set);
-    if ((loaded != (int)sizeof set && loaded != (int)SET_V3_BYTES && loaded != (int)SET_V2_BYTES && loaded != SET_LEGACY_BYTES) || set.magic != SET_MAGIC ||
+    if ((loaded != (int)sizeof set && loaded != (int)SET_V4_BYTES && loaded != (int)SET_V3_BYTES && loaded != (int)SET_V2_BYTES && loaded != SET_LEGACY_BYTES) || set.magic != SET_MAGIC ||
         set.octave < -3 || set.octave > 3 || set.voices < 1u || set.voices > S1_MAX_VOICES || set.tempo < 30u ||
         set.tempo > 300u)
         settings_defaults();
@@ -1603,24 +1751,42 @@ void app_init(void)
         set.ch_l = set.ch_r = 0;
     if (set.category_b >= CAT_COUNT)
         set.category_b = CAT_ALL;
-    if (loaded != (int)sizeof set || set.octave_b < -3 || set.octave_b > 3 || set.voices_b < 1u ||
+    if (loaded < (int)SET_V4_BYTES || set.octave_b < -3 || set.octave_b > 3 || set.voices_b < 1u ||
         set.voices_b > S1_MAX_VOICES || set.drone_b > 1u) {   /* settings from before the parts had their own */
         set.octave_b = set.octave;
         set.voices_b = set.voices;
         set.drone_b = set.drone_replace;
     }
+    if (loaded != (int)sizeof set || set.quad_version != 1u) quad_defaults();
+    for (uint32_t p = 0; p < NPARTS; p++) {
+        if (set.quad_ch[p] < 1 || set.quad_ch[p] > 16) set.quad_ch[p] = p + 1;
+        if (set.quad[p].voices < 1 || set.quad[p].voices > 5) set.quad[p].voices = 3;
+        if (set.quad[p].octave < -3 || set.quad[p].octave > 3) set.quad[p].octave = 0;
+        if (set.quad[p].drone > 1) set.quad[p].drone = 0;
+        if (set.quad[p].category >= CAT_COUNT) set.quad[p].category = CAT_ALL;
+    }
+    for (uint32_t p = 0; p < 2u; p++) if (set.quad[p].voices + set.quad[p + 2].voices > QUAD_CORE_VOICES)
+        set.quad[p].voices = set.quad[p + 2].voices = 3;
+    if (set.quad_layout > 1) set.quad_layout = LAY_SPLIT;
+    if (set.quad_focus > 3) set.quad_focus = 0;
+    const int restore_quad = set.quad_enabled == 1u;
+    set.quad_enabled = 0;
+    quad_initialized = 0;
+    w_quad = a_quad = 0;
     set.spare[1] = 0;                    /* spare[0]: the category layout the settings were saved with */
     cfg.sample_rate = SR;
     cfg.max_voices = set.voices;
-    cfg.delay_buf = delay_buf;
+    cfg.delay_buf = legacy_delay;
     cfg.delay_len = DELAY_LEN;
-    cfg.chorus_buf = chorus_buf;
+    cfg.chorus_buf = legacy_chorus;
     cfg.chorus_len = CHORUS_LEN;
     s1_init(&synth, &cfg);
     cfg.delay_buf = delay_buf_b;
     cfg.delay_len = DELAY_LEN_B;
     cfg.chorus_buf = chorus_buf_b;
     s1_init(&synth_b, &cfg);
+    cfg.delay_buf = 0; cfg.delay_len = 0; cfg.chorus_buf = 0;
+    s1_init(&synth_c, &cfg); s1_init(&synth_d, &cfg);
     (void)plat_cpu2_set(1);              /* -1: one core, part B renders on the first */
     {                                    /* as saved, the plain fields are the part's the panel was on */
         const uint32_t on_r = set.bi & 8u;
@@ -1638,10 +1804,9 @@ void app_init(void)
     ux_refocus = 0;
     clk_n = clk_t0 = clk_last = ext_tempo = 0;
     clk_live = 0;
-    want_program[0] = want_program[1] = -1;
+    for (uint32_t p = 0; p < NPARTS; p++) { want_program[p] = -1; patch_ready[p] = 0; variations[p] = (variation_t){0}; }
     ev_overflow = 0;
-    s1_set_tempo(&synth, (float)set.tempo);
-    s1_set_tempo(&synth_b, (float)set.tempo);
+    for (uint32_t p = 0; p < NPARTS; p++) s1_set_tempo(PART[p], (float)set.tempo);
     bank_scan();
     {
         /* as saved, category is the part's the panel was on and category_b the other's */
@@ -1667,6 +1832,7 @@ void app_init(void)
         if (on_r)
             part_swap();
     }
+    if (restore_quad) { quad_enter(); mode_push(); }
     set_dirty = 0;
 }
 
@@ -1691,8 +1857,9 @@ void app_frame(void)
     const int was_moving = ux_motion();
     if (ux_read_live()) {
         if (was_moving || ux_motion()) ui.redraw |= UX_GRAPH;
-        if (shown_voices != ux_live.voices) {
-            shown_voices = ux_live.voices;
+        const uint32_t voices = QUAD_ON ? all_voices() : ux_live.voices;
+        if (shown_voices != voices) {
+            shown_voices = voices;
             ui.redraw |= UX_FOOT;
         }
     }
@@ -1711,12 +1878,12 @@ void app_frame(void)
         static uint32_t macro_shown;
         const uint32_t seen = macro_seen;
         if (seen != macro_shown) {
-            const uint32_t p = seen >> 3 & 1u, m = seen & 7u, id = MACRO[m][0].id;
-            const int32_t *const base = p == cur_part ? cur.values : other.cur.values;
+            const uint32_t p = seen >> 3 & 3u, m = seen & 7u, id = MACRO[m][0].id;
+            const int32_t *const base = p == cur_part ? cur.values : QUAD_ON ? quad_panel[p].cur.values : other.cur.values;
             char a[24], b[32];
             const char *unit;
             macro_shown = seen;
-            a[0] = 0; text_cat(a, p ? "R " : "L "); text_cat(a, MACRO_NAME[m]);
+            a[0] = 0; text_cat(a, QUAD_ON ? QUAD_LABEL[p] : p ? "R " : "L "); text_cat(a, MACRO_NAME[m]);
             b[0] = 0; text_cat(b, ux_label(id)); text_cat(b, " ");
             {
                 char *end = b;
@@ -1729,7 +1896,7 @@ void app_frame(void)
     }
     {                                        /* a program change: the list's patch of that number, if there is one */
         uint32_t p;
-        for (p = 0; p < 2u; p++)
+        for (p = 0; p < (QUAD_ON ? NPARTS : 2u); p++)
             if (want_program[p] >= 0) {
                 const uint32_t i = (uint32_t)want_program[p];
                 want_program[p] = -1;
@@ -1739,8 +1906,13 @@ void app_frame(void)
                     patch_select(i);
                     say_patch();
                 } else
-                    other_select(i);
+                    if (QUAD_ON) quad_select(p, i); else other_select(i);
             }
+    }
+    if (QUAD_ON) quad_sync();
+    if (shed && QUAD_ON) {
+        quad_shed();
+        shed = 0; sheds++; cpu_sheds++;
     }
     if (shed) {                              /* the render ran out of time: one voice fewer */
         shed = 0;
@@ -1759,7 +1931,7 @@ void app_frame(void)
         }
     }
     if (now - last_stat >= 250u) {           /* the footer's numbers, four times a second */
-        const uint32_t v = (uint32_t)(s1_active_voices(&synth) + s1_active_voices(&synth_b)), cpu = plat_cpu_pct();
+        const uint32_t v = all_voices(), cpu = plat_cpu_pct();
         last_stat = now;
         if (cpu > peak_cpu)
             peak_cpu = cpu;
@@ -1772,9 +1944,9 @@ void app_frame(void)
             ui.redraw = UX_ALL;
         }
     }
-    if (set_dirty && !ui.keys && !s1_active_voices(&synth) && !s1_active_voices(&synth_b) && now - last_save >= 5000u) {
+    if (set_dirty && !ui.keys && !all_voices() && now - last_save >= 5000u) {
         last_save = now;
-        if (plat_store_save(OBJ_SETTINGS, &set, sizeof set) == 0)
+        if (settings_save() == 0)
             set_dirty = 0;
     }
     if (ui.msg_until && now >= ui.msg_until) {
@@ -1799,8 +1971,12 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "voices"))
         *got = s1_active_voices(&synth);
     else if (!strcmp(what, "voicesb")) *got = s1_active_voices(&synth_b);
-    else if (!strcmp(what, "mode")) *got = (int)BI_ON;
-    else if (!strcmp(what, "layout")) *got = (int)BI_LAYOUT;
+    else if (!strcmp(what, "voicesc")) *got = s1_active_voices(&synth_c);
+    else if (!strcmp(what, "voicesd")) *got = s1_active_voices(&synth_d);
+    else if (!strcmp(what, "mode")) *got = MODE_VALUE;
+    else if (!strncmp(what, "qch", 3) && what[3] >= '1' && what[3] <= '4' && !what[4])
+        *got = set.quad_ch[what[3] - '1'];
+    else if (!strcmp(what, "layout")) *got = QUAD_ON ? set.quad_layout : (int)BI_LAYOUT;
     else if (!strcmp(what, "part")) *got = cur_part;
     else if (!strcmp(what, "patchb")) *got = (int)(cur_part ? set.patch : set.patch_b);
     else if (!strcmp(what, "arpstep")) *got = PART[cur_part]->arp_step;

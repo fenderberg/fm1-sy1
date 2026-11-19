@@ -51,9 +51,16 @@
       </div></details></span></div>
     <div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span><span id="status" role="status" class="muted">Connect by USB. Use Chrome or Edge and allow MIDI when asked.</span><button type="button" class="primary" id="connect">Connect to the FM-1</button></div>
     <div class="parts" id="parts" hidden>
-      <span class="seg" role="group" aria-label="Mode"><button type="button" data-mode="0">Standard</button><button type="button" data-mode="1">Bitimbral</button></span>
+      <span class="seg" role="group" aria-label="Mode"><button type="button" data-mode="0">Standard</button><button type="button" data-mode="1">Bitimbral</button><button type="button" data-mode="2" hidden>Quad</button></span>
       <span class="seg" id="layoutseg" role="group" aria-label="Output"><button type="button" data-layout="0" title="L on the left output, R on the right">Split</button><button type="button" data-layout="1">Stereo</button><button type="button" data-layout="2" title="Every note plays both parts">Double</button></span>
       <span id="partinfo" class="partinfo"></span>
+      <form id="quadchannels" hidden aria-label="Quad MIDI channels">
+        <label>1 · Synth 1 <input id="qch0" type="number" min="1" max="16" required></label>
+        <label>2 · Synth 2 <input id="qch1" type="number" min="1" max="16" required></label>
+        <label>3 · MIDI 1 <input id="qch2" type="number" min="1" max="16" required></label>
+        <label>4 · MIDI 2 <input id="qch3" type="number" min="1" max="16" required></label>
+        <button id="quadapply" type="submit">Apply channels</button>
+      </form>
     </div>
     <p id="legacy" class="notice" hidden>This FM-1 runs an older SY1 that cannot send its patches back. You can add and remove sounds; update SY1 to reorder, rename, sort and save sets.</p>
     <div class="cap" aria-hidden="true"><i id="capfill"></i></div>

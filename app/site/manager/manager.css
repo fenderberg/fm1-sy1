@@ -137,3 +137,7 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
   #pm .pop, #pm #m-about .pop { width: min(290px, calc(100vw - 40px)); }
   #pm #lib .pop { right: auto; left: 0; }
 }
+
+#pm #quadchannels { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#pm #quadchannels label { display: flex; align-items: center; gap: 5px; }
+#pm #quadchannels input { width: 48px; }

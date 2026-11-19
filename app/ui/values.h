@@ -114,7 +114,7 @@ static const char *ux_label(uint32_t id)
 
 static int ux_discrete(uint32_t id)
 {
-    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT;
+    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT || id == X_QPART || id == X_QOUTPUT;
     if (s1_param_max[id] - s1_param_min[id] == 1) return 1;
     switch (id) {
     case S1P_OSC1_SHAPE: case S1P_OSC2_SHAPE: case S1P_SUB_SHAPE: case S1P_FILTER_TYPE:

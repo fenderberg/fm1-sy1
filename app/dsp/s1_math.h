@@ -40,7 +40,7 @@ static inline float s1_exp2f(float x)
     p = p * f + 1.0f;
     p = p * f + 1.0f;
     b.f = p;
-    b.i += (int32_t)fl << 23;
+    b.u += (uint32_t)(int32_t)fl << 23; /* exponent bits: unsigned shift/add also for negative powers */
     return b.f;
 }
 

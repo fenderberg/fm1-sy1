@@ -4,7 +4,7 @@
   "name": "SY1",
   "author": "fenderberg",
   "license": "MIT",
-  "tagline": "A two-part polysynth with 256 Synth1 presets",
+  "tagline": "Experimental four-part Circuit mode; standard and bitimbral included",
   "description": "SY1 turns the M-VAVE FM-1 into a two-oscillator virtual-analog polysynth with Synth1's 99 parameters: it loads .sy1 patches sent over USB, and every parameter can be edited on the FM-1 itself. Bitimbral mode plays two sounds at once: layered, split to the two outputs, or on two MIDI channels. Includes 256 community factory presets, a cross-section of 13 sound categories, without using the 1,024 user slots. Explore 3,174 community presets in the website Patch Manager or import your own banks locally.",
   "tags": ["synth"],
   "install": "https://fenderberg.github.io/fm1-sy1/install/",

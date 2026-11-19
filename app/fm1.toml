@@ -2,19 +2,19 @@
 name = "SY1"                   # the build's files: sy1.fwsc, sy1-X.Y.fwsc
 id_prefix = "FM-1_51"          # SY1 identity: dev FM-1_5100, releases FM-1_51XXYYZZ
 usb_manufacturer = "SY1"
-usb_product = "SY1 FM-1"
+usb_product = "SY1 QUAD Experiment"
 include = ["dsp"]
 o2 = ["dsp/s1_synth.c", "dsp/s1_fx.c", "dsp/s1_patch.c", "dsp/s1_tables.c"]   # the engine, at -O2
 words = "words.tsv"
 font_full = ["M"]              # lower case in the medium font: the patches' names
 emu = ["midi"]                 # the emulator's MIDI and SysEx: the page's patch loader (web/emu/app.js) sends through it
 midi_stamp = true              # preserve USB and TRS event timing inside each audio block
-cpu2 = true                    # bitimbral: part R renders on the second core
+cpu2 = true                    # bitimbral: R; QUAD: parts 2+4 on the second core
 cpu2_fallback = true           # a unit whose second core fails keeps playing on one
 cpu2_stack = 8192
 ble = false                    # no radio yet: nothing of JieLi's linked
 # the site
-tagline = "A two-part polysynth with 256 Synth1 presets"
+tagline = "Experimental four-part Circuit mode; standard and bitimbral included"
 repo = "https://github.com/fenderberg/fm1-sy1"
 licence = "MIT"
 credits = "Built on fm1-base and felucca-bsp. The parameter laws are oxo_synth2's measurements of Synth1 (MIT, Francois Chabloz). Not affiliated with Daichi Laboratory."

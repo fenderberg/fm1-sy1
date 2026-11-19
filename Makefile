@@ -22,7 +22,7 @@ build/s1test: host/test.c $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -o $@ host/test.c $(ENGINE) -lm
 
-build/apptest: host/app_test.c app/app.c app/app.h app/bank.h app/category.h $(wildcard app/ui/*.h) app/presets/factory500.h $(ENGINE) $(HEADERS)
+build/apptest: host/app_test.c host/quad_test.h app/app.c app/app.h app/quad.h app/bank.h app/category.h $(wildcard app/ui/*.h) app/presets/factory500.h $(ENGINE) $(HEADERS)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Wno-unused-function -Wno-unused-parameter -Iapp -I$(BASE)/include -o $@ host/app_test.c $(ENGINE) -lm
 

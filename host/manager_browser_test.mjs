@@ -17,13 +17,14 @@ await context.addInitScript(()=>{
   const pack=part=>{const out=[];for(let i=0;i<part.length;i+=7){let top=0;for(let j=0;j<7;j++)top|=((part[i+j]||0)>>7)<<j;out.push(top);for(let j=0;j<7;j++)out.push((part[i+j]||0)&127);}return out;};
   slots.set(0,record('Existing Bass'));slots.set(5,record('Old Lead'));
   const input={state:'connected',name:'Test FM-1',onmidimessage:null};
-  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,noParts:false,parts:{on:0,layout:1,slot:[-1,-1]},slots,
+  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,noParts:false,quad:true,parts:{on:0,layout:1,ch:[3,4,3,4],slot:[-1,-1]},slots,
     names:()=>[...slots.keys()].sort((a,b)=>a-b).map(s=>s+':'+name(slots.get(s))),bytes:(s,i)=>slots.get(s)[i]};
   const out={state:'connected',name:'Test FM-1',send(frame){
     const c=frame[5],slot=frame[6]|frame[7]<<7;let response;
-    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[window.mock.noParts?1:3]),0xf7];}
-    else if(c===8){const m=window.mock.parts;if(frame[6]<=1)m.on=frame[6];if(frame[7]<=2)m.layout=frame[7];const sl=m.slot.map(x=>x+1);
-      response=[...head,0x48,m.on,m.layout,0,2,3,sl[0]&127,sl[0]>>7,sl[1]&127,sl[1]>>7,0xf7];}
+    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[window.mock.noParts?1:window.mock.quad?7:3]),0xf7];}
+    else if(c===8){const m=window.mock.parts;if(frame[6]<=(window.mock.quad?2:1)){m.on=frame[6];if(m.on===2&&m.slot.length===2){m.slot.push(-1,-1);m.ch=[1,2,3,4];}if(m.on!==2&&m.slot.length===4){m.slot=m.slot.slice(0,2);m.ch=[3,4,3,4];}}if(frame[7]<=2)m.layout=frame[7];const sl=m.slot.map(x=>x+1);
+      response=[...head,0x48,m.on,m.layout,0,m.ch[0]-1,m.ch[1]-1,sl[0]&127,sl[0]>>7,sl[1]&127,sl[1]>>7,...(m.on===2?[m.ch[2]-1,m.ch[3]-1,sl[2]&127,sl[2]>>7,sl[3]&127,sl[3]>>7]:[]),0xf7];}
+    else if(c===10){const m=window.mock.parts;for(let p=0;p<4;p++)if(frame[p+8]<16)m.ch[p]=frame[p+8]+1;response=[...head,0x4a,0,m.layout,...m.ch.map(ch=>ch-1),0xf7];}
     else if(c===9){const part=frame[6],s=frame[7]|frame[8]<<7,ok=slots.has(s);if(ok)window.mock.parts.slot[part]=s;response=[...head,0x49,part,frame[7],frame[8],ok?0:1,0xf7];}
     else if(c===4)response=[...head,0x44,slot&127,slot>>7,slots.has(slot)?1:0,...(slots.has(slot)?[...name(slots.get(slot))].map(x=>x.charCodeAt(0)):[]),0xf7];
     else if(c===7){if(window.mock.legacy){window.mock.stuck=true;return;}const r=slots.get(slot),part=frame[8];
@@ -170,6 +171,31 @@ const nos=(await page.locator('#dlist .prow .no').allTextContents()).slice(0,2);
 assert.deepEqual(await page.evaluate(()=>mock.parts.slot),nos.map(n=>+n-1));
 assert.match(await text('#partinfo'),new RegExp(`L ch 3 · ${nos[0]} .* R ch 4 · ${nos[1]} `));
 assert.equal(await page.locator('#map i.pl').count(),1);assert.equal(await page.locator('#map i.pr').count(),1);
+// QUAD: all four slot buttons, output choices and editable MIDI channels.
+await page.locator('[data-mode="2"]').click();await idle();
+assert.equal(await page.evaluate(()=>mock.parts.on),2);
+assert.equal(await page.locator('[data-layout="2"]').isHidden(),true);
+assert.equal(await page.locator('#quadchannels').isVisible(),true);
+assert.equal(await page.locator('#dlist .prow').first().locator('[data-act=part]').count(),4);
+await page.locator('#dlist .prow [data-act=part][data-part="2"]').first().click();await idle();
+await page.locator('#dlist .prow [data-act=part][data-part="3"]').nth(1).click();await idle();
+assert.match(await text('#partinfo'),/3 ch 3/);assert.match(await text('#partinfo'),/4 ch 4/);
+await page.locator('#qch0').fill('9');await page.locator('#qch3').fill('16');
+await page.locator('#quadapply').click();await idle();
+assert.deepEqual(await page.evaluate(()=>mock.parts.ch),[9,2,3,16]);
+assert.match(await text('#partinfo'),/4 ch 16/);
+await page.screenshot({path:'app/build/manager-qa/quad-desktop.png',fullPage:true});
+await page.setViewportSize({width:390,height:844});
+assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'QUAD channels overflow on mobile');
+await page.screenshot({path:'app/build/manager-qa/quad-mobile.png',fullPage:true});
+await page.setViewportSize({width:1440,height:1000});
+await page.locator('[data-layout="1"]').click();await idle();assert.equal(await page.evaluate(()=>mock.parts.layout),1);
+await page.locator('[data-mode="1"]').click();await idle();
+assert.equal(await page.locator('#quadchannels').isHidden(),true);
+assert.equal(await page.locator('[data-layout="2"]').isVisible(),true);
+await page.evaluate(()=>{mock.quad=false;});await page.locator('#connect').click();await idle();
+assert.equal(await page.locator('[data-mode="2"]').isHidden(),true);
+await page.evaluate(()=>{mock.quad=true;});await page.locator('#connect').click();await idle();
 // A staged slot cannot be played until it is synced.
 await page.locator('#llist input[type=checkbox]').nth(12).check();await page.locator('#add').click();
 assert.equal(await page.locator('#dlist .prow').last().locator('[data-act=part]').first().isDisabled(),true);await page.locator('#discard').click();
@@ -194,6 +220,6 @@ await page.setViewportSize({width:390,height:844});
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no mobile horizontal overflow');
 await page.locator('#tab-dev').click();assert.equal(await page.locator('#lib').isHidden(),true);
 await page.evaluate(()=>{document.activeElement?.blur();window.scrollTo(0,0);});await page.screenshot({path:'app/build/manager-qa/mobile.png',fullPage:true});
-assert.deepEqual(errors,[]);console.log('manager browser: library, favourites, staging, whole-record read, sync with failure and retry, arrange, undo, rename, character, move, removal, sets, re-read, in-page preview, older firmware, drag, local import, bitimbral parts, pairs and erase'+(process.env.SY1_TEST_COLLECTION?' plus full local collection':'')+' passed');
+assert.deepEqual(errors,[]);console.log('manager browser: library, favourites, staging, whole-record read, sync with failure and retry, arrange, undo, rename, character, move, removal, sets, re-read, in-page preview, older firmware, drag, local import, bitimbral/QUAD parts, four-channel configuration, pairs and erase'+(process.env.SY1_TEST_COLLECTION?' plus full local collection':'')+' passed');
 await context.close();
 } finally {await browser.close();}

@@ -1,0 +1,124 @@
+# Four-part Circuit mode, the actual panel and saved settings.
+wait 300
+expect mode 0
+sysex F0 7D 53 59 31 08 02 00 F7
+wait 80
+expect mode 2
+expect layout 0
+expect part 0
+expect maxv 3
+expect qch1 1
+expect qch2 2
+expect qch3 3
+expect qch4 4
+midi 90 30 64
+midi 91 3C 64
+midi 92 40 64
+midi 93 43 64
+wait 80
+expect voices 1
+expect voicesb 1
+expect voicesc 1
+expect voicesd 1
+shot quad-playing.png
+tap PLAY
+wait 50
+expect voices 0
+expect voicesb 0
+expect voicesc 0
+expect voicesd 0
+# Synth-track knob 5 uses CC84; MIDI-track knob 5 uses CC12.
+midi B0 54 7F
+wait 300
+expect e19 109
+expect p19 46
+tap OCT+
+wait 50
+expect part 1
+tap OCT+
+wait 50
+expect part 2
+midi B2 0C 00
+wait 300
+expect e19 24
+tap OCT+
+wait 50
+expect part 3
+tap OCT+
+wait 50
+expect part 0
+# The added GLOBAL pages leave the first four pages in place.
+tap GLO
+spin SELECT 4
+wait 50
+expect row 4
+shot quad-split.png
+spin K3 1
+wait 50
+expect layout 1
+shot quad-stereo.png
+# Selecting a part from GLOBAL stays on GLOBAL so its encoders remain usable.
+spin K2 1
+wait 50
+expect part 1
+expect row 4
+spin K2 1
+wait 50
+expect part 2
+expect row 4
+spin K2 1
+wait 50
+expect part 3
+expect row 4
+spin SELECT 1
+wait 50
+expect row 5
+spin K4 1
+wait 50
+expect qch4 5
+shot quad-channels.png
+midi 93 3C 64
+wait 80
+expect voicesd 0
+midi 94 3C 64
+wait 80
+expect voicesd 1
+tap PLAY
+wait 6000
+reboot
+wait 300
+expect mode 2
+expect layout 1
+expect part 3
+expect qch4 5
+# Standard remains omni and bitimbral retains its own channels and output.
+sysex F0 7D 53 59 31 08 00 7F F7
+wait 80
+expect mode 0
+expect part 0
+midi 9F 3C 64
+wait 80
+expect voices 1
+expect voicesb 0
+expect voicesc 0
+expect voicesd 0
+tap PLAY
+sysex F0 7D 53 59 31 08 01 02 F7
+wait 80
+expect mode 1
+expect layout 2
+expect chl 3
+expect chr 4
+midi 92 3C 64
+wait 80
+expect voices 1
+expect voicesb 1
+expect voicesc 0
+expect voicesd 0
+tap PLAY
+sysex F0 7D 53 59 31 08 02 7F F7
+wait 80
+expect mode 2
+expect layout 1
+expect part 3
+expect qch4 5

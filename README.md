@@ -1,4 +1,19 @@
-# SY1
+# SY1 — QUAD Circuit experiment
+
+This local experimental fork adds **QUAD**, four independent sounds, beside the existing Standard and
+Bitimbral modes. In **GLO → QUAD**, choose the mode, part, output and voice limit; the following
+**QUAD / MIDI CHANNELS** page sets all four channels. Split sends parts **1+2 left, 3+4 right**;
+Stereo mixes all four in stereo. OCT- / OCT+ step through the four parts (hold for octave).
+
+Defaults match Circuit Tracks: Synth 1/2 on channels 1/2, MIDI 1/2 on 3/4. Each part starts with three
+notes, its own arp, Hold/Drone, chorus and a shorter 0.186 s stereo delay. The original modes retain their
+buffers and independent sounds/settings. The Patch Manager supports four parts and channel editing too.
+
+See [the experiment and Circuit setup](docs/QUAD-CIRCUIT.md). This is an experimental build;
+hardware timing and audio with a real Circuit still need validation.
+
+---
+
 
 A polysynth for the [M-VAVE FM-1](https://github.com/m-vave/fm1_open) that plays **Synth1 patches** (`.sy1`).
 

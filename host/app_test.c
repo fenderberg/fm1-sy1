@@ -78,9 +78,10 @@ uint32_t plat_cpu_pct(void) { return 12; }
 /* the second core, as fm1-base's simulator has it: a job runs at once (the measurement build's part B) */
 void plat_play_red(int red) { (void)red; }
 int plat_cpu2_set(int on) { (void)on; return 0; }
-int plat_cpu2_on(void) { return 1; }
-int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { fn(arg); return 1; }
-int plat_cpu2_wait(void) { return 0; }
+static int test_cpu2_on = 1, test_cpu2_drop;
+int plat_cpu2_on(void) { return test_cpu2_on; }
+int plat_cpu2_run(void (*fn)(uint32_t), uint32_t arg) { if (!test_cpu2_drop) fn(arg); return 1; }
+int plat_cpu2_wait(void) { return test_cpu2_drop ? -1 : 0; }
 int plat_cpu2_gave_up(void) { return 0; }
 uint32_t plat_cpu2_bad(void) { return 0; }
 uint32_t plat_cpu2_stack(void) { return 0; }
@@ -349,7 +350,7 @@ static void test_nord_ux(void)
     turn(EN_K4, -1);
     CHECK(!cur_dirty, "returning to saved category left EDIT lit");
     tap(B_GLO);
-    turn(EN_SELECT, 10);               /* GLOBAL / DIAGNOSTIC, the last row */
+    turn(EN_SELECT, GLOBAL_DIAG);      /* GLOBAL / DIAGNOSTIC */
     incoming = cur;
     for (i = 0; i < 4; i++) turn(EN_K1 + (int)i, 1);
     CHECK(ui.row == 3 && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
@@ -451,7 +452,7 @@ static void test_display_styles(void)
     uint32_t page, row, i, mode, previous[5];
     settings_t old;
     s1_patch before;
-    CHECK(sizeof(settings_t)==24 && (uint32_t)((uint8_t *)&set.display-(uint8_t *)&set)==SET_LEGACY_BYTES &&
+    CHECK(sizeof(settings_t)==56 && (uint32_t)((uint8_t *)&set.quad_enabled-(uint8_t *)&set)==SET_V4_BYTES && (uint32_t)((uint8_t *)&set.display-(uint8_t *)&set)==SET_LEGACY_BYTES &&
           (uint32_t)((uint8_t *)&set.ch_l-(uint8_t *)&set)==SET_V2_BYTES,
           "settings no longer append after the legacy prefix");
     patch_select(1);
@@ -809,6 +810,8 @@ static void test_external_sixteenths(void)
     CHECK(!wrong_tempo, "steady external clock gave the wrong BPM for %u blocks", wrong_tempo);
 }
 
+#include "quad_test.h"
+
 int main(void)
 {
     static const char sy1[] = "Test Patch 7\ncolor=red\nver=112\n0,3\n14,2\n19,77\n9,-12\n38,1\n86,45057\n87,44\n";
@@ -896,7 +899,7 @@ int main(void)
     CHECK(bank_count == 5, "bank count %u after slot 5", (unsigned)bank_count);
     send_sysex(ask, sizeof ask);
     CHECK(sysex_last[5] == 0x43 && sysex_last[6] == 5 && (sysex_last[8] | sysex_last[9] << 7) == 1024 &&
-          sysex_n == 12 && sysex_last[10] == 3u, "count answer, with the record read and the parts announced");
+          sysex_n == 12 && sysex_last[10] == 7u, "count answer, with the record read and the parts announced");
     {   /* the parts: part L to slot 5 by SysEx 09, read back by 08; an empty slot refused */
         uint8_t pick[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 4, 0, 0xF7}, bad[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 2, 0, 0xF7};
         uint8_t query[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x08, 0x7F, 0x7F, 0xF7};
@@ -1010,6 +1013,7 @@ int main(void)
     test_circuit_macros();
     test_midi_timing();
     test_external_sixteenths();
+    test_quad();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;
 }

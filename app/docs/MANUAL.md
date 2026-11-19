@@ -199,6 +199,42 @@ does not run, the two parts share one core and the overload protection lowers VO
 line is half as long as part L's: an echo longer than 0.37 s plays at half its time. The mode, the output, the
 channels and both patches are remembered. Changing the mode, the output or a channel stops the notes.
 
+### QUAD: four sounds for Circuit Tracks (experimental)
+
+In this fork, MODE has a third choice: **QUAD**. GLO keeps its first four subpages and adds
+**QUAD (5/6)** and **QUAD / MIDI CHANNELS (6/6)**. On QUAD, KNOB1 selects Standard, Bitimbral or QUAD;
+KNOB2 chooses part 1–4, KNOB3 chooses the output, and KNOB4 sets that part's voice limit.
+The channels page sets all four MIDI channels, 1–16. The original mode page also selects QUAD;
+while QUAD is active its output and first two channel controls refer to QUAD.
+
+Default channels are 1, 2, 3 and 4: Circuit Tracks' Synth 1, Synth 2, MIDI 1 and MIDI 2.
+Tap OCT- / OCT+ to move through the four parts, wrapping at either end; hold for the octave.
+Both together return to Standard. Choose QUAD again in GLOBAL or the Patch Manager.
+The keys, preset selection, Save, Revert, arp and Hold/Drone act on the selected part.
+Standard/Bitimbral keep their own sounds and part settings when switching to or from QUAD.
+Settings and selected preset numbers are saved; Save is still required to preserve sound edits across power-off.
+
+- **Split:** parts 1+2 are summed to mono on the left, parts 3+4 to mono on the right, effects included.
+- **Stereo:** all four retain their stereo sound and are mixed to both outputs.
+
+Each part starts with three notes. Parts 1+3 share one CPU core, parts 2+4 the other, with a budget of
+six notes per core. Lower a partner's limit to give another part more, up to five. Heavy patches can still
+trigger CPU FULL; QUAD can reduce each part to one note. QUAD's four independent stereo delays are
+limited to about 0.186 seconds per side; longer times are halved repeatedly to fit. Each part retains its
+own chorus and other effects. Original Standard and Bitimbral delay lengths are preserved.
+
+Circuit Synth 1/2 macros use **CC80–87**, mapped in order to the same eight musical macros as the existing
+bitimbral mode. Parts 3/4 use the MIDI tracks' default template **CC1,2,5,11,12,13,71,74**.
+The synth-track macro automation is transmitted over **USB only**; the MIDI tracks' template automation
+also reaches DIN. MIDI channels can be reassigned without changing these part roles.
+Enable MIDI notes, CC and clock transmission on the Circuit. Both devices' USB sockets need a host;
+a computer can route Circuit MIDI to the FM-1 for all four tracks and macros.
+In split output, the Circuit's two input mixer strips control the two groups, rather than individual parties.
+
+The Patch Manager shows **Quad** only when firmware announces support, provides four play buttons per
+synced slot, Split/Stereo, and four MIDI channel fields with an explicit **Apply channels** button.
+The browser's library preview remains a one/two-sound preview.
+
 **The Circuit's eight knobs.** In bitimbral, with the Circuit Tracks' factory MIDI template on its MIDI tracks,
 each macro knob moves what its label says on the part of its channel. The knob in the middle is the patch as it
 is; turning either way adds to it or takes from it, and a new patch starts from the middle again. The screen
