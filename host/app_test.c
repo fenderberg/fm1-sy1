@@ -731,6 +731,11 @@ static void test_circuit_macros(void)
           "standard mode unexpectedly used the Circuit macro mapping");
 }
 
+static uint32_t frame_ticks(uint64_t frame)
+{
+    return (uint32_t)(frame * 240000u / 441u);
+}
+
 static void test_midi_timing(void)
 {
     memset(store_len, 0, sizeof store_len);
@@ -739,16 +744,17 @@ static void test_midi_timing(void)
     s1_set_param(&synth, S1P_PLAY_MODE, 0);
     s1_set_param(&synth, S1P_UNISON_ON, 0);
     s1_set_param(&synth, S1P_POLYPHONY, 2);
-    synth.now = UINT32_MAX - 127u;
-    /* One block spans both the 24 MHz timer wrap and the 32-bit sample boundary. */
-    ticks24 = UINT32_MAX - 90000u;
+    synth.now = UINT32_MAX - (APP_BLOCK / 2u - 1u);
+    /* The two attacks straddle both timestamp wraps in the same render. */
+    const uint32_t block_start = UINT32_MAX - frame_ticks(APP_BLOCK / 2u);
+    ticks24 = block_start + frame_ticks(APP_BLOCK / 4u);
     midi(0x90, 60, 100);
-    ticks24 += 87075u;                  /* 160 frames later */
+    ticks24 = block_start + frame_ticks(3u * APP_BLOCK / 4u);
     midi(0x90, 64, 100);
-    ticks24 += 26122u;                  /* 48 frames before the render */
+    ticks24 = block_start + frame_ticks(APP_BLOCK);
     app_render(audio, APP_BLOCK, 4096);
     CHECK(synth.voice[0].note == 60 && synth.voice[1].note == 64 &&
-          synth.voice[1].age - synth.voice[0].age == 160u, "two MIDI attacks lost their spacing");
+          synth.voice[1].age - synth.voice[0].age == APP_BLOCK / 2u, "two MIDI attacks lost their spacing");
     midi(0x90, 67, 100);
     app_render(audio, APP_BLOCK, 4096);
     CHECK(synth.voice[0].note == 67 && synth.voice[1].note == 64,
@@ -800,11 +806,6 @@ static void test_midi_timing_by_port(void)
     CHECK(longest_timing_log <= 43, "TRS hardware log would truncate");
     power_on();
     CHECK(!trs_timing.clocks && !usb_timing.notes, "MIDI port timing persisted across reboot");
-}
-
-static uint32_t frame_ticks(uint64_t frame)
-{
-    return (uint32_t)(frame * 240000u / 441u);
 }
 
 static void test_external_sixteenths(void)

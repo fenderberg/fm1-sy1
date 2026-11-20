@@ -7,7 +7,7 @@
 #define APP_NAME "SY1"
 #define APP_TAGLINE "256 SYNTH1 PRESETS"
 #define APP_SPLASH_RGB RGB(255, 184, 70)
-#define APP_BLOCK 256u                   /* frames per audio block: 5.8 ms at 44.1 kHz */
+#define APP_BLOCK 128u                   /* frames per audio block: 2.9 ms at 44.1 kHz */
 #define APP_TOUCH                        /* velocity from the keys (lib/touch.h) */
 #define APP_SYSEX                        /* patches come in over USB SysEx (bank.h) */
 #define APP_OVERLOAD                     /* the render ran out of time: fewer voices */
