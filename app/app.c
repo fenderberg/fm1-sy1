@@ -420,11 +420,12 @@ static void midi_event(uint32_t pkt)
             clk_n = 0u;
         }
         clk_n++;
-        for (p = 0; p < audio_parts(); p++) s1_clock(PART[p], S1_CLOCK_TICK);
+        /* Silent parts still follow the transport so a mode switch joins the same grid. */
+        for (p = 0; p < NPARTS; p++) s1_clock(PART[p], S1_CLOCK_TICK);
     } else if (st == 0xFAu || st == 0xFCu) {
         clk_n = 0u;
         if (st == 0xFAu) {       /* Start: the arpeggiators' patterns from the top, on the bar */
-            for (p = 0; p < audio_parts(); p++) s1_clock(PART[p], S1_CLOCK_START);
+            for (p = 0; p < NPARTS; p++) s1_clock(PART[p], S1_CLOCK_START);
         }
         if (st == 0xFCu)
             all_off();

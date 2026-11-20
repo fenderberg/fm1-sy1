@@ -761,6 +761,20 @@ static void test_midi_timing(void)
 }
 
 
+static void test_clock_grid_on_mode_switch(void)
+{
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    midi(0xFA, 0, 0);
+    for (unsigned tick = 0; tick < 7; tick++) { midi(0xF8, 0, 0); run(20); }
+    CHECK(MODE_VALUE == 0 && synth.clk_pos == 7, "clock test did not start in Standard");
+    mode_set(2); run(20);
+    midi(0xF8, 0, 0); run(20);
+    for (unsigned part = 0; part < NPARTS; part++)
+        CHECK(PART[part]->arp_ext && PART[part]->clk_pos == 8,
+              "part %u joined QUAD on a different clock phase", part + 1);
+}
+
 static void test_external_sixteenths(void)
 {
     const unsigned bpm = 145, minutes = 18;
@@ -1017,6 +1031,7 @@ int main(void)
     test_factory500();
     test_circuit_macros();
     test_midi_timing();
+    test_clock_grid_on_mode_switch();
     test_external_sixteenths();
     test_part_settings();
     test_quad();
