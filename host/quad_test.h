@@ -98,6 +98,24 @@ static void test_quad(void)
           s1_get_param(PART[2], S1P_FILTER_FREQ) < cutoff, "Circuit synth/MIDI macro maps did not work");
     CHECK(s1_get_param(PART[1], S1P_FILTER_FREQ) == cutoff &&
           s1_get_param(PART[3], S1P_FILTER_FREQ) == cutoff, "Circuit macros changed other parts");
+    static const uint8_t circuit_cc[2][8] = {
+        {80, 81, 82, 83, 84, 85, 86, 87},
+        {1, 2, 5, 11, 12, 13, 71, 74}
+    };
+    uint8_t targets[NPARTS][8];
+    for (uint32_t p = 0; p < NPARTS; p++)
+        memcpy(targets[p], mac[p].target, sizeof targets[p]);
+    for (uint32_t p = 0; p < NPARTS; p++) {
+        const uint8_t *const cc = circuit_cc[p >= 2];
+        for (uint32_t knob = 0; knob < 8; knob++) {
+            targets[p][knob] = (uint8_t)(16u + knob * 12u);
+            midi(0xB0u + p, cc[knob], targets[p][knob]);
+            run(15);
+            for (uint32_t other = 0; other < NPARTS; other++)
+                CHECK(!memcmp(mac[other].target, targets[other], sizeof targets[other]),
+                      "Circuit channel %u knob %u (CC%u) misrouted to part %u", p + 1, knob + 1, cc[knob], other + 1);
+        }
+    }
     for (uint32_t p = 0; p < NPARTS; p++) {
         quad_select(p, p);
         quad_focus(p);

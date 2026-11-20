@@ -244,17 +244,19 @@ static int macro_cc(uint32_t p, uint32_t cc, uint32_t value)   /* 1: one of the 
     return 0;
 }
 
-static void macro_run(uint32_t p)        /* once a render: a knob covers its whole travel in about 0.12 s */
+static void macro_run(uint32_t p, uint32_t frames)
 {
+    /* Keep the knob's roughly 0.12 s full sweep independent of the audio buffer size. */
+    const float step = (6.0f / 256.0f) * (float)frames;
     uint32_t m;
     for (m = 0; m < NMACRO && mac[p].live; m++)
         if (mac[p].live & (1u << m)) {
             const float d = (float)mac[p].target[m] - mac[p].pos[m];
-            if (d > -6.0f && d < 6.0f) {
+            if (d >= -step && d <= step) {
                 mac[p].pos[m] = (float)mac[p].target[m];
                 mac[p].live &= (uint8_t)~(1u << m);
             } else
-                mac[p].pos[m] += d < 0.0f ? -6.0f : 6.0f;
+                mac[p].pos[m] += d < 0.0f ? -step : step;
             macro_apply(p, m);
         }
 }
@@ -554,7 +556,7 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
         if (pos < at) {
             if (!pos) {
                 clock_timeout();
-                for (uint32_t p = 0; p < audio_parts(); p++) macro_run(p);
+                for (uint32_t p = 0; p < audio_parts(); p++) macro_run(p, n);
             }
             while (pos < at) {
                 const uint32_t m = at - pos < APP_BLOCK ? at - pos : APP_BLOCK;

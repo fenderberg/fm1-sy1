@@ -702,7 +702,9 @@ static void test_circuit_macros(void)
                 memcpy(before, part->voice, sizeof before);
                 memcpy(other_values, PART[p ^ 1u]->base, sizeof other_values);
                 midi_event((0xB0u | w_ch[p]) << 8 | (uint32_t)cc[knob] << 16 | 127u << 24);
-                for (i = 0; i < 24; i++) macro_run(p);
+                for (i = 0; i < 10u * 256u / APP_BLOCK; i++) macro_run(p, APP_BLOCK);
+                CHECK(mac[p].pos[knob] == 124.0f, "Circuit knob glide rate changed with audio block size");
+                for (; i < 24u * 256u / APP_BLOCK; i++) macro_run(p, APP_BLOCK);
                 CHECK(s1_get_param(part, parameter[knob]) == 127,
                       "Circuit knob %u (CC%u) did not reach its parameter on part %u",
                       (unsigned)knob + 1, cc[knob], (unsigned)p);
