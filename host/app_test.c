@@ -18,6 +18,7 @@ static int32_t enc_turn[NE];
 static uint8_t flash[0x100000], store[OBJ_NOBJ][64], sysex_last[256];
 static uint32_t midi_q[64];
 static uint32_t midi_stamp[64], ticks24;
+static int midi_input_port = PORT_USB;
 
 uint32_t plat_ms(void) { return now_ms; }
 uint32_t plat_ticks24(void) { return ticks24; }
@@ -32,7 +33,7 @@ int plat_midi_in(uint32_t *pkt, int *port)
         return 0;
     *pkt = midi_q[midi_r++ & 63u];
     if (port)
-        *port = PORT_USB;
+        *port = midi_input_port;
     return 1;
 }
 void plat_midi_send(uint32_t pkt, uint32_t to) { (void)pkt; (void)to; }
@@ -754,6 +755,43 @@ static void test_midi_timing(void)
           "voice stealing cut the newest note across the sample counter wrap");
 }
 
+static uint32_t timing_log_lines;
+static void check_timing_log(const char *line)
+{
+    if (!strcmp(line, "sy1 midi trs on 1 off 1 clk 2 gap_us 18000")) timing_log_lines |= 1u;
+    if (!strcmp(line, "sy1 midi usb on 1 off 0 clk 0 gap_us 0")) timing_log_lines |= 2u;
+}
+
+static void test_midi_timing_by_port(void)
+{
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+    midi_input_port = PORT_TRS;
+    ticks24 = UINT32_MAX - 100000u;
+    midi(0xf8, 0, 0);
+    app_render(audio, APP_BLOCK, 4096);
+    ticks24 += 18000u * PLAT_TICKS_PER_US;
+    midi(0xf8, 0, 0);
+    midi(0x90, 60, 100);
+    ticks24 += 8000u * PLAT_TICKS_PER_US;
+    app_render(audio, APP_BLOCK, 4096);
+    midi(0x90, 60, 0);
+    app_render(audio, APP_BLOCK, 4096);
+    CHECK(trs_timing.clocks == 2 && trs_timing.max_clock_gap == 18000u * PLAT_TICKS_PER_US,
+          "TRS clock interval changed at timer wrap");
+    CHECK(trs_timing.overdue == 2 && trs_timing.max_age == 8000u * PLAT_TICKS_PER_US && !trs_timing.future,
+          "late parser deliveries were not counted");
+    midi_input_port = PORT_USB;
+    midi(0x90, 64, 100);
+    app_render(audio, APP_BLOCK, 4096);
+    app_log(check_timing_log);
+    app_log(check_timing_log);
+    CHECK(timing_log_lines == 3 && trs_timing.notes == 1 && trs_timing.releases == 1 && usb_timing.notes == 1,
+          "MIDI port counts are mixed, incomplete or reset when read");
+    power_on();
+    CHECK(!trs_timing.clocks && !usb_timing.notes, "MIDI port timing persisted across reboot");
+}
+
 static uint32_t frame_ticks(uint64_t frame)
 {
     return (uint32_t)(frame * 240000u / 441u);
@@ -1015,6 +1053,7 @@ int main(void)
     test_factory500();
     test_circuit_macros();
     test_midi_timing();
+    test_midi_timing_by_port();
     test_external_sixteenths();
     test_part_settings();
     test_quad();

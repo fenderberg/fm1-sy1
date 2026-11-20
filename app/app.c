@@ -488,28 +488,56 @@ static void render_span(int32_t *lr, uint32_t m, float step)
     }
 }
 
-static uint32_t midi_offset(uint32_t end_ticks, uint32_t n)
-{
 #if FM1B_MIDI_STAMP
-    /* Replay the previous block's arrivals on this block's DSP grid. Subtract before converting:
-     * the hardware timer wraps every 179 seconds. An overdue packet plays at the start. */
-    const uint32_t age = end_ticks - plat_midi_in_t24();
-    const uint32_t frames_ago = (uint32_t)((float)age * (SR / (PLAT_TICKS_PER_US * 1000000.0f)) + 0.5f);
-    if (frames_ago < n)
-        return (n - frames_ago) / S1_CHUNK * S1_CHUNK;
-#else
-    (void)end_ticks;
-    (void)n;
-#endif
-    return 0;
+typedef struct {
+    uint32_t notes, releases, clocks, last_clock;
+    uint32_t max_clock_gap, long_clock_gaps, max_age, overdue, future;
+} midi_timing_t;
+/* Cumulative from boot. The render is the sole writer; each log field is a 32-bit read. */
+static volatile midi_timing_t usb_timing, trs_timing;
+
+static void midi_timing_receive(int port, uint32_t packet, uint32_t stamp, int32_t age, int overdue)
+{
+    volatile midi_timing_t *const timing = port == PORT_TRS ? &trs_timing : port == PORT_USB ? &usb_timing : 0;
+    if (!timing) return;
+    const uint32_t status = (packet >> 8) & 0xffu;
+    switch (status >> 4) {
+    case 9:
+        if (packet >> 24 & 0x7fu) { timing->notes++; break; }
+        /* Velocity-zero note-on is a note release. */
+        /* fall through */
+    case 8: timing->releases++; break;
+    }
+    if (status == 0xf8u) {
+        if (timing->clocks) {
+            const uint32_t gap = stamp - timing->last_clock;
+            if (gap > 2000000u * PLAT_TICKS_PER_US) timing->long_clock_gaps++;
+            else if (gap > timing->max_clock_gap) timing->max_clock_gap = gap;
+        }
+        timing->last_clock = stamp;
+        timing->clocks++;
+    }
+    if (age < 0) timing->future++;
+    else {
+        if ((uint32_t)age > timing->max_age) timing->max_age = (uint32_t)age;
+        if (overdue) timing->overdue++;
+    }
 }
+
+static uint32_t midi_offset(uint32_t end_ticks, uint32_t n, uint32_t packet, int port)
+{
+    /* Replay the previous block's arrivals. Subtract first so 24 MHz clock wrap is harmless. */
+    const uint32_t stamp = plat_midi_in_t24(), age = end_ticks - stamp;
+    const uint32_t frames_ago = (uint32_t)((float)age * (SR / (PLAT_TICKS_PER_US * 1000000.0f)) + 0.5f);
+    midi_timing_receive(port, packet, stamp, (int32_t)age, frames_ago > n);
+    return frames_ago < n ? (n - frames_ago) / S1_CHUNK * S1_CHUNK : 0;
+}
+#endif
 
 void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
 {
 #if FM1B_MIDI_STAMP
     const uint32_t end_ticks = plat_ticks24();
-#else
-    const uint32_t end_ticks = 0;
 #endif
     const float gain = (float)master_q12 * (1.0f / 4096.0f) * 8388607.0f;
     const float step = n ? (gain - gain_now) / (float)n : 0.0f;
@@ -518,7 +546,11 @@ void app_render(int32_t *lr, uint32_t n, uint32_t master_q12)
     events();
     pending = plat_midi_in(&pkt, &port);
     for (;;) {
-        const uint32_t at = pending ? midi_offset(end_ticks, n) : n;
+#if FM1B_MIDI_STAMP
+        const uint32_t at = pending ? midi_offset(end_ticks, n, pkt, port) : n;
+#else
+        const uint32_t at = pending ? 0 : n;
+#endif
         if (pos < at) {
             if (!pos) {
                 clock_timeout();
@@ -1506,6 +1538,27 @@ static uint32_t peak_cpu, peak_voices, sheds;   /* since the last readout (app_l
 
 /* the development readout (tools/fm1_remote.py log): the render's load now and at its highest since the last
  * readout, with the voices that were sounding, and how often an overload dropped a voice */
+#if FM1B_MIDI_STAMP
+static void midi_timing_log(void (*line)(const char *), const char *port, const volatile midi_timing_t *timing)
+{
+    char text[96], n[16];
+    text[0] = 0;
+    text_cat(text, "sy1 midi "); text_cat(text, port);
+    text_cat(text, " on "); int_text((int32_t)timing->notes, n); text_cat(text, n);
+    text_cat(text, " off "); int_text((int32_t)timing->releases, n); text_cat(text, n);
+    text_cat(text, " clk "); int_text((int32_t)timing->clocks, n); text_cat(text, n);
+    text_cat(text, " gap_us "); int_text((int32_t)(timing->max_clock_gap / PLAT_TICKS_PER_US), n); text_cat(text, n);
+    line(text);
+    text[0] = 0;
+    text_cat(text, "sy1 age "); text_cat(text, port);
+    text_cat(text, " max_us "); int_text((int32_t)(timing->max_age / PLAT_TICKS_PER_US), n); text_cat(text, n);
+    text_cat(text, " overdue "); int_text((int32_t)timing->overdue, n); text_cat(text, n);
+    text_cat(text, " future "); int_text((int32_t)timing->future, n); text_cat(text, n);
+    text_cat(text, " clock_pause "); int_text((int32_t)timing->long_clock_gaps, n); text_cat(text, n);
+    line(text);
+}
+#endif
+
 void app_log(void (*line)(const char *t))
 {
     char t[41], n[12];
@@ -1548,6 +1601,10 @@ void app_log(void (*line)(const char *t))
     line(t);
     dual_jobs = dual_self = 0;
     peak_cpu = peak_voices = sheds = 0;
+#if FM1B_MIDI_STAMP
+    midi_timing_log(line, "trs", &trs_timing);
+    midi_timing_log(line, "usb", &usb_timing);
+#endif
 }
 
 #include "ui/nord.h"
@@ -1860,6 +1917,9 @@ void app_init(void)
     macro_seen = 0;
     w_focus = cur_part = 0;
     ux_refocus = 0;
+#if FM1B_MIDI_STAMP
+    usb_timing = trs_timing = (midi_timing_t){0};
+#endif
     clk_n = clk_t0 = clk_last = ext_tempo = 0;
     clk_live = 0;
     for (uint32_t p = 0; p < NPARTS; p++) { want_program[p] = -1; patch_ready[p] = 0; variations[p] = (variation_t){0}; }
