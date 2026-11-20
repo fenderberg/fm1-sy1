@@ -836,19 +836,22 @@ static void text_cat(char *d, const char *s)
     *d = 0;
 }
 
-static void int_text(int32_t v, char *b)
+static void uint_text(uint32_t u, char *b)
 {
-    char t[12];
+    char t[10];
     int n = 0;
-    uint32_t u = (uint32_t)(v < 0 ? -v : v);
     do
         t[n++] = (char)('0' + u % 10u);
-    while ((u /= 10u) && n < 11);
-    if (v < 0)
-        *b++ = '-';
+    while (u /= 10u);
     while (n)
         *b++ = t[--n];
     *b = 0;
+}
+
+static void int_text(int32_t v, char *b)
+{
+    if (v < 0) *b++ = '-';
+    uint_text(v < 0 ? 0u - (uint32_t)v : (uint32_t)v, b);
 }
 
 static void num3(uint32_t v, char *b)    /* three digits */
@@ -1539,23 +1542,25 @@ static uint32_t peak_cpu, peak_voices, sheds;   /* since the last readout (app_l
 /* the development readout (tools/fm1_remote.py log): the render's load now and at its highest since the last
  * readout, with the voices that were sounding, and how often an overload dropped a voice */
 #if FM1B_MIDI_STAMP
+/* The platform's 48-byte SysEx log frame has room for 43 text bytes. */
+static void midi_timing_line(void (*line)(const char *), const char *topic, const char *port,
+                             const char *key1, uint32_t value1, const char *key2, uint32_t value2)
+{
+    char text[44] = "sy1 ", number[11];
+    text_cat(text, topic); text_cat(text, " "); text_cat(text, port);
+    text_cat(text, key1); uint_text(value1, number); text_cat(text, number);
+    text_cat(text, key2); uint_text(value2, number); text_cat(text, number);
+    line(text);
+}
+
 static void midi_timing_log(void (*line)(const char *), const char *port, const volatile midi_timing_t *timing)
 {
-    char text[96], n[16];
-    text[0] = 0;
-    text_cat(text, "sy1 midi "); text_cat(text, port);
-    text_cat(text, " on "); int_text((int32_t)timing->notes, n); text_cat(text, n);
-    text_cat(text, " off "); int_text((int32_t)timing->releases, n); text_cat(text, n);
-    text_cat(text, " clk "); int_text((int32_t)timing->clocks, n); text_cat(text, n);
-    text_cat(text, " gap_us "); int_text((int32_t)(timing->max_clock_gap / PLAT_TICKS_PER_US), n); text_cat(text, n);
-    line(text);
-    text[0] = 0;
-    text_cat(text, "sy1 age "); text_cat(text, port);
-    text_cat(text, " max_us "); int_text((int32_t)(timing->max_age / PLAT_TICKS_PER_US), n); text_cat(text, n);
-    text_cat(text, " overdue "); int_text((int32_t)timing->overdue, n); text_cat(text, n);
-    text_cat(text, " future "); int_text((int32_t)timing->future, n); text_cat(text, n);
-    text_cat(text, " clock_pause "); int_text((int32_t)timing->long_clock_gaps, n); text_cat(text, n);
-    line(text);
+    midi_timing_line(line, "midi", port, " on ", timing->notes, " off ", timing->releases);
+    midi_timing_line(line, "midi", port, " clk ", timing->clocks,
+                     " gap_us ", timing->max_clock_gap / PLAT_TICKS_PER_US);
+    midi_timing_line(line, "age", port, " max_us ", timing->max_age / PLAT_TICKS_PER_US,
+                     " late ", timing->overdue);
+    midi_timing_line(line, "age", port, " fut ", timing->future, " pause ", timing->long_clock_gaps);
 }
 #endif
 

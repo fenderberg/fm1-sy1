@@ -756,10 +756,14 @@ static void test_midi_timing(void)
 }
 
 static uint32_t timing_log_lines;
+static uint32_t longest_timing_log;
 static void check_timing_log(const char *line)
 {
-    if (!strcmp(line, "sy1 midi trs on 1 off 1 clk 2 gap_us 18000")) timing_log_lines |= 1u;
-    if (!strcmp(line, "sy1 midi usb on 1 off 0 clk 0 gap_us 0")) timing_log_lines |= 2u;
+    const uint32_t length = (uint32_t)strlen(line);
+    if (length > longest_timing_log) longest_timing_log = length;
+    if (!strcmp(line, "sy1 midi trs on 1 off 1")) timing_log_lines |= 1u;
+    if (!strcmp(line, "sy1 midi trs clk 2 gap_us 18000")) timing_log_lines |= 2u;
+    if (!strcmp(line, "sy1 midi usb on 1 off 0")) timing_log_lines |= 4u;
 }
 
 static void test_midi_timing_by_port(void)
@@ -786,8 +790,14 @@ static void test_midi_timing_by_port(void)
     app_render(audio, APP_BLOCK, 4096);
     app_log(check_timing_log);
     app_log(check_timing_log);
-    CHECK(timing_log_lines == 3 && trs_timing.notes == 1 && trs_timing.releases == 1 && usb_timing.notes == 1,
+    CHECK(timing_log_lines == 7 && trs_timing.notes == 1 && trs_timing.releases == 1 && usb_timing.notes == 1,
           "MIDI port counts are mixed, incomplete or reset when read");
+    trs_timing = (midi_timing_t){.notes=UINT32_MAX,.releases=UINT32_MAX,.clocks=UINT32_MAX,
+        .max_clock_gap=2000000u*PLAT_TICKS_PER_US,.long_clock_gaps=UINT32_MAX,.max_age=INT32_MAX,
+        .overdue=UINT32_MAX,.future=UINT32_MAX};
+    longest_timing_log = 0;
+    midi_timing_log(check_timing_log, "trs", &trs_timing);
+    CHECK(longest_timing_log <= 43, "TRS hardware log would truncate");
     power_on();
     CHECK(!trs_timing.clocks && !usb_timing.notes, "MIDI port timing persisted across reboot");
 }
