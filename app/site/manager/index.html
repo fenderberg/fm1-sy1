@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SY1 · Patch Manager</title><meta name="description" content="Explore thousands of Synth1 presets and arrange the 1,024 user slots of your FM-1: add, sort, rename and sync."><link rel="stylesheet" href="manager.css?v=categories13"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SY1 · Patch Manager</title><meta name="description" content="Explore thousands of Synth1 presets and arrange the 1,024 user slots of your FM-1: add, sort, rename and sync."><link rel="stylesheet" href="manager.css?v=part-settings"></head><body>
 <main id="content" tabindex="-1"><div id="pm" data-tab="lib">
 <div class="ptabs"><button type="button" id="tab-lib" aria-pressed="true">Library</button><button type="button" id="tab-dev" aria-pressed="false">My FM-1</button></div>
 <div class="panes">
@@ -6,7 +6,7 @@
   <div class="phead">
     <div class="head"><h2 id="h-lib">Library</h2><span class="count" id="lcount"></span><span class="right">
       <details class="menu" id="m-about"><summary>About ▾</summary><div class="pop">
-        <p><b id="total-patches">—</b> sounds in <b id="total-banks">—</b> banks to explore, and 1,024 user slots on your FM-1. Find sounds on the left, arrange your FM-1 on the right. Nothing is written until you press Sync.</p>
+        <p><b id="total-patches">—</b> sounds in <b id="total-banks">—</b> banks to explore, and 1,024 user slots on your FM-1. Find sounds on the left, arrange your FM-1 on the right. Use Sync patch slots to write changes to the patch bank.</p>
         <p><a href="../library/sy1-community-library.zip" download>Download the full sound library (ZIP)</a>. Includes every original bank and a CSV index with patch names, categories and authors.</p>
         <p><strong>256 sounds are already inside.</strong> SY1 0.5.0 and later include a factory bank of 256 presets across all 13 categories (0.4.x had 256 in eight, 0.3.0 to 0.4.0 had 500): on the FM-1, turn ALGORITHM left once from ALL to FACTORY. No transfer needed. <a href="../library/factory500.zip" download>Download the selection</a> · <a href="../library/factory500-credits.txt">Full credits</a></p>
         <p>The manager suggests one of 13 categories from the patch name. Choose a different category in My FM-1. The FM-1 uses the same 13 categories from 0.5.0 on, and saving a patch on its panel keeps the category you choose there.</p>
@@ -43,23 +43,28 @@
         <button type="button" data-arr="bank">Group by bank</button>
         <button type="button" data-arr="clear" class="danger">Remove everything</button>
       </div></details>
-      <details class="menu" id="m-sets"><summary>Sets ▾</summary><div class="pop">
-        <p>A set is a saved layout of all your slots, kept in this browser. Load one to stage it, export it as a backup file.</p>
+      <details class="menu" id="m-sets"><summary>Slot layouts ▾</summary><div class="pop">
+        <p>A layout saves the patch slots. Load one to stage it, or export it as a backup file.</p>
         <div id="setlist"></div>
         <div class="save"><input type="text" id="setname" placeholder="Name this layout" aria-label="Set name" maxlength="40"><button type="button" id="setsave">Save</button></div>
         <button type="button" id="setimport">Import a set file…</button><input type="file" id="setfile" accept=".json,application/json" hidden>
       </div></details></span></div>
     <div class="connection-strip" id="connection" data-state="disconnected"><span class="signal-led" aria-hidden="true"></span><span id="connection-label">FM-1 NOT CONNECTED</span><span id="status" role="status" class="muted">Connect by USB. Use Chrome or Edge and allow MIDI when asked.</span><button type="button" class="primary" id="connect">Connect to the FM-1</button></div>
-    <div class="parts" id="parts" hidden>
+    <div class="parts" id="parts" aria-label="Live FM-1 settings" hidden>
+      <p class="live-note"><strong>Live settings</strong> · Mode, routing and part assignments apply immediately. Changing mode, routing or layering stops notes.</p>
       <span class="seg" role="group" aria-label="Mode"><button type="button" data-mode="0">Standard</button><button type="button" data-mode="1">Bitimbral</button><button type="button" data-mode="2" hidden>Quad</button></span>
-      <span class="seg" id="layoutseg" role="group" aria-label="Output"><button type="button" data-layout="0" title="L on the left output, R on the right">Split</button><button type="button" data-layout="1">Stereo</button><button type="button" data-layout="2" title="Every note plays both parts">Double</button></span>
+      <span class="seg" id="layoutseg" role="group" aria-label="Audio routing"><button type="button" data-layout="0">Split</button><button type="button" data-layout="1">Stereo</button><button type="button" data-layout="2" title="Every note plays both parts">Double</button></span>
+      <button type="button" id="layer" aria-pressed="false" hidden>Layer notes</button>
+      <span id="part-routing" class="part-routing" hidden></span>
       <span id="partinfo" class="partinfo"></span>
-      <form id="quadchannels" hidden aria-label="Quad MIDI channels">
-        <label>1 · Synth 1 <input id="qch0" type="number" min="1" max="16" required></label>
-        <label>2 · Synth 2 <input id="qch1" type="number" min="1" max="16" required></label>
-        <label>3 · MIDI 1 <input id="qch2" type="number" min="1" max="16" required></label>
-        <label>4 · MIDI 2 <input id="qch3" type="number" min="1" max="16" required></label>
+      <form id="quadchannels" hidden aria-label="MIDI receive channels">
+        <label><span>1 · Synth 1</span> <input id="qch0" type="number" min="1" max="16" required></label>
+        <label><span>2 · Synth 2</span> <input id="qch1" type="number" min="1" max="16" required></label>
+        <label><span>3 · MIDI 1</span> <input id="qch2" type="number" min="1" max="16" required></label>
+        <label><span>4 · MIDI 2</span> <input id="qch3" type="number" min="1" max="16" required></label>
         <button id="quadapply" type="submit">Apply channels</button>
+        <button id="channelreset" type="button" hidden>Discard channel edits</button>
+        <span id="channelstatus" role="status"></span>
       </form>
     </div>
     <p id="legacy" class="notice" hidden>This FM-1 runs an older SY1 that cannot send its patches back. You can add and remove sounds; update SY1 to reorder, rename, sort and save sets.</p>
@@ -84,7 +89,7 @@
 
 <div class="syncbar">
   <div class="what"><span id="syncmsg"></span><progress id="progress" max="1" value="0" hidden></progress><span id="result" role="status"></span></div>
-  <div class="acts"><button type="button" id="undo" disabled>Undo</button><button type="button" id="discard" disabled>Discard all</button><button type="button" id="cancel" hidden>Stop</button><button type="button" class="primary" id="sync" disabled>Sync to FM-1</button></div>
+  <div class="acts"><button type="button" id="undo" disabled>Undo</button><button type="button" id="discard" disabled>Discard all</button><button type="button" id="cancel" hidden>Stop</button><button type="button" class="primary" id="sync" disabled>Sync patch slots</button></div>
 </div>
 <div id="toast" role="status" hidden></div>
-</div></main><script type="module" src="app.js?v=categories13"></script></body></html>
+</div></main><script type="module" src="app.js?v=part-settings"></script></body></html>

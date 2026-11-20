@@ -40,13 +40,13 @@ typedef struct {
     uint8_t category, drone_replace;     /* uses the old reserved bytes: settings stay compatible. category: the
                                           * browser's, of the part the panel is on (category_b: the other part's) */
     uint8_t display;                     /* appended: old 12-byte settings migrate without losing patches */
-    uint8_t bi;                          /* bit 0: bitimbral; bits 1-2: its output (LAY_*); bit 3: the panel is on part R */
+    uint8_t bi;                          /* bit 0: Bitimbral, bits 1-2: legacy output, bit 3: panel on R */
     uint16_t patch_b;                    /* part R's patch (the list's index) */
     uint8_t ch_l, ch_r;                  /* appended again: the parts' MIDI channels in bitimbral, 1 .. 16 (0: 3 and 4) */
     uint8_t category_b;                  /* the browser's category of the part the panel is not on */
     int8_t octave_b;                     /* and that part's octave. Bitimbral: octave, voices, category and
                                           * drone_replace above are the part's the panel is on; these the other's */
-    uint8_t voices_b, drone_b, spare[2]; /* appended a third time: its voice limit and drone mode */
+    uint8_t voices_b, drone_b, spare[2]; /* spare[0]: category schema; spare[1]: layer in Split */
     uint8_t quad_enabled, quad_layout, quad_focus, quad_version;
     uint8_t quad_ch[4];                 /* Circuit Synth 1/2 and MIDI 1/2: 1,2,3,4 */
     quad_part_t quad[4];                /* separate patches/settings from standard and bitimbral */
@@ -55,6 +55,8 @@ static settings_t set;
 enum { LAY_SPLIT, LAY_STEREO, LAY_DOUBLE, LAY_COUNT };
 #define BI_ON (set.bi & 1u)
 #define BI_LAYOUT ((uint32_t)(set.bi >> 1) & 3u)
+#define BI_AUDIO (BI_LAYOUT == LAY_SPLIT ? LAY_SPLIT : LAY_STEREO)
+#define BI_LAYER (BI_LAYOUT == LAY_DOUBLE || (BI_LAYOUT == LAY_SPLIT && set.spare[1]))
 #define CH_L (set.ch_l ? set.ch_l : 3u)   /* the Circuit Tracks' MIDI 1 */
 #define QUAD_ON (set.quad_enabled != 0u)
 #define MULTI_ON (QUAD_ON || BI_ON)
@@ -102,7 +104,8 @@ static float *const PART_L[NPARTS] = {buf_l, buf2_l, buf3_l, buf4_l};
 static float *const PART_R[NPARTS] = {buf_r, buf2_r, buf3_r, buf4_r};
 static volatile uint8_t w_ch[NPARTS] = {2, 3, 2, 3};
 static volatile uint8_t w_bi, w_quad, w_layout, w_focus, w_limit[NPARTS], w_drone[NPARTS];
-static uint8_t a_bi, a_quad, a_layout;
+static volatile uint8_t w_layer;
+static uint8_t a_bi, a_quad, a_layout, a_layer, a_ch[NPARTS];
 static volatile uint8_t ux_refocus;
 static uint32_t dual_jobs, dual_self;
 static uint32_t audio_parts(void) { return a_quad ? NPARTS : a_bi ? 2u : 1u; }
@@ -122,7 +125,7 @@ static float gain_now;
 #include "ui/live.h"
 
 /* main loop -> audio interrupt: a ring of small events, and a whole patch at a time */
-enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE, EV_MODE };   /* bits 6..7: part 0..3 */
+enum { EV_NOTE_ON, EV_NOTE_OFF, EV_PARAM, EV_PANIC, EV_TEMPO, EV_VOICES, EV_HOLD, EV_DRONE_MODE, EV_MODE, EV_CHANNEL };   /* bits 6..7: part 0..3 */
 typedef struct { uint8_t type, a; int16_t b; } ev_t;
 static ev_t evq[64];
 static volatile uint32_t ev_w, ev_r;
@@ -298,6 +301,8 @@ static void mode_take(void)              /* audio interrupt: the mode as the mai
     a_bi = w_bi;
     a_quad = w_quad;
     a_layout = w_layout;
+    a_layer = w_layer;
+    for (uint32_t p = 0; p < NPARTS; p++) a_ch[p] = w_ch[p];
 }
 
 static void ux_restart(void)             /* audio interrupt: the live view follows another patch or part */
@@ -338,10 +343,19 @@ static void events(void)                 /* audio interrupt */
         case EV_NOTE_OFF: s1_note_off(part, e.a); break;
         case EV_PARAM: macro_param_set(e.type >> 6, e.a, e.b); break;
         case EV_PANIC: all_off(); break;
-        case EV_TEMPO: for (p = 0; p < NPARTS; p++) s1_set_tempo(PART[p], (float)e.b); break;
+        case EV_TEMPO:
+            if (!clk_live)
+                for (p = 0; p < NPARTS; p++) s1_set_tempo(PART[p], (float)e.b);
+            break;
         case EV_HOLD: s1_set_hold(part, e.b); break;
         case EV_DRONE_MODE: part->drone_replace = (uint8_t)e.b; break;
         case EV_MODE: mode_take(); break;
+        case EV_CHANNEL:
+            if (a_ch[e.type >> 6] == e.a) break;
+            a_ch[e.type >> 6] = e.a;
+            if (a_bi && a_layer) all_off();   /* notes on either channel belong to both parts */
+            else s1_all_notes_off(part, 1);
+            break;
         case EV_VOICES:
             s1_all_notes_off(part, 1);
             part->cfg.max_voices = clamp(e.b, 1, S1_MAX_VOICES);
@@ -353,15 +367,14 @@ static void events(void)                 /* audio interrupt */
 static void midi_event(uint32_t pkt)
 {
     const uint32_t st = (pkt >> 8) & 0xFFu, d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu;
-    /* Standard: every channel plays L. Bitimbral: channel 3 is part L, channel 4 part R (the Circuit Tracks'
-     * MIDI 1 and MIDI 2), the other channels are not ours; DOUBLE: the notes of either play both parts */
     const uint32_t ch = st & 0x0Fu, kind = st & 0xF0u, note = kind == 0x90u || kind == 0x80u;
-    uint32_t mask = st >= 0xF0u ? 0u : !a_quad && !a_bi ? 1u : 0u;
-    if (a_quad) {
-        for (uint32_t p = 0; p < NPARTS; p++) if (ch == w_ch[p]) mask |= 1u << p;
-    } else if (a_bi && (ch == w_ch[0] || ch == w_ch[1]))
-        mask = note && a_layout == LAY_DOUBLE ? 3u : ch == w_ch[0] ? 1u : 2u;
-    uint32_t p;
+    uint32_t mask = 1u, p;
+    if (a_bi || a_quad) {
+        mask = 0;
+        for (p = 0; p < audio_parts(); p++)
+            if (ch == a_ch[p]) mask |= 1u << p;
+        if (mask && note && a_bi && a_layer) mask = 3u;
+    }
     if (st < 0xF0u) {
         for (p = 0; p < audio_parts(); p++) {
             s1_synth *const part = PART[p];
@@ -828,7 +841,7 @@ static void index_text(uint32_t i, char *b)   /* P03: built in; 012: the user's 
 }
 
 /* ------------------------------------------------------------------ pages --- */
-enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_RANDOM, X_QPART, X_QOUTPUT, X_QCH1, X_QCH2, X_QCH3, X_QCH4, X_NONE = 255 };
+enum { X_TEMPO = 100, X_VOICES, X_DRONE, X_CATEGORY, X_CPU, X_PEAK, X_SHED, X_RAW, X_DISPLAY, X_BI, X_LAYOUT, X_CHL, X_CHR, X_RANDOM, X_PART, X_LAYER, X_QCH3, X_QCH4, X_OCTAVE, X_NONE = 255 };
 
 static const char *const PNAME[S1_NPARAMS] = {
     "OSC1", "OSC2", "PITCH", "FINE", "TRACK", "MIX", "SYNC", "RING", "PW", "SHIFT",
@@ -844,13 +857,14 @@ static const char *const PNAME[S1_NPARAMS] = {
 };
 
 typedef struct { const char *title; uint8_t button, nrows; const uint8_t (*rows)[4]; } page_t;
-/* PLAY: the patch, as it plays (its voice settings and its category are stored with it) */
+/* PLAY: quick performance controls and edits to the active patch. */
 static const uint8_t R_HOME[][4] = {
     {S1P_FILTER_FREQ, S1P_FILTER_RES, S1P_FILTER_AMOUNT, S1P_AMP_GAIN},
     {S1P_PORTA_TIME, S1P_PAN, X_TEMPO, X_VOICES},
     {S1P_PLAY_MODE, S1P_PORTA_TIME, S1P_PORTA_AUTO, S1P_BEND_RANGE},
     {S1P_UNISON_ON, S1P_UNISON_VOICES, S1P_UNISON_DETUNE, S1P_UNISON_PAN},
-    {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, X_CATEGORY}};
+    {S1P_UNISON_PITCH, S1P_UNISON_PHASE, S1P_POLYPHONY, X_NONE},
+    {X_RANDOM, X_CATEGORY, X_NONE, X_NONE}};
 #define HOME_VOICE_ROW 2u                /* PLAY's first voice row (ux_graph) */
 static const uint8_t R_OSC[][4] = {
     {S1P_OSC1_SHAPE, S1P_OSC2_SHAPE, S1P_OSC_MIX, S1P_OSC_PULSE_WIDTH},
@@ -882,15 +896,13 @@ static const uint8_t R_FX[][4] = {
 static const uint8_t R_ARP[][4] = {
     {S1P_ARP_ON, S1P_ARP_TYPE, S1P_ARP_OCT_RANGE, S1P_ARP_BEAT},
     {S1P_ARP_GATE, X_TEMPO, X_DRONE, X_NONE}};
-/* Global and per-part controls. RANDOM edits the active sound in memory. */
+enum { GLOBAL_PART, GLOBAL_MODE, GLOBAL_CHANNELS, GLOBAL_SYSTEM, GLOBAL_DIAG };
 static const uint8_t R_GLOBAL[][4] = {
-    {X_VOICES, X_TEMPO, X_RANDOM, X_DRONE},
-    {X_BI, X_LAYOUT, X_CHL, X_CHR},
-    {X_DISPLAY, X_NONE, X_NONE, X_NONE},
-    {X_CPU, X_PEAK, X_SHED, X_RAW},
-    {X_BI, X_QPART, X_QOUTPUT, X_VOICES},
-    {X_QCH1, X_QCH2, X_QCH3, X_QCH4}};
-enum { GLOBAL_PART, GLOBAL_BI, GLOBAL_DISPLAY, GLOBAL_DIAG, GLOBAL_QUAD, GLOBAL_QCHANNELS };
+    {X_PART, X_VOICES, X_DRONE, X_OCTAVE},
+    {X_BI, X_LAYOUT, X_LAYER, X_NONE},
+    {X_CHL, X_CHR, X_QCH3, X_QCH4},
+    {X_TEMPO, X_DISPLAY, X_NONE, X_NONE},
+    {X_CPU, X_PEAK, X_SHED, X_RAW}};
 #define ROWS(r) (uint8_t)(sizeof r / sizeof r[0]), r
 static const page_t PAGES[] = {
     {"PLAY", B_HOME, ROWS(R_HOME)},     {"OSC", B_EDIT, ROWS(R_OSC)},   {"FILTER", B_SEL, ROWS(R_FILTER)},
@@ -899,7 +911,18 @@ static const page_t PAGES[] = {
 };
 #define NPAGES ((uint32_t)(sizeof PAGES / sizeof PAGES[0]))
 
-static const char *const LAYOUT[LAY_COUNT] = {"SPLIT", "STEREO", "DOUBLE"};
+static const char *const LAYOUT[2] = {"SPLIT", "STEREO"};
+static const char *const BITIMBRAL_PARTS[2] = {"L", "R"};
+
+static uint32_t cell_at(uint32_t page, uint32_t row, uint32_t knob)
+{
+    const uint32_t id = PAGES[page].rows[row][knob];
+    if (page != NPAGES - 1u) return id;
+    if ((!MULTI_ON && (row == GLOBAL_CHANNELS || id == X_LAYOUT || id == X_PART)) ||
+        (id == X_LAYER && (!BI_ON || QUAD_ON)) ||
+        (!QUAD_ON && (id == X_QCH3 || id == X_QCH4))) return X_NONE;
+    return id;
+}
 
 /* a value as the screen shows it */
 static void value_text(uint32_t id, int32_t v, char *t)
@@ -920,8 +943,9 @@ static void value_text(uint32_t id, int32_t v, char *t)
     case X_CATEGORY: s = CATEGORY[clamp(v, CAT_BASS, CAT_LAST)]; break;
     case X_DRONE: s = v ? "REPLACE" : "STACK"; break;
     case X_BI: s = v == 2 ? "QUAD" : v ? "BITIMB" : "STANDARD"; break;
-    case X_QOUTPUT: s = v ? "STEREO" : "SPLIT"; break;
-    case X_LAYOUT: s = LAYOUT[clamp(v, 0, LAY_COUNT - 1)]; break;
+    case X_LAYOUT: s = LAYOUT[clamp(v, 0, 1)]; break;
+    case X_LAYER: s = v ? "ON" : "OFF"; break;
+    case X_PART: if (!QUAD_ON) s = BITIMBRAL_PARTS[clamp(v, 1, 2) - 1]; break;
     case S1P_OSC1_SHAPE: s = OSC1[v & 3]; break;
     case S1P_OSC2_SHAPE: s = OSC2[clamp(v - 1, 0, 3)]; break;
     case S1P_SUB_SHAPE: s = SUB[v & 3]; break;
@@ -948,23 +972,27 @@ static void value_text(uint32_t id, int32_t v, char *t)
 
 static const char *cell_name(uint32_t id)
 {
-    if (id == X_QPART) return "PART";
-    if (id == X_QOUTPUT) return "OUTPUT";
-    if (id >= X_QCH1 && id <= X_QCH4) { static const char *const names[] = {"1 CH", "2 CH", "3 CH", "4 CH"}; return names[id - X_QCH1]; }
+    if (id == X_PART) return "PART";
+    if (id == X_LAYER) return "LAYER";
+    if (id == X_OCTAVE) return "OCTAVE";
+    if (id == X_QCH3) return "3 CH";
+    if (id == X_QCH4) return "4 CH";
     if (QUAD_ON && (id == X_CHL || id == X_CHR)) return id == X_CHL ? "1 CH" : "2 CH";
-    if (id == X_RANDOM) return "RANDOM";
-    return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "VOICES" : id == X_DRONE ? "DRONE" :
-        id == X_CATEGORY ? "CAT" : id == X_DISPLAY ? "STYLE" : id == X_BI ? "MODE" : id == X_LAYOUT ? "OUTPUT" : id == X_CHL ? "L CH" : id == X_CHR ? "R CH" : id < S1_NPARAMS ? PNAME[id] : "";
+    if (id == X_RANDOM) return "VARIATION";
+    return id == X_TEMPO ? "TEMPO" : id == X_VOICES ? "PART LIMIT" : id == X_DRONE ? "DRONE" :
+        id == X_CATEGORY ? "PATCH CAT" : id == X_DISPLAY ? "STYLE" : id == X_BI ? "MODE" : id == X_LAYOUT ? "ROUTING" : id == X_CHL ? "L CH" : id == X_CHR ? "R CH" : id < S1_NPARAMS ? PNAME[id] : "";
 }
 static int32_t cell_value(uint32_t id)
 {
     if (id == X_RANDOM) return variations[cur_part].position;
     if (id == X_DISPLAY) return set.display;
-    if (id == X_QPART) return QUAD_ON ? cur_part + 1 : set.quad_focus + 1;
-    if (id == X_QOUTPUT) return set.quad_layout;
-    if (id >= X_QCH1 && id <= X_QCH4) return set.quad_ch[id - X_QCH1];
+    if (id == X_PART) return cur_part + 1;
+    if (id == X_LAYER) return BI_LAYER;
+    if (id == X_OCTAVE) return set.octave;
+    if (id == X_QCH3) return set.quad_ch[2];
+    if (id == X_QCH4) return set.quad_ch[3];
     if (id == X_BI) return MODE_VALUE;
-    if (id == X_LAYOUT) return QUAD_ON ? set.quad_layout : (int32_t)BI_LAYOUT;
+    if (id == X_LAYOUT) return QUAD_ON ? set.quad_layout : (int32_t)BI_AUDIO;
     if (id == X_CHL) return QUAD_ON ? set.quad_ch[0] : (int32_t)CH_L;
     if (id == X_CHR) return QUAD_ON ? set.quad_ch[1] : (int32_t)CH_R;
     if (id == X_CPU) return (int32_t)shown_cpu;
@@ -986,7 +1014,8 @@ void app_say(const char *a, const char *b)
         a && (a[0] == 'L' || a[0] == 'R' || (a[0] >= '1' && a[0] <= '4')) && a[1] == ' ' ? 1 :   /* a Circuit knob: its part and label */
         a && (ux_equal(a, "SAVED") || ux_equal(a, "RECEIVED") || ux_equal(a, "REVERT") ||
               ux_equal(a, "ALL NOTES") || ux_equal(a, "BANK") || ux_equal(a, "PART L") || ux_equal(a, "PART R") ||
-              ux_equal(a, "QUAD") || ux_equal(a, "BITIMBRAL") || ux_equal(a, "STANDARD") || ux_equal(a, "OUTPUT")) ? 1 : 0;
+              (QUAD_ON && ux_equal(a, QUAD_NAME[cur_part])) || ux_equal(a, "QUAD") ||
+              ux_equal(a, "BITIMBRAL") || ux_equal(a, "STANDARD") || ux_equal(a, "ROUTING")) ? 1 : 0;
     /* Speak every event, but don't let a routine parameter update erase a warning. */
     if (ann_on()) {
         t[0] = 0;
@@ -1046,7 +1075,7 @@ static void speak(void)                  /* explicit WHERE: identity, subpage, v
         ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_row_title());
         ux_append(t,sizeof t," ");int_text((int32_t)ui.row+1,n);ux_append(t,sizeof t,n);
         for(c=0;c<4;c++) {
-            const uint32_t id=PAGES[ui.page].rows[ui.row][c];
+            const uint32_t id=cell_at(ui.page, ui.row, c);
             if(id==X_NONE) continue;
             ux_value(id,cell_value(id),value,&unit);
             ux_append(t,sizeof t,". ");ux_append(t,sizeof t,ux_label(id));ux_append(t,sizeof t," ");
@@ -1063,7 +1092,8 @@ static void mode_push(void)              /* the render takes the mode at an even
 {
     w_bi = (uint8_t)(!QUAD_ON && BI_ON);
     w_quad = (uint8_t)QUAD_ON;
-    w_layout = (uint8_t)(QUAD_ON ? set.quad_layout : BI_LAYOUT);
+    w_layout = (uint8_t)(QUAD_ON ? set.quad_layout : BI_AUDIO);
+    w_layer = (uint8_t)(!QUAD_ON && BI_ON && BI_LAYER);
     for (uint32_t p = 0; p < NPARTS; p++) {
         w_ch[p] = (uint8_t)(QUAD_ON ? set.quad_ch[p] - 1u : p == 0 ? CH_L - 1u : CH_R - 1u);
         w_limit[p] = QUAD_ON ? set.quad[p].voices : p == cur_part ? set.voices : p < 2 ? set.voices_b : MAX_VOICES_DEFAULT;
@@ -1074,20 +1104,22 @@ static void mode_push(void)              /* the render takes the mode at an even
     ui.redraw = UX_ALL;
 }
 
-static void focus_set(uint32_t part)     /* the panel and the keys on part L (0) or R (1) */
+static void focus_set(uint32_t part)     /* the panel and the keys follow this part */
 {
-    if (QUAD_ON) { quad_focus(part); return; }
-    if (!BI_ON)
-        return;
-    if (part != cur_part) {
+    const uint32_t page = ui.page, row = ui.row;
+    if (QUAD_ON) quad_focus(part);
+    else if (BI_ON && part != cur_part) {
         part_swap();
         set.bi = (uint8_t)((set.bi & ~8u) | (cur_part ? 8u : 0u));
         set_dirty = 1;
+        app_say(cur_part ? "PART R" : "PART L", cur.name);
     }
-    app_say(cur_part ? "PART R" : "PART L", cur.name);
+    if (page == NPAGES - 1u) {
+        ui.page = page; ui.row = row; ui.redraw = UX_ALL;
+    }
 }
 
-static void mode_set(int on)             /* standard (one sound, as ever) or bitimbral (L and R) */
+static void mode_set(int on)             /* Standard, Bitimbral or QUAD */
 {
     on = clamp(on, 0, 2);
     if (MODE_VALUE == on) return;
@@ -1104,24 +1136,53 @@ static void mode_set(int on)             /* standard (one sound, as ever) or bit
     set.bi = (uint8_t)((set.bi & ~9u) | (on ? 1u : 0u));
     if (from_quad) queue_mode_patches();
     mode_push();
-    app_say(on ? "BITIMBRAL" : "STANDARD", on ? LAYOUT[BI_LAYOUT] : "ONE SOUND");
+    app_say(on ? "BITIMBRAL" : "STANDARD", on ? LAYOUT[BI_AUDIO] : "OMNI MIDI");
 }
 
-static void layout_set(int32_t v)
+/* The original settings and SysEx encode Stereo+Layer as DOUBLE. The reserved
+ * settings byte distinguishes Split+Layer while preserving the legacy prefix. */
+static void bi_routing_set(uint8_t audio, uint8_t layer)
+{
+    if (audio == BI_AUDIO && layer == BI_LAYER) return;
+    const uint32_t legacy = audio == LAY_STEREO && layer ? LAY_DOUBLE : audio;
+    set.bi = (uint8_t)((set.bi & ~6u) | legacy << 1);
+    set.spare[1] = (uint8_t)(audio == LAY_SPLIT && layer);
+    set_dirty = 1;
+    if (BI_ON && !QUAD_ON) mode_push();
+    app_say("ROUTING", LAYOUT[audio]);
+}
+
+static void quad_routing_set(uint8_t audio)
+{
+    if (audio == set.quad_layout) return;
+    set.quad_layout = audio;
+    set_dirty = 1;
+    if (QUAD_ON) mode_push();
+    app_say("ROUTING", audio == LAY_SPLIT ? "L 1+2 / R 3+4" : "STEREO");
+}
+
+static void layout_set(uint32_t legacy)    /* command 08 compatibility */
 {
     if (QUAD_ON) {
-        v = clamp(v, 0, 1);
-        if (v == set.quad_layout) return;
-        set.quad_layout = (uint8_t)v; mode_push();
-        app_say("OUTPUT", v ? "STEREO" : "L 1+2 / R 3+4");
-        return;
+        if (legacy <= LAY_STEREO) quad_routing_set((uint8_t)legacy);
+    } else if (legacy < LAY_COUNT) {
+        bi_routing_set(legacy == LAY_SPLIT ? LAY_SPLIT : LAY_STEREO, legacy == LAY_DOUBLE);
     }
-    v = clamp(v, 0, LAY_COUNT - 1);
-    if ((uint32_t)v == BI_LAYOUT)
-        return;
-    set.bi = (uint8_t)((set.bi & ~6u) | (uint32_t)v << 1);
-    mode_push();
-    app_say("OUTPUT", LAYOUT[v]);
+}
+
+static void channel_set(int quad, uint32_t part, uint8_t channel)
+{
+    uint8_t *const dst = quad ? &set.quad_ch[part] : part ? &set.ch_r : &set.ch_l;
+    const uint8_t previous = quad ? *dst : part ? CH_R : CH_L;
+    if (channel == previous) return;
+    *dst = channel;
+    set_dirty = 1;
+    ui.redraw = UX_ALL;
+    if ((quad && QUAD_ON) || (!quad && BI_ON && !QUAD_ON)) {
+        w_ch[part] = channel - 1u;
+        want_program[part] = -1;
+        ev_push_to(part, EV_CHANNEL, w_ch[part], 0);
+    }
 }
 
 static void variation_select(int32_t position)
@@ -1149,6 +1210,8 @@ static void variation_select(int32_t position)
     refresh_dirty();
 }
 
+static void octave_step(int32_t d);
+
 static void cell_edit(uint32_t id, int32_t d)
 {
     char t[32];
@@ -1166,7 +1229,6 @@ static void cell_edit(uint32_t id, int32_t d)
             return;
         set.tempo = (uint16_t)v;
         set_dirty = 1;
-        ext_tempo = 0;
         ev_push(EV_TEMPO, 0, v);
     } else if (id == X_VOICES) {
         v = clamp((int32_t)set.voices + (d > 0 ? 1 : -1), 1, QUAD_ON ? (int32_t)(QUAD_CORE_VOICES - set.quad[cur_part ^ 2u].voices) : S1_MAX_VOICES);
@@ -1191,32 +1253,25 @@ static void cell_edit(uint32_t id, int32_t d)
         ui.page = page; ui.row = row; ui.redraw = UX_ALL;
         return;
     } else if (id == X_LAYOUT) {
-        layout_set(cell_value(X_LAYOUT) + (d > 0 ? 1 : -1));
+        const uint8_t output = d > 0 ? LAY_STEREO : LAY_SPLIT;
+        if (QUAD_ON) quad_routing_set(output);
+        else if (BI_ON) bi_routing_set(output, BI_LAYER);
         return;
-    } else if (id == X_QPART) {
-        if (QUAD_ON) {
-            const uint32_t page = ui.page, row = ui.row;
-            quad_focus((uint32_t)clamp((int32_t)cur_part + (d > 0 ? 1 : -1), 0, 3));
-            ui.page = page; ui.row = row; ui.redraw = UX_ALL; return;
-        }
-        set.quad_focus = (uint8_t)clamp((int32_t)set.quad_focus + (d > 0 ? 1 : -1), 0, 3);
-        set_dirty = 1; ui.redraw = UX_ALL; return;
-    } else if (id == X_QOUTPUT) {
-        set.quad_layout = (uint8_t)clamp((int32_t)set.quad_layout + (d > 0 ? 1 : -1), 0, 1);
-        if (QUAD_ON) mode_push();
-        set_dirty = 1; ui.redraw = UX_ALL; return;
-    } else if (id >= X_QCH1 && id <= X_QCH4) {
-        uint8_t *ch = &set.quad_ch[id - X_QCH1];
-        *ch = (uint8_t)clamp((int32_t)*ch + (d > 0 ? 1 : -1), 1, 16);
-        if (QUAD_ON) mode_push();
-        set_dirty = 1; ui.redraw = UX_ALL; return;
-    } else if (id == X_CHL || id == X_CHR) {
-        uint8_t *const ch = QUAD_ON ? &set.quad_ch[id == X_CHL ? 0 : 1] : id == X_CHL ? &set.ch_l : &set.ch_r;
+    } else if (id == X_LAYER) {
+        if (BI_ON && !QUAD_ON) bi_routing_set(BI_AUDIO, d > 0);
+        return;
+    } else if (id == X_PART) {
+        focus_set((uint32_t)clamp((int32_t)cur_part + (d > 0 ? 1 : -1), 0, QUAD_ON ? 3 : 1));
+        return;
+    } else if (id == X_OCTAVE) {
+        octave_step(d > 0 ? 1 : -1);
+        return;
+    } else if (id == X_CHL || id == X_CHR || id == X_QCH3 || id == X_QCH4) {
+        if (!MULTI_ON || (!QUAD_ON && (id == X_QCH3 || id == X_QCH4))) return;
+        const uint32_t part = id == X_CHL ? 0u : id == X_CHR ? 1u : id == X_QCH3 ? 2u : 3u;
         v = clamp(cell_value(id) + (d > 0 ? 1 : -1), 1, 16);
-        if (v == cell_value(id))
-            return;
-        *ch = (uint8_t)v;
-        mode_push();                     /* (the notes stop: none is left hanging on the old channel) */
+        if (v == cell_value(id)) return;
+        channel_set(QUAD_ON, part, (uint8_t)v);
     } else if (id == X_CATEGORY) {
         /* in the browser's order: BASS .. ARP, DRUMS .. VOCAL, FX, OTHER */
         v = CAT_ORDER[clamp((int32_t)category_position(cur_category) + d, 1, CAT_LAST)];
@@ -1343,7 +1398,7 @@ static void input(void)
         const uint32_t bit = 1u << k;
         if ((keys & bit) && !(ui.keys & bit)) {
             const uint32_t note = (uint32_t)clamp(53 + (int32_t)k + 12 * set.octave, 0, 127), v = touch_vel(k);
-            const uint32_t parts = !QUAD_ON && BI_ON && BI_LAYOUT == LAY_DOUBLE ? 3u : 1u << cur_part;
+            const uint32_t parts = !QUAD_ON && BI_ON && BI_LAYER ? 3u : 1u << cur_part;
             ui.held_note[k] = (uint8_t)note;
             ui.held_ch[k] = QUAD_ON ? set.quad_ch[cur_part] - 1u : 0u;
             ui.held_part[k] = (uint8_t)parts;
@@ -1412,13 +1467,12 @@ static void input(void)
     ui.ux_rows[ui.page] = (uint8_t)ui.row;
     for (k = 0; k < 4u; k++)
         if ((e = plat_enc((int)(EN_K1 + k))) != 0) {
-            if (PAGES[ui.page].rows[ui.row][k] != X_NONE) {
+            const uint32_t id = cell_at(ui.page, ui.row, k);
+            if (id != X_NONE) {
                 ui.ux_focus = (int8_t)k;
-                ui.ux_last_id = PAGES[ui.page].rows[ui.row][k] < S1_NPARAMS ?
-                    PAGES[ui.page].rows[ui.row][k] : ui.ux_last_id;
+                if (id < S1_NPARAMS) ui.ux_last_id = (uint8_t)id;
                 ui.redraw |= UX_GRAPH | UX_CELLS; /* also at a parameter's limit */
             }
-            const uint32_t id = PAGES[ui.page].rows[ui.row][k];
             cell_edit(id, id == X_RANDOM ? e : e * (e < 0 ? -e : e));
         }
     if (keys != ui.keys || btn != ui.btn)
@@ -1439,9 +1493,9 @@ static void input(void)
     }
     if (cur_dirty)
         lit |= 1u << B_SAVE;
-    if (MULTI_ON)                        /* bitimbral: the part the panel is on. OCT- and green PLAY: L; OCT+ and red PLAY: R */
-        lit |= 1u << (cur_part ? B_OCTUP : B_OCTDN) | 1u << B_PLAY;
-    plat_play_red(MULTI_ON && (QUAD_ON ? cur_part >= 2u : cur_part));
+    if (MULTI_ON) lit |= 1u << B_PLAY;
+    if (BI_ON && !QUAD_ON) lit |= 1u << (cur_part ? B_OCTUP : B_OCTDN);
+    plat_play_red(!QUAD_ON && BI_ON && cur_part);
     plat_glow(1);
     plat_leds(lit, keys);
 }
@@ -1466,7 +1520,7 @@ void app_log(void (*line)(const char *t))
     int_text((int32_t)peak_voices, n);
     text_cat(t, n);
     text_cat(t, "/");
-    int_text(set.voices, n);
+    int_text((int32_t)voice_budget(), n);
     text_cat(t, n);
     text_cat(t, " shed ");
     int_text((int32_t)sheds, n);
@@ -1607,9 +1661,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
                                               * value leaves it as it is, so 7F 7F only asks */
         if (p[5] <= 2u)
             mode_set((int)p[5]);
-        if (QUAD_ON) {
-            if (p[6] < 2u) { set.quad_layout = p[6]; mode_push(); }
-        } else if (p[6] < LAY_COUNT) layout_set((int32_t)p[6]);
+        if (p[6] < LAY_COUNT) layout_set(p[6]);
         {
             const uint32_t l = QUAD_ON ? (cur_part == 0 ? cur_index : quad_panel[0].index) : cur_part ? other.index : cur_index;
             const uint32_t r = QUAD_ON ? (cur_part == 1 ? cur_index : quad_panel[1].index) : cur_part ? cur_index : other.index;
@@ -1653,18 +1705,24 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[3] = (uint8_t)status;
         sysex_reply(0x49, d, 4);
     } else if (p[4] == 0x0Au && n >= 11u) { /* QUAD settings; 7F leaves each field unchanged */
-        int changed = 0;
         if (p[5] < NPARTS) {
             if (QUAD_ON) quad_focus(p[5]); else { set.quad_focus = p[5]; set_dirty = 1; }
         }
-        if (p[6] < 2u && set.quad_layout != p[6]) { set.quad_layout = p[6]; set_dirty = 1; changed = 1; }
+        if (p[6] < 2u) quad_routing_set(p[6]);
         for (uint32_t part = 0; part < NPARTS; part++)
-            if (p[7u + part] < 16u && set.quad_ch[part] != p[7u + part] + 1u) { set.quad_ch[part] = p[7u + part] + 1u; set_dirty = 1; changed = 1; }
-        if (QUAD_ON && changed) mode_push();
+            if (p[7u + part] < 16u) channel_set(1, part, p[7u + part] + 1u);
         ui.redraw = UX_ALL;
         d[0] = set.quad_focus; d[1] = set.quad_layout;
         for (uint32_t part = 0; part < NPARTS; part++) d[part + 2u] = set.quad_ch[part] - 1u;
         sysex_reply(0x4A, d, 6);
+        return 1;
+    } else if (p[4] == 0x0Bu && n >= 9u) { /* Bitimbral routing, layer and channels; 7F keeps a field */
+        bi_routing_set(p[5] < 2u ? p[5] : BI_AUDIO, p[6] < 2u ? p[6] : BI_LAYER);
+        for (uint32_t part = 0; part < 2u; part++)
+            if (p[7u + part] < 16u) channel_set(0, part, p[7u + part] + 1u);
+        d[0] = (uint8_t)BI_AUDIO; d[1] = (uint8_t)BI_LAYER;
+        d[2] = CH_L - 1u; d[3] = CH_R - 1u;
+        sysex_reply(0x4B, d, 4);
         return 1;
     } else if (p[4] == 0x06u && n >= 8u) {   /* complete credits/readmes, read-only and byte-preserving */
         const uint32_t offset = p[5] | (uint32_t)p[6] << 7 | (uint32_t)p[7] << 14;
@@ -1705,8 +1763,7 @@ int app_sysex(const uint8_t *p, uint32_t n)   /* main loop: the bytes between F0
         d[1] = (uint8_t)(bank_count >> 7);
         d[2] = (uint8_t)(BANK_SLOTS & 0x7Fu);
         d[3] = (uint8_t)(BANK_SLOTS >> 7);
-        d[4] = 7u;                           /* what this SY1 takes besides: bit 0, command 07 (a record read);
-                                              * bit 1, the parts: 08 with channels and slots, and 09 */
+        d[4] = 15u;                           /* bit 0: records; bit 1: parts; bit 2: QUAD; bit 3: Bitimbral settings */
         sysex_reply(0x43, d, 5);
     } else
         return 0;
@@ -1773,7 +1830,7 @@ void app_init(void)
     set.quad_enabled = 0;
     quad_initialized = 0;
     w_quad = a_quad = 0;
-    set.spare[1] = 0;                    /* spare[0]: the category layout the settings were saved with */
+    set.spare[1] = (uint8_t)(loaded >= (int)sizeof set && BI_LAYOUT == LAY_SPLIT && set.spare[1] == 1u);
     cfg.sample_rate = SR;
     cfg.max_voices = set.voices;
     cfg.delay_buf = legacy_delay;
@@ -1796,9 +1853,10 @@ void app_init(void)
         synth_b.drone_replace = on_r ? set.drone_replace : set.drone_b;
     }
     w_bi = a_bi = (uint8_t)BI_ON;
-    w_layout = a_layout = (uint8_t)BI_LAYOUT;
-    w_ch[0] = (uint8_t)(CH_L - 1u);
-    w_ch[1] = (uint8_t)(CH_R - 1u);
+    w_layout = a_layout = (uint8_t)BI_AUDIO;
+    w_layer = a_layer = (uint8_t)(BI_ON && BI_LAYER);
+    w_ch[0] = a_ch[0] = (uint8_t)(CH_L - 1u);
+    w_ch[1] = a_ch[1] = (uint8_t)(CH_R - 1u);
     macro_seen = 0;
     w_focus = cur_part = 0;
     ux_refocus = 0;
@@ -1976,7 +2034,8 @@ int app_expect(const char *what, int *got)
     else if (!strcmp(what, "mode")) *got = MODE_VALUE;
     else if (!strncmp(what, "qch", 3) && what[3] >= '1' && what[3] <= '4' && !what[4])
         *got = set.quad_ch[what[3] - '1'];
-    else if (!strcmp(what, "layout")) *got = QUAD_ON ? set.quad_layout : (int)BI_LAYOUT;
+    else if (!strcmp(what, "layout")) *got = QUAD_ON ? set.quad_layout : (int)BI_AUDIO;
+    else if (!strcmp(what, "layer")) *got = !QUAD_ON && BI_ON && BI_LAYER;
     else if (!strcmp(what, "part")) *got = cur_part;
     else if (!strcmp(what, "patchb")) *got = (int)(cur_part ? set.patch : set.patch_b);
     else if (!strcmp(what, "arpstep")) *got = PART[cur_part]->arp_step;

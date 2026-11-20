@@ -5,11 +5,11 @@ wait 1400
 expect display 0
 tap GLO
 turn SELECT -20
-spin SELECT 2
+spin SELECT 3
 expect page 7
-expect row 2
+expect row 3
 shot nord-choice.png
-turn K1 1
+turn K2 1
 expect display 1
 expect dirty 0
 shot green-choice.png
@@ -42,10 +42,10 @@ shot green-reboot.png
 listen
 tap GLO
 turn SELECT -20
-spin SELECT 2
+spin SELECT 3
 where
-said DISPLAY
-turn K1 1
+said SYSTEM
+turn K2 1
 expect display 2
 expect dirty 0
 shot lcd-choice.png
@@ -72,13 +72,13 @@ expect patch 1
 shot lcd-reboot.png
 tap GLO
 turn SELECT -20
-spin SELECT 2
+spin SELECT 3
 where
 said LCD
-turn K1 -1
+turn K2 -1
 expect display 1
 shot led-restored.png
-turn K1 -1
+turn K2 -1
 expect display 0
 expect dirty 0
 shot nord-restored.png

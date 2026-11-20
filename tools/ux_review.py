@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the complete SY1 UX and export real simulator screens for all 32 subpages in all three display styles."""
+"""Build the complete SY1 UX and export real simulator screens for all 35 subpages in all three display styles."""
 import argparse
 import html
 import json
@@ -9,14 +9,14 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = (("play", "HOME", "Play", ("Filter", "Performance", "Voice", "Unison", "Spread / Category")),
+PAGES = (("play", "HOME", "Play", ("Filter", "Performance", "Voice", "Unison", "Spread", "Patch")),
          ("osc", "EDIT", "Oscillators", ("Waveforms", "Pitch", "FM / Ring", "Sub", "Mod envelope", "Mod timing")),
          ("filter", "SEL", "Filter", ("Main", "Tracking")),
          ("env", "ENV", "Envelopes", ("Amp", "Filter", "Gain / Velocity")),
          ("lfo", "LFO", "LFO", ("LFO 1", "LFO 1 routing", "LFO 2", "LFO 2 routing")),
          ("fx", "FX", "Effects", ("Insert", "Mix", "EQ", "Delay", "Delay mix", "Chorus", "Chorus modulation")),
          ("arp", "ARP", "Arpeggiator", ("Direction / Range", "Gate / Hold")),
-         ("global", "GLO", "Global", ("Part", "Bitimbral", "Display", "Diagnostics")))
+         ("global", "GLO", "Global", ("Part", "Mode / Routing", "MIDI Channels", "System", "Diagnostics")))
 
 
 def checked(args, log=None):
@@ -50,7 +50,7 @@ body.zoom .screens{grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),
 section{scroll-margin-top:20px}@media(max-width:400px){main{padding-inline:16px}figure{padding:14px}}
 </style></head><body><main><p class="eyebrow">SY1 / NORD UX / ALLE PAGINA’S</p><h1>Eén instrument. Eén bediening.</h1>
 <p>De volledige firmware-UX op 240 × 240 pixels: vier vaste bedieningsvakken, opgeslagen referenties,
-encoderfocus en passende visualisaties. Kies op GLO → DISPLAY met KNOB1 tussen NORD, GREEN LED en GREEN LCD.
+encoderfocus en passende visualisaties. Kies op GLO → SYSTEM met KNOB2 tussen NORD, GREEN LED en GREEN LCD.
 Dit zijn echte beelden uit de normale hostsimulator, in alle drie de schermstijlen.</p>
 <div class="toolbar"><button id="native" aria-pressed="true">1× · 240 pixels</button><button id="zoom" aria-pressed="false">2× · pixels bekijken</button></div>
 <p>De grafieken tonen instellingen. De punten in de envelope, LFO en arp komen uit de engine.
@@ -74,14 +74,14 @@ def main():
     host = ROOT / "app/build/host/sy1_host"
     checks = 0
     sections = []
-    for case in ("basic", "performance", "nord-preview", "ux", "display", "factory", "bitimbral"):
+    for case in ("basic", "performance", "nord-preview", "ux", "display", "factory", "bitimbral", "quad"):
         out = work / case
         out.mkdir(exist_ok=True)
         checks += checked([host, ROOT / f"app/tests/{case}.txt", out], work / f"{case}.log")
     script = ["wait 600", "turn PRESET 1", "wait 1400"]
     for style, prefix in (("Nord", ""), ("Green LED", "green-"), ("Green LCD", "lcd-")):
         if prefix:
-            script += ["tap REC", "tap GLO", "turn SELECT -20", "spin SELECT 2", "turn K1 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
+            script += ["tap REC", "tap GLO", "turn SELECT -20", "spin SELECT 3", "turn K2 1", "expect display "+("2" if prefix=="lcd-" else "1"), "tap HOME"]
         for page, (slug, button, title, rows) in enumerate(PAGES):
             if button == "ARP":
                 script += ["press ARP", "wait 550", "release ARP", "tap ARP", "tap SEQ",

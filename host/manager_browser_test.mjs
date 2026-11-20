@@ -17,14 +17,17 @@ await context.addInitScript(()=>{
   const pack=part=>{const out=[];for(let i=0;i<part.length;i+=7){let top=0;for(let j=0;j<7;j++)top|=((part[i+j]||0)>>7)<<j;out.push(top);for(let j=0;j<7;j++)out.push((part[i+j]||0)&127);}return out;};
   slots.set(0,record('Existing Bass'));slots.set(5,record('Old Lead'));
   const input={state:'connected',name:'Test FM-1',onmidimessage:null};
-  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,noParts:false,quad:true,parts:{on:0,layout:1,ch:[3,4,3,4],slot:[-1,-1]},slots,
+  window.mock={writes:[],clears:[],erased:0,failNext:false,delay:2,legacy:false,noParts:false,quad:true,routing:false,layer:false,parts:{on:0,layout:1,ch:[3,4,3,4],slot:[-1,-1]},slots,
     names:()=>[...slots.keys()].sort((a,b)=>a-b).map(s=>s+':'+name(slots.get(s))),bytes:(s,i)=>slots.get(s)[i]};
   const out={state:'connected',name:'Test FM-1',send(frame){
     const c=frame[5],slot=frame[6]|frame[7]<<7;let response;
-    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[window.mock.noParts?1:window.mock.quad?7:3]),0xf7];}
+    if(c===3){const used=slots.size?Math.max(...slots.keys())+1:0;response=[...head,0x43,used&127,used>>7,0,8,...(window.mock.legacy?[]:[window.mock.noParts?1:(window.mock.quad?7:3)|(window.mock.routing?8:0)]),0xf7];}
     else if(c===8){const m=window.mock.parts;if(frame[6]<=(window.mock.quad?2:1)){m.on=frame[6];if(m.on===2&&m.slot.length===2){m.slot.push(-1,-1);m.ch=[1,2,3,4];}if(m.on!==2&&m.slot.length===4){m.slot=m.slot.slice(0,2);m.ch=[3,4,3,4];}}if(frame[7]<=2)m.layout=frame[7];const sl=m.slot.map(x=>x+1);
       response=[...head,0x48,m.on,m.layout,0,m.ch[0]-1,m.ch[1]-1,sl[0]&127,sl[0]>>7,sl[1]&127,sl[1]>>7,...(m.on===2?[m.ch[2]-1,m.ch[3]-1,sl[2]&127,sl[2]>>7,sl[3]&127,sl[3]>>7]:[]),0xf7];}
     else if(c===10){const m=window.mock.parts;for(let p=0;p<4;p++)if(frame[p+8]<16)m.ch[p]=frame[p+8]+1;response=[...head,0x4a,0,m.layout,...m.ch.map(ch=>ch-1),0xf7];}
+    else if(c===11 && window.mock.routing){const m=window.mock.parts;if(frame[6]<2)m.layout=frame[6];if(frame[7]<2)window.mock.layer=!!frame[7];
+      for(let p=0;p<2;p++)if(frame[p+8]<16)m.ch[p]=frame[p+8]+1;
+      response=[...head,0x4b,m.layout,+window.mock.layer,m.ch[0]-1,m.ch[1]-1,0xf7];}
     else if(c===9){const part=frame[6],s=frame[7]|frame[8]<<7,ok=slots.has(s);if(ok)window.mock.parts.slot[part]=s;response=[...head,0x49,part,frame[7],frame[8],ok?0:1,0xf7];}
     else if(c===4)response=[...head,0x44,slot&127,slot>>7,slots.has(slot)?1:0,...(slots.has(slot)?[...name(slots.get(slot))].map(x=>x.charCodeAt(0)):[]),0xf7];
     else if(c===7){if(window.mock.legacy){window.mock.stuck=true;return;}const r=slots.get(slot),part=frame[8];
@@ -69,7 +72,7 @@ const staged=await page.locator('#dlist .prow .nm').allTextContents();assert.equ
 await page.locator('#connect').click();await page.waitForFunction(()=>document.getElementById('connection-label').textContent==='FM-1 CONNECTED');await idle();
 assert.equal(await text('#dcount'),'5 / 1,024 slots used · 1,019 free');assert.equal(await page.locator('#legacy').isHidden(),true);
 assert.deepEqual(await page.locator('#dlist .prow .no').allTextContents(),['001','006','007','008','009']);
-assert.equal(await text('#sync'),'Sync 3 slots to FM-1');assert.equal(await page.evaluate(()=>mock.writes.length),0);
+assert.equal(await text('#sync'),'Sync 3 patch slots');assert.equal(await page.evaluate(()=>mock.writes.length),0);
 await synced();
 assert.deepEqual(await page.evaluate(()=>mock.writes.map(w=>w.slot)),[6,7,8]);assert.match(await text('#syncmsg'),/matches this layout/);
 assert.deepEqual((await names()).slice(2).map(n=>n.slice(2)),staged);
@@ -85,7 +88,7 @@ await synced();assert.deepEqual(await page.evaluate(()=>mock.writes.filter(w=>!w
 // Arrange: close the gaps, undo, redo, sync. The patches move; a backup of the old layout is kept.
 const before=await names();
 await page.locator('#m-arr summary').click();await page.locator('[data-arr=gaps]').click();
-assert.match(await text('#syncmsg'),/6 moved/);assert.equal(await text('#sync'),'Sync 10 slots to FM-1');
+assert.match(await text('#syncmsg'),/6 moved/);assert.equal(await text('#sync'),'Sync 10 patch slots');
 await page.locator('#undo').click();assert.match(await text('#syncmsg'),/matches this layout/);
 await page.locator('#m-arr summary').click();await page.locator('[data-arr=gaps]').click();await synced();
 assert.deepEqual(await names(),before.map((n,i)=>i+n.slice(n.indexOf(':'))));
@@ -169,7 +172,8 @@ await page.locator('#dlist .prow [data-act=part][data-part="0"]').first().click(
 await page.waitForFunction(()=>document.querySelectorAll('#dlist .ic.pl.on').length===1);
 const nos=(await page.locator('#dlist .prow .no').allTextContents()).slice(0,2);
 assert.deepEqual(await page.evaluate(()=>mock.parts.slot),nos.map(n=>+n-1));
-assert.match(await text('#partinfo'),new RegExp(`L ch 3 · ${nos[0]} .* R ch 4 · ${nos[1]} `));
+assert.match(await text('#partinfo'),new RegExp(`L ch 3 · ${nos[0]} `));
+assert.match(await text('#partinfo'),new RegExp(`R ch 4 · ${nos[1]} `));
 assert.equal(await page.locator('#map i.pl').count(),1);assert.equal(await page.locator('#map i.pr').count(),1);
 // QUAD: all four slot buttons, output choices and editable MIDI channels.
 await page.locator('[data-mode="2"]').click();await idle();
@@ -181,12 +185,26 @@ await page.locator('#dlist .prow [data-act=part][data-part="2"]').first().click(
 await page.locator('#dlist .prow [data-act=part][data-part="3"]').nth(1).click();await idle();
 assert.match(await text('#partinfo'),/3 ch 3/);assert.match(await text('#partinfo'),/4 ch 4/);
 await page.locator('#qch0').fill('9');await page.locator('#qch3').fill('16');
+await page.evaluate(()=>{mock.parts.ch[0]=7;mock.parts.ch[1]=6;window.dispatchEvent(new Event('focus'));});
+await idle();
+assert.equal(await page.locator('#qch0').inputValue(),'9');
+assert.equal(await page.locator('#qch1').inputValue(),'6');
+assert.match(await text('#channelstatus'),/FM-1 channels are now 7, 6, 3, 4/);
 await page.locator('#quadapply').click();await idle();
-assert.deepEqual(await page.evaluate(()=>mock.parts.ch),[9,2,3,16]);
+assert.deepEqual(await page.evaluate(()=>mock.parts.ch),[9,6,3,16]);
 assert.match(await text('#partinfo'),/4 ch 16/);
 await page.screenshot({path:'app/build/manager-qa/quad-desktop.png',fullPage:true});
 await page.setViewportSize({width:390,height:844});
+await page.locator('#tab-dev').click();
 assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'QUAD channels overflow on mobile');
+for (const part of [0,1,2,3]) {
+  const button=page.locator(`#dlist .prow [data-part="${part}"]`).first();
+  const box=await button.boundingBox();
+  assert.ok(box && box.x >= 0 && box.x + box.width <= 390, `part ${part + 1} overflows`);
+  await button.click();await idle();
+}
+assert.ok(await page.evaluate(()=>document.querySelector('#dlist').getBoundingClientRect().bottom <
+  document.querySelector('.syncbar').getBoundingClientRect().top),'slot list overlaps sync');
 await page.screenshot({path:'app/build/manager-qa/quad-mobile.png',fullPage:true});
 await page.setViewportSize({width:1440,height:1000});
 await page.locator('[data-layout="1"]').click();await idle();assert.equal(await page.evaluate(()=>mock.parts.layout),1);
@@ -195,7 +213,14 @@ assert.equal(await page.locator('#quadchannels').isHidden(),true);
 assert.equal(await page.locator('[data-layout="2"]').isVisible(),true);
 await page.evaluate(()=>{mock.quad=false;});await page.locator('#connect').click();await idle();
 assert.equal(await page.locator('[data-mode="2"]').isHidden(),true);
-await page.evaluate(()=>{mock.quad=true;});await page.locator('#connect').click();await idle();
+await page.evaluate(()=>{mock.quad=true;mock.routing=true;});await page.locator('#connect').click();await idle();
+assert.equal(await page.locator('[data-layout="2"]').isHidden(),true);
+assert.equal(await page.locator('#layer').isVisible(),true);
+await page.locator('#layer').click();await idle();
+await page.locator('[data-layout="0"]').click();await idle();
+assert.deepEqual(await page.evaluate(()=>[mock.parts.layout,mock.layer]),[0,true]);
+await page.locator('#qch1').fill('3');await page.locator('#quadapply').click();await idle();
+assert.match(await text('#part-routing'),/Parts L, R share ch 3/);
 // A staged slot cannot be played until it is synced.
 await page.locator('#llist input[type=checkbox]').nth(12).check();await page.locator('#add').click();
 assert.equal(await page.locator('#dlist .prow').last().locator('[data-act=part]').first().isDisabled(),true);await page.locator('#discard').click();

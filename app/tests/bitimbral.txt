@@ -55,9 +55,9 @@ expect octave 1
 expect maxv 8
 tap GLO
 turn SELECT -20
-spin K1 -1
+spin K2 -1
 wait 50
-spin K1 -1
+spin K2 -1
 wait 50
 expect maxv 6
 expect page 7
@@ -68,16 +68,16 @@ expect part 1
 expect octave 0
 expect maxv 8
 expect maxvb 6
-expect page 0
+expect page 7
 tap OCT-
 wait 50
 expect octave 1
 expect maxv 6
 expect page 7
 expect row 0
-spin K1 1
+spin K2 1
 wait 50
-spin K1 1
+spin K2 1
 wait 50
 expect maxv 8
 tap HOME
@@ -148,7 +148,7 @@ midi C3 05 00
 wait 100
 expect patchb 5
 expect patch 0
-# the output: GLO's last row
+# Split and Stereo change audio routing. Layer affects note routing.
 tap GLO
 turn SELECT -20
 spin SELECT 1
@@ -158,9 +158,10 @@ shot bitimbral-split.png
 spin K2 1
 wait 50
 expect layout 1
-spin K2 1
+spin K3 1
 wait 50
-expect layout 2
+expect layout 1
+expect layer 1
 shot bitimbral-double.png
 # DOUBLE: a note of either channel, and a key, plays both parts
 midi 92 3C 64
@@ -186,7 +187,8 @@ wait 6000
 reboot
 wait 300
 expect mode 1
-expect layout 2
+expect layout 1
+expect layer 1
 expect part 1
 expect category 2
 tap OCT-
@@ -269,15 +271,15 @@ expect e19 72
 # standard: controller 12 is not a Circuit knob
 tap REC
 wait 100
-# the parts' channels: GLO's last row, KNOB 3 and 4
+# MIDI receive channels live on their own row.
 tap GLO
 turn SELECT -20
-spin SELECT 1
+spin SELECT 2
 expect chl 3
 expect chr 4
-spin K3 1
+spin K1 1
 wait 50
-spin K3 1
+spin K1 1
 wait 50
 expect chl 5
 midi 92 3C 64
@@ -287,9 +289,9 @@ midi 94 3C 64
 wait 50
 expect voices 1
 tap PLAY
-spin K3 -1
+spin K1 -1
 wait 50
-spin K3 -1
+spin K1 -1
 wait 50
 expect chl 3
 leds
@@ -344,7 +346,8 @@ expect mode 0
 sysex F0 7D 53 59 31 08 01 02 F7
 wait 100
 expect mode 1
-expect layout 2
+expect layout 1
+expect layer 1
 # (mode, output, the panel's part, the channels less one, then the user slot + 1 each part plays: 0, built-ins)
 expect_sysex F0 7D 53 59 31 48 01 02 00 02 03 00 00 00 00 F7
 sysex F0 7D 53 59 31 08 7F 00 F7

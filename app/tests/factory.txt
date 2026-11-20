@@ -18,12 +18,12 @@ expect patch 1032
 # The built-in bank uses all three display styles.
 tap GLO
 turn SELECT -20
-spin SELECT 2
-turn K1 1
+spin SELECT 3
+turn K2 1
 tap HOME
 shot factory-led.png
 tap GLO
-turn K1 1
+turn K2 1
 tap HOME
 shot factory-lcd.png
 # SAVE makes an editable user copy, then FACTORY still contains the original.

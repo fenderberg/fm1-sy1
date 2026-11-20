@@ -72,7 +72,23 @@ static void ux_value(uint32_t id, int32_t value, char *text, const char **unit)
         ux_decimal((float)value * 100.0f / 127.0f, text); *unit = "%"; return;
     case S1P_ARP_OCT_RANGE: int_text(value+1,text); *unit="oct"; return;
     case S1P_ARP_BEAT: text_cat(text,UX_ARP_BEATS[value]); *unit="beat"; return;
-    case S1P_DELAY_TIME: text_cat(text,UX_DELAY_BEATS[value]); *unit=value?"beat":""; return;
+    case S1P_DELAY_TIME: {
+        float left, right;
+        const uint32_t length = QUAD_ON ? QUAD_DELAY_LEN : cur_part ? DELAY_LEN_B : DELAY_LEN;
+        const float bpm = (float)(ext_tempo ? ext_tempo : set.tempo);
+        if (s1_delay_times(value, cur.values[S1P_DELAY_SPREAD], bpm, SR, length, &left, &right)) {
+            int_text((int32_t)(left * (1000.0f / SR) + 0.5f), text);
+            if (left != right) {
+                char ms[8];
+                int_text((int32_t)(right * (1000.0f / SR) + 0.5f), ms);
+                text_cat(text, "/"); text_cat(text, ms);
+            }
+            *unit = "ms FIT";
+        } else {
+            text_cat(text, UX_DELAY_BEATS[value]); *unit = value ? "beat" : "";
+        }
+        return;
+    }
     case S1P_UNISON_DETUNE:
         ux_decimal(s1_t_unison_cents[value], text); *unit = "cent"; return;
     case S1P_EQ_FREQ: {
@@ -107,14 +123,16 @@ static const char *ux_label(uint32_t id)
     case X_PEAK: return "PEAK";
     case X_SHED: return "LIMITS";
     case X_RAW: return "RAW";
-    case X_TEMPO: return ext_tempo ? "INT BPM" : "TEMPO";
+    case X_TEMPO: return "INT BPM";
+    case S1P_POLYPHONY: return "PATCH POLY";
+    case S1P_UNISON_VOICES: return "COPIES";
     default: return cell_name(id);
     }
 }
 
 static int ux_discrete(uint32_t id)
 {
-    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT || id == X_QPART || id == X_QOUTPUT;
+    if (id >= S1_NPARAMS) return id == X_CATEGORY || id == X_DRONE || id == X_DISPLAY || id == X_BI || id == X_LAYOUT || id == X_PART || id == X_LAYER;
     if (s1_param_max[id] - s1_param_min[id] == 1) return 1;
     switch (id) {
     case S1P_OSC1_SHAPE: case S1P_OSC2_SHAPE: case S1P_SUB_SHAPE: case S1P_FILTER_TYPE:

@@ -204,5 +204,5 @@ static void quad_shed(void)
     else quad_panel[chosen].voices = limit;
     ev_push_to(chosen, EV_VOICES, 0, limit);
     set_dirty = 1; ui.redraw = UX_ALL;
-    app_say("CPU FULL", "FEWER QUAD VOICES");
+    app_say("CPU FULL", QUAD_NAME[chosen]);
 }

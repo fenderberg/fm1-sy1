@@ -220,7 +220,7 @@ static void test_live_controls(void)
 
     tap(B_GLO);
     turn(EN_SELECT, -10);              /* GLOBAL / PART */
-    turn(EN_K4, 1);                    /* drone REPLACE */
+    turn(EN_K3, 1);                    /* drone REPLACE */
     tap(B_SEQ);
     midi(0x90, 60, 100);
     midi(0x90, 64, 100);
@@ -300,9 +300,9 @@ static void test_live_controls(void)
     CHECK(cur_category == CAT_OTHER, "legacy unknown patch was not OTHER");
     tap(B_HOME);
     turn(EN_SELECT, -10);              /* pages now remember their last row */
-    turn(EN_SELECT, 4);                /* PLAY / SPREAD: the patch's category on KNOB4 */
-    turn(EN_K4, -3);                   /* accelerated, in the browser's order: OTHER .. down to BASS */
-    turn(EN_K4, -3);
+    turn(EN_SELECT, 5);                /* PLAY / PATCH: the patch's category on KNOB2 */
+    turn(EN_K2, -3);                   /* accelerated, in the browser's order: OTHER .. down to BASS */
+    turn(EN_K2, -3);
     CHECK(cur_category == CAT_BASS && cur_dirty, "manual category could not be edited");
     tap(B_SAVE);
     CHECK(bank_category[20] == CAT_BASS && bank_rec(20)[3] == CAT_MARK, "saved category missing");
@@ -344,16 +344,16 @@ static void test_nord_ux(void)
     CHECK(ui.row == 1 && ui.ux_focus == -1, "return to FILTER lost its row or retained encoder focus");
     tap(B_HOME);
     turn(EN_SELECT, -10);
-    turn(EN_SELECT, 4);
-    turn(EN_K4, 1);
+    turn(EN_SELECT, 5);
+    turn(EN_K2, 1);
     CHECK(cur_dirty, "category edit was not dirty");
-    turn(EN_K4, -1);
+    turn(EN_K2, -1);
     CHECK(!cur_dirty, "returning to saved category left EDIT lit");
     tap(B_GLO);
     turn(EN_SELECT, GLOBAL_DIAG);      /* GLOBAL / DIAGNOSTIC */
     incoming = cur;
     for (i = 0; i < 4; i++) turn(EN_K1 + (int)i, 1);
-    CHECK(ui.row == 3 && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
+    CHECK(ui.row == GLOBAL_DIAG && !memcmp(&cur, &incoming, sizeof cur) && !cur_dirty,
           "diagnostics changed patch values");
 
     tap(B_SEL);
@@ -474,7 +474,7 @@ static void test_display_styles(void)
               "legacy migration lost the selected imported patch");
         patch_select(1);
     }
-    tap(B_GLO);turn(EN_SELECT,-10);turn(EN_SELECT,2);   /* GLOBAL / DISPLAY */
+    tap(B_GLO);turn(EN_SELECT,-10);turn(EN_SELECT,GLOBAL_SYSTEM);   /* GLOBAL / SYSTEM */
     before=cur;
     for(i=0;i<5;i++) previous[i]=zone_draws[i];
     const uint32_t events_before=ev_w;
@@ -502,7 +502,7 @@ static void test_display_styles(void)
             CHECK(screen_zones[1][0] && screen_zones[3][0],"empty green page %u row %u endpoint %u",page,row,mode);
         }
     }
-    ui.page=7;ui.row=2;ui.redraw=UX_ALL;run(32);
+    ui.page=7;ui.row=GLOBAL_SYSTEM;ui.redraw=UX_ALL;run(32);
     for(i=0;i<5;i++) previous[i]=zone_draws[i];
     before=cur;
     const uint32_t lcd_events=ev_w;
@@ -540,9 +540,9 @@ static void test_global_page(void)    /* GLOBAL holds nothing that is stored in 
     CHECK(pg == NPAGES - 1u && !strcmp(PAGES[pg].title, "GLOBAL"), "GLO is not the GLOBAL page");
     for (r = 0; r < PAGES[pg].nrows; r++)
         for (c = 0; c < 4u; c++)
-            CHECK(PAGES[pg].rows[r][c] >= S1_NPARAMS && PAGES[pg].rows[r][c] != X_CATEGORY,
+            CHECK(PAGES[pg].rows[r][c] >= S1_NPARAMS && PAGES[pg].rows[r][c] != X_CATEGORY && PAGES[pg].rows[r][c] != X_RANDOM,
                   "GLOBAL row %u knob %u is a patch setting", (unsigned)r + 1u, (unsigned)c + 1u);
-    CHECK(PAGES[0].nrows == 5u && PAGES[0].rows[4][3] == X_CATEGORY && PAGES[0].rows[2][0] == S1P_PLAY_MODE,
+    CHECK(PAGES[0].nrows == 6u && PAGES[0].rows[5][1] == X_CATEGORY && PAGES[0].rows[2][0] == S1P_PLAY_MODE,
           "PLAY does not hold the voice settings and the category");
 }
 
@@ -553,40 +553,43 @@ static void test_randomizer(void)
     power_on();
     turn(EN_K1, -2);                     /* an unsaved cutoff edit on HOME */
     const s1_patch start = cur;
-    tap(B_GLO);
-    turn(EN_K3, 2);
+    if (ui.page != 0) tap(B_HOME);
+    turn(EN_SELECT, 10);
+    turn(EN_K1, 2);
     const s1_patch second = cur;
     CHECK(cell_value(X_RANDOM) == 2 && cur_dirty && memcmp(cur.values, start.values, sizeof cur.values),
-          "GLO / PART knob 3 did not make a variation");
+          "PLAY / PATCH knob 1 did not make a variation");
     CHECK(!memcmp(synth.base, cur.values, sizeof cur.values) && bank_count == 0,
           "variation did not reach the engine or wrote a user patch");
-    turn(EN_K3, 20);
+    turn(EN_K1, 20);
     CHECK(cell_value(X_RANDOM) == VARIATION_COUNT, "randomizer upper bound");
-    turn(EN_K3, -6);
+    turn(EN_K1, -6);
     CHECK(!memcmp(cur.values, second.values, sizeof cur.values), "revisiting a variation changed it");
-    turn(EN_K3, -20);
+    turn(EN_K1, -20);
     CHECK(!memcmp(cur.values, start.values, sizeof cur.values) && cur_dirty, "BASE lost an unsaved edit");
-    turn(EN_K3, 2);
+    turn(EN_K1, 2);
     mode_set(1);
     focus_set(1);
     CHECK(cell_value(X_RANDOM) == 0, "part R inherited L's variation");
-    tap(B_GLO);
-    turn(EN_K3, 1);
+    if (ui.page != 0) tap(B_HOME);
+    turn(EN_SELECT, 10);
+    turn(EN_K1, 1);
     focus_set(0);
     CHECK(cell_value(X_RANDOM) == 2 && !memcmp(cur.values, second.values, sizeof cur.values), "part R changed L");
     tap(B_SEL);
     turn(EN_K2, -1);
     const s1_patch edited = cur;
     CHECK(cell_value(X_RANDOM) == 0, "editing a variation did not establish a new base");
-    tap(B_GLO);
-    turn(EN_K3, 1);
-    turn(EN_K3, -1);
+    if (ui.page != 0) tap(B_HOME);
+    turn(EN_SELECT, 10);
+    turn(EN_K1, 1);
+    turn(EN_K1, -1);
     CHECK(!memcmp(cur.values, edited.values, sizeof cur.values), "randomizer lost a subsequent edit");
-    turn(EN_K3, 1);
+    turn(EN_K1, 1);
     const s1_patch keep = cur;
     tap(B_SAVE);
     CHECK(cell_value(X_RANDOM) == 0 && !cur_dirty && bank_used(0), "SAVE did not commit the variant");
-    turn(EN_K3, 2);
+    turn(EN_K1, 2);
     tap(B_REC);
     CHECK(!cur_dirty && cell_value(X_RANDOM) == 0 && !memcmp(cur.values, keep.values, sizeof cur.values),
           "REC did not restore the saved variant");
@@ -899,7 +902,7 @@ int main(void)
     CHECK(bank_count == 5, "bank count %u after slot 5", (unsigned)bank_count);
     send_sysex(ask, sizeof ask);
     CHECK(sysex_last[5] == 0x43 && sysex_last[6] == 5 && (sysex_last[8] | sysex_last[9] << 7) == 1024 &&
-          sysex_n == 12 && sysex_last[10] == 7u, "count answer, with the record read and the parts announced");
+          sysex_n == 12 && sysex_last[10] == 15u, "count answer, with the record read and the parts announced");
     {   /* the parts: part L to slot 5 by SysEx 09, read back by 08; an empty slot refused */
         uint8_t pick[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 4, 0, 0xF7}, bad[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x09, 0, 2, 0, 0xF7};
         uint8_t query[] = {0xF0, 0x7D, 0x53, 0x59, 0x31, 0x08, 0x7F, 0x7F, 0xF7};
@@ -1013,6 +1016,7 @@ int main(void)
     test_circuit_macros();
     test_midi_timing();
     test_external_sixteenths();
+    test_part_settings();
     test_quad();
     printf("app: %d checks, %d failed (%u screens drawn)\n", checks, fails, (unsigned)draws);
     return fails != 0;

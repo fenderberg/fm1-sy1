@@ -1,4 +1,67 @@
 /* Integration tests against the app, including audio routing and legacy migration. */
+static void test_part_settings(void)
+{
+    memset(flash, 0xff, sizeof flash);
+    memset(store_len, 0, sizeof store_len);
+    power_on();
+
+    const uint32_t global = NPAGES - 1u;
+    CHECK(cell_at(global, GLOBAL_MODE, 0) == X_BI && cell_at(global, GLOBAL_MODE, 1) == X_NONE &&
+          cell_at(global, GLOBAL_PART, 0) == X_NONE && cell_at(global, GLOBAL_CHANNELS, 0) == X_NONE,
+          "Standard offers settings of another mode");
+    mode_set(1); run(50);
+    CHECK(cell_at(global, GLOBAL_MODE, 2) == X_LAYER && cell_at(global, GLOBAL_CHANNELS, 2) == X_NONE,
+          "Bitimbral lists the wrong part controls");
+    const uint8_t split_layer[] = {0xf0,0x7d,0x53,0x59,0x31,0x0b,0,1,0x7f,0x7f,0xf7};
+    send_sysex(split_layer, sizeof split_layer); run(30);
+    CHECK(sysex_n == 11 && sysex_last[5] == 0x4b && BI_AUDIO == LAY_SPLIT && BI_LAYER &&
+          a_layout == LAY_SPLIT && a_layer, "Split + Layer did not apply");
+    midi(0x92, 60, 100); run(50);
+    CHECK(s1_active_voices(PART[0]) && s1_active_voices(PART[1]), "Split + Layer did not play both parts");
+    send_sysex(split_layer, sizeof split_layer); run(30);
+    CHECK(s1_active_voices(PART[0]) && s1_active_voices(PART[1]), "repeating routing stopped notes");
+    all_off();
+    settings_save(); power_on(); run(50);
+    CHECK(BI_AUDIO == LAY_SPLIT && BI_LAYER, "Split + Layer did not survive restart");
+
+    bi_routing_set(LAY_STEREO, 0);
+    channel_set(0, 1, CH_L);
+    run(50); midi(0x92, 60, 100); run(50);
+    CHECK(s1_active_voices(PART[0]) && s1_active_voices(PART[1]), "shared Bitimbral channel did not reach both parts");
+    midi(0xc2, 6, 0); run(70);
+    CHECK(cur_index == 6 && other.index == 6, "shared Program Change did not reach both parts");
+
+    mode_set(2); run(50);
+    CHECK(cell_at(global, GLOBAL_MODE, 2) == X_NONE && cell_at(global, GLOBAL_CHANNELS, 3) == X_QCH4,
+          "QUAD lists the wrong routing/channel controls");
+    quad_select(0, 0); quad_select(3, 0);
+    run(50); midi(0x90, 60, 100); midi(0x93, 67, 100); run(60);
+    tap(B_SEQ);
+    const uint32_t events_before = ev_w;
+    cell_edit(X_CHL, -1);
+    cell_edit(X_LAYOUT, -1);
+    CHECK(ev_w == events_before, "turning beyond a QUAD limit queued an audio event");
+    channel_set(1, 3, 9); run(50);
+    CHECK(s1_active_voices(PART[0]) && PART[0]->hold && !s1_active_voices(PART[3]),
+          "changing channel 4 stopped a different part or left old notes hanging");
+
+    all_off();
+    for (int tick = 0; tick < 26; tick++) { midi(0xf8, 0, 0); run(21); }
+    CHECK(ext_tempo && clk_live, "external clock did not lock");
+    const uint32_t external = ext_tempo;
+    cell_edit(X_TEMPO, 11); run(40);
+    CHECK(ext_tempo == external && PART[0]->tempo == (float)external && set.tempo == 131,
+          "editing fallback BPM changed the active external tempo");
+    run(2200);
+    CHECK(!ext_tempo && PART[0]->tempo == 131.0f, "clock dropout did not use the edited fallback BPM");
+
+    char label[40]; const char *unit;
+    cur.values[S1P_DELAY_SPREAD] = 64;
+    set.tempo = 120;
+    ux_value(S1P_DELAY_TIME, 12, label, &unit);
+    CHECK(!strcmp(label, "125") && !strcmp(unit, "ms FIT"), "QUAD delay display does not show the fitted 125 ms");
+}
+
 static void test_quad(void)
 {
     memset(flash, 0xFF, sizeof flash);

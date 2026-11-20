@@ -48,7 +48,7 @@ and the arp shows the current step/note. Random LFOs show recent values. These a
 Values use meaningful units where the engine supplies a reliable conversion: attack in ms or s, pitch in semitones
 and cents, sustain in percent and LFO speed in Hz or exact fractions of a beat. D.TAU, R.TAU and M.TAU are decay
 and release **time constants**, not the total duration of a note. Pulse width shows the duty of the low part
-(50% at its maximum). Other values keep their Synth1 numbers. GLO's DIAGNOSTIC subpage (4/4) shows CPU,
+(50% at its maximum). Other values keep their Synth1 numbers. GLO's DIAGNOSTIC subpage (5/5) shows CPU,
 peak CPU, voice-limit events and the raw value of the last edited Synth1 parameter. Its four encoders are read-only.
 
 The bottom always shows active/max voices, octave, tempo and its source: INT for internal, EXT for MIDI clock.
@@ -57,7 +57,7 @@ DRONE / STACK or REPLACE. LIMIT means that the CPU has reduced the voice limit d
 
 ### Choosing a display style
 
-On **GLO → DISPLAY (3/4)**, turn **KNOB1** to choose **NORD**, **GREEN** (LED) or **LCD**. The change is immediate.
+On **GLO → SYSTEM (4/5)**, turn **KNOB2** to choose **NORD**, **GREEN** (LED) or **LCD**. The change is immediate.
 NORD keeps the red section strip, ivory text and amber focus. GREEN LED uses a dark green background,
 uppercase 5×7 pixel lettering and seven-segment numerals. GREEN LCD reverses the contrast with dark
 characters and graphics on a soft green background; the focused control gets a lighter panel and dark
@@ -71,7 +71,7 @@ The screen reader keeps the original text and announces the style choice.
 
 ![GREEN LCD display: dark letters and graphs on a green background](img/screen-lcd-play.png)
 
-Compare every page in the [screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/): 33 subpages in all three styles.
+The [screen gallery](https://fenderberg.github.io/fm1-sy1/manual/screens/) shows the display styles on the published firmware.
 
 This is a global preference, separate from the sound. It is automatically saved when the synth is idle;
 existing patch edits and imported banks are preserved. Upgrading from older 12-byte settings keeps the
@@ -107,39 +107,41 @@ SAVE keeps the patch with your changes. An original or factory patch is saved as
 the patch back as it was saved and releases hold/drone. Changing patches also releases hold/drone.
 
 Imported patches are categorized from their names, ignoring case (for example, "deep bass", "Warm Pad" and
-"FM Bell"). Unrecognized names go under OTHER. To correct a category, use HOME (Play), SELECT to its last row (PLAY / SPREAD, 5/5),
-then KNOB4 (CAT), and SAVE: the category is stored with the patch. Editing CAT returns the browser to ALL. The
-Drone mode, which is not part of the patch, is on GLO → PART, KNOB4.
+"FM Bell"). Unrecognized names go under OTHER. To correct a category, use HOME (Play), SELECT to its last row (PLAY / PATCH, 6/6),
+then KNOB2 (PATCH CAT), and SAVE: the category is stored with the patch. Editing CAT returns the browser to ALL. The
+Drone mode, which is not part of the patch, is on GLO → PART, KNOB3.
 MIDI program changes select their original patch number; if necessary the browser returns to ALL.
 
 ## 4. Pages and editing
 
 | Button | Page | What is on it |
 | --- | --- | --- |
-| HOME | Play | Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices; poly, mono or legato, bend range, unison, polyphony and the patch's category |
+| HOME | Play | Filter frequency, resonance and amount, gain; portamento, pan, tempo, voices; poly, mono or legato, bend range, unison, patch polyphony, variations and the patch's category |
 | EDIT | Osc | Both oscillators, mix, pulse width, sync, ring, FM, detune, the sub, the mod envelope |
 | SEL | Filter | Type, frequency, resonance, envelope amount, keyboard tracking, saturation |
 | ENV | Env | The amp envelope, the filter envelope, gain and velocity |
 | LFO | LFO | Both LFOs: destination, wave, speed, depth, tempo and key sync |
 | FX | Effects | The effect, the equalizer, the delay and the chorus |
 | Hold ARP 0.5 s | Arp | The arpeggiator: on, type, range, beat, gate, tempo; Drone mode |
-| GLO | Global | Patch randomizer, part voice limit and Drone mode, tempo, bitimbral mode, output and channels, display style, diagnostics |
+| GLO | Global | Part settings, operating mode and audio routing, MIDI receive channels, tempo and display, diagnostics |
 
 Press a page's button again for its next subpage (hold again for ARP), or turn SELECT to choose one. Each page
 remembers its last subpage during the session. KNOB1 to KNOB4 change the four displayed values; a fast turn goes
 further. This navigation memory is not written to flash. A restart begins on HOME.
 
-On **GLO → PART (1/4)**, turn **KNOB3 (RANDOM)** to audition eight variations of the active sound.
+On **HOME → PATCH (6/6)**, turn **KNOB1 (VARIATION)** to audition eight variations of the active sound.
 Each click selects another oscillator mix, pulse width, filter and envelope variation around the same starting
 patch, including your unsaved edits. Turn back to a number to hear it again, or all the way left to **BASE**
-to restore your starting sound. Both parts have their own variations. Editing a sound parameter by hand
+to restore your starting sound. Each part has its own variations. Editing a sound parameter by hand
 starts a new set from that edit. Press **SAVE** to keep the current sound as a patch.
 
 The screen reader announces the subpage and the same displayed value/unit when you turn a knob. Read whole
 screen also includes the four controls and the current playing state. Animations do not generate spoken updates.
 
-PLAY silences every note. OCT- and OCT+ move the keys by an octave. Pressed together they switch between standard
-and bitimbral (below).
+PLAY silences every note. In Standard, OCT- and OCT+ change the keyboard octave. In Bitimbral,
+a tap selects L or R. In QUAD, a tap steps through parts 1–4. In both multi-part modes, hold either
+button for half a second to change the selected part's keyboard octave. Press both together to toggle
+Standard/Bitimbral, or to go from QUAD to Standard. The three modes are always available on GLO → MODE.
 
 ### Arp, HOLD and Drone
 
@@ -150,7 +152,7 @@ and bitimbral (below).
 - **SEQ with arp off:** toggle Drone. In **STACK**, notes accumulate; play a droning note again to remove it.
   In **REPLACE**, the next gesture after all keys are up replaces the previous chord. The old chord uses its
   release envelope, and the new chord its attack; available polyphony still limits overlapping voices.
-- **Change Drone mode:** Arp row 2, KNOB3, or Voice row 4, KNOB4. The setting is remembered.
+- **Change how Drone works with arp off:** ARP → GATE, KNOB3, or GLO → PART, KNOB3. The setting is per part and is remembered.
 - Switching ARP while SEQ is lit changes the held chord between arpeggiation and Drone.
 - Toggle SEQ off to release latched notes; physical keys and the sustain pedal keep their own notes.
   PLAY, MIDI Stop, MIDI All Notes Off and MIDI All Sound Off clear the latch. Hold/drone never resumes at power-on.
@@ -158,70 +160,56 @@ and bitimbral (below).
 These controls work with the FM-1 keys and incoming MIDI. A Drone keeps notes held, so a patch with zero amp
 sustain still decays naturally. There is no sequencer or note recording.
 
-VOICES, on the Play and Global pages, is the most voices SY1 plays at once, 1 to 16. The FM-1 manages about
-seven. When the processor runs out of time, SY1 lowers it by one and says CPU FULL.
+### Modes and settings
 
-### Bitimbral: two sounds at once
+**Standard** plays one sound and receives on all 16 MIDI channels. **Bitimbral** plays two independent
+parts, L and R. **QUAD** plays four independent parts, 1 through 4. Each part keeps its own patch,
+arp, Hold/Drone, effects, keyboard octave, patch browser and part voice limit. Standard uses the same
+part L as Bitimbral. QUAD recalls its own four sounds and settings.
 
-SY1 has two modes. **Standard** is one sound on every MIDI channel. **Bitimbral** is two parts, **L** and **R**,
-each with its own patch, arpeggiator, HOLD/Drone and effects: two synths in one FM-1. Use it to:
+| GLO page | KNOB1 | KNOB2 | KNOB3 | KNOB4 |
+| --- | --- | --- | --- | --- |
+| **PART (1/5)** | Part in Bitimbral or QUAD | Part limit | Drone mode | Keyboard octave |
+| **MODE (2/5)** | Standard / Bitimbral / QUAD | Audio routing in Bitimbral or QUAD | Layer notes in Bitimbral | — |
+| **MIDI CHANNELS (3/5)** | L or part 1 | R or part 2 | QUAD part 3 | QUAD part 4 |
+| **SYSTEM (4/5)** | Internal BPM | Display style | — | — |
+| **DIAGNOSTIC (5/5)** | CPU | Peak | Limit events | Last Synth1 parameter value |
 
-- **layer** two patches, so every note plays both (a pad under a bell, a bass doubled by a pluck): output DOUBLE;
-- **split** two sounds to the two outputs, a bass on one mixer channel and a lead on the other: output SPLIT;
-- **play two tracks** of a DAW, a groovebox or a sequencer, each on its own MIDI channel: output STEREO or SPLIT;
-- keep a drone or an arpeggio going on one part while you play the other from the FM-1's keys.
+Standard's MIDI Channels page shows Omni. Bitimbral defaults to channels 3 and 4. QUAD defaults to
+channels 1–4 for Circuit Tracks' Synth 1, Synth 2, MIDI 1 and MIDI 2. Assign the same channel to
+multiple parts to let them respond together to notes, macros and program changes. In QUAD, the part
+number also selects the outgoing MIDI channel for the FM-1's keys. Standard and Bitimbral send keys
+on channel 1. In every mode the octave setting transposes the FM-1's keys.
 
-Nothing beyond MIDI is needed. A Novation Circuit Tracks fits especially well: its two MIDI tracks, its two
-audio inputs and its eight macro knobs map straight onto the parts (below).
+- **Split** sends L and R to their corresponding mono outputs in Bitimbral. QUAD sends parts 1+2
+  to the left output and parts 3+4 to the right, effects included.
+- **Stereo** sums the stereo signal of each active part to the two outputs.
+- **Layer** in Bitimbral plays both parts from the FM-1's keys and from notes on either part's receive
+  channel. Other MIDI still follows its channel. Layer works with either output. An older
+  patch manager may call Stereo with Layer enabled **Double**.
 
-| Control | What it does |
-| --- | --- |
-| **OCT- and OCT+ together** | Standard or bitimbral |
-| **OCT-** (tap, in bitimbral) | The panel and the keys on part **L**. OCT- lights, PLAY is green |
-| **OCT+** (tap, in bitimbral) | The panel and the keys on part **R**. OCT+ lights, PLAY is red |
-| OCT- or OCT+ held half a second (in bitimbral) | The octave |
-| GLO → BITIMBRAL (2/4), KNOB1 | MODE: standard or bitimbral |
-| GLO → BITIMBRAL, KNOB2 | OUTPUT: SPLIT, STEREO or DOUBLE |
-| GLO → BITIMBRAL, KNOB3 and KNOB4 | The MIDI channels of L and R (3 and 4 to begin with) |
+Changing mode, routing or Layer stops notes on all parts. Changing a MIDI channel stops notes on
+its part, or on both parts when Bitimbral Layer is active. A held key keeps its original note-off
+destination after a focus or octave change. The panel and keys follow the active part and the
+screen shows that part and its patch.
 
-The three outputs:
+**Part limit** is the maximum number of DSP voices assigned to a part. **Patch Poly** caps that
+number for the saved patch. **Copies** on PLAY → UNISON asks for multiple voices per key, so fewer
+keys may sound at once when unison is on. Standard and Bitimbral allow 1–16 voices per part, subject
+to processor load. QUAD starts at three per part and allows six per CPU pair, shared by parts 1+3
+and 2+4. Lower a partner's limit to increase the other part's limit, up to five. CPU FULL shows
+which part was reduced in QUAD. The reduced part limit is automatically saved with the device settings.
 
-- **SPLIT:** part L on the left output only, part R on the right only, each in mono, effects included. With a
-  stereo-to-two-mono cable each part reaches its own input of the Circuit, to mix and mute there.
-- **STEREO:** both parts in stereo on both outputs.
-- **DOUBLE:** every note plays both parts at once, in stereo: two patches layered.
+**Internal BPM** is shared. While MIDI Clock is active, the display shows EXT BPM and the internal
+setting takes effect when the clock stops. QUAD has four independent stereo delay lines, each about
+0.186 seconds per side. An echo that exceeds the buffer is repeatedly halved until it fits. When
+this happens, FX → DELAY shows its effective time in milliseconds with FIT. Stereo times are
+listed left/right when they differ.
 
-Everything the panel does (PRESETS, ALGORITHM, the pages, ARP, SEQ, SAVE, REC) acts on the part it is on; the top
-of the screen shows `L` or `R` and the output. The parts are two synths: each keeps its own patch, category,
-octave, VOICES limit, Drone mode and the page the panel was on. Only the tempo is shared. Each part plays up to VOICES voices: part R is rendered by the
-FM-1's second processor core, so a second sound does not take voices from the first. On an FM-1 whose second core
-does not run, the two parts share one core and the overload protection lowers VOICES as usual. Part R's delay
-line is half as long as part L's: an echo longer than 0.37 s plays at half its time. The mode, the output, the
-channels and both patches are remembered. Changing the mode, the output or a channel stops the notes.
+Device settings are saved automatically while idle. Press **SAVE** to keep sound edits, including
+the variation and patch category.
 
-### QUAD: four sounds for Circuit Tracks (experimental)
-
-In this fork, MODE has a third choice: **QUAD**. GLO keeps its first four subpages and adds
-**QUAD (5/6)** and **QUAD / MIDI CHANNELS (6/6)**. On QUAD, KNOB1 selects Standard, Bitimbral or QUAD;
-KNOB2 chooses part 1–4, KNOB3 chooses the output, and KNOB4 sets that part's voice limit.
-The channels page sets all four MIDI channels, 1–16. The original mode page also selects QUAD;
-while QUAD is active its output and first two channel controls refer to QUAD.
-
-Default channels are 1, 2, 3 and 4: Circuit Tracks' Synth 1, Synth 2, MIDI 1 and MIDI 2.
-Tap OCT- / OCT+ to move through the four parts, wrapping at either end; hold for the octave.
-Both together return to Standard. Choose QUAD again in GLOBAL or the Patch Manager.
-The keys, preset selection, Save, Revert, arp and Hold/Drone act on the selected part.
-Standard/Bitimbral keep their own sounds and part settings when switching to or from QUAD.
-Settings and selected preset numbers are saved; Save is still required to preserve sound edits across power-off.
-
-- **Split:** parts 1+2 are summed to mono on the left, parts 3+4 to mono on the right, effects included.
-- **Stereo:** all four retain their stereo sound and are mixed to both outputs.
-
-Each part starts with three notes. Parts 1+3 share one CPU core, parts 2+4 the other, with a budget of
-six notes per core. Lower a partner's limit to give another part more, up to five. Heavy patches can still
-trigger CPU FULL; QUAD can reduce each part to one note. QUAD's four independent stereo delays are
-limited to about 0.186 seconds per side; longer times are halved repeatedly to fit. Each part retains its
-own chorus and other effects. Original Standard and Bitimbral delay lengths are preserved.
+### QUAD with Circuit Tracks
 
 Circuit Synth 1/2 macros use **CC80–87**, mapped in order to the same eight musical macros as the existing
 bitimbral mode. Parts 3/4 use the MIDI tracks' default template **CC1,2,5,11,12,13,71,74**.
@@ -260,8 +248,7 @@ In standard mode these controllers do what the patch routes them to, as before.
 ## 5. Loading your own patches
 
 The Patch Manager on SY1's website has two halves: the **Library** on the left, with **3,174 community
-sounds in 27 banks**, and **My FM-1** on the right, with your 1,024 user slots. Everything you do there is
-staged in the browser first. Nothing reaches the FM-1 until you press **Sync**.
+sounds in 27 banks**, and **My FM-1** on the right, with your 1,024 user slots. Patch-slot edits are staged in the browser. **Sync patch slots** writes them to the FM-1.
 
 **Finding sounds.** Search by name or bank, pick a bank, and narrow by character with the coloured chips
 (the counts follow your search). Character is inferred from names, so it is a starting point rather than a
@@ -294,30 +281,29 @@ Shift-click and Ctrl-click select several; Ctrl+A selects all, Ctrl+Z undoes, `/
 
 **Syncing.** The bar at the bottom says what will change: added, moved, edited and removed patches, and how
 many slots will be written. **Undo** and **Discard all** cost nothing, because the FM-1 has not been touched
-yet. **Sync** writes slot by slot, each acknowledged, with progress; **Stop** stops between acknowledged
+yet. **Sync patch slots** writes slot by slot, each acknowledged, with progress; **Stop** stops between acknowledged
 writes and leaves the rest staged. Removing patches asks for confirmation first. If a slot is not
 confirmed, press **Read again** before retrying. The factory presets and the eight original sounds are
 never affected. Turn PRESETS past the built-in patches to play your slots.
 
-**Sets.** A set is a saved layout of all your slots, kept in this browser: one for the stage, one for the
-studio. Load a set to stage it, then sync. Before a sync that moves, changes or removes patches, the manager
+**Slot layouts.** A layout stores the patch slots in this browser. Use separate layouts for the stage and studio. Load a set to stage it, then sync. Before a sync that moves, changes or removes patches, the manager
 saves the old layout as **Auto-backup before last sync**. Export a set as a file to keep a backup outside
 the browser, and import it again later.
 
-**Bitimbral in the manager.** With an FM-1 connected, the strip under its name switches between **Standard**
-and **Bitimbral** and, in bitimbral, chooses the output (**Split**, **Stereo**, **Double**); it also shows each
-part's MIDI channel and the slot it plays. Each slot in the list has an **L** and an **R** button (one ▶ in
-standard mode) that make the FM-1 play that slot on that part straight away, with any of the 1,024 slots. The
-map rings part L's slot in green and part R's in red, as the FM-1's PLAY light shows the part. A slot you have
-only staged plays after you sync it.
+**Live settings in My FM-1.** Mode, audio routing, Layer and the per-slot part buttons apply
+immediately. MIDI receive channel edits apply when you press **Apply channels**. The strip shows
+the FM-1's current channels, routed output groups, panel focus and the slots assigned to the parts.
+On new firmware it shows independent Split/Stereo and Layer controls for Bitimbral. Earlier firmware
+can still offer Double. After a patch is synced to a slot, use ▶ in Standard, L/R in Bitimbral, or
+1–4 in QUAD to assign the patch to a part. A slot layout stores the patches and their order.
 
 To find two sounds that work together, press **L** beside a sound in the library: it becomes part L. Every ▶
 after that plays the other sound as part R together with it, a bass line on L under chords on R, as on a
-Circuit. **Add pair** stages both side by side; after syncing, press L and R on the two slots. **✕** ends the
+Circuit. **Add pair** stages both side by side; after syncing, assign the two slots to parts in Bitimbral or QUAD. **✕** ends the
 pairing.
 
 An FM-1 running SY1 0.3.1 or earlier can only report patch names. The manager then still adds and removes
-sounds, but reordering, renaming, Arrange and Sets need a newer SY1.
+sounds, but reordering, renaming, Arrange and Slot layouts need a newer SY1.
 
 The collection comes from [Internet Archive](https://archive.org/details/synth1_202202); its metadata credits
 the compilation to techno-addicts. Our count of the supplied ZIP is 175 banks / 16,698 patch entries.
@@ -339,11 +325,9 @@ MIDI Stop releases all notes and disables hold/drone. With a clock coming in, th
 itself, counted from MIDI Start: it stays on the sequencer's grid, a new chord begins on the next step, and Start
 plays the pattern from its top.
 
-In standard mode SY1 listens on every channel. In bitimbral, part L listens on channel 3 and part R on channel 4
-(the Circuit Tracks' MIDI 1 and MIDI 2; GLO → BITIMBRAL changes them) and other channels are ignored. In DOUBLE
-the notes of either channel play both parts; controllers, pitch bend and program changes stay with their part.
-
-The FM-1's own keys also go out as notes over USB.
+GLO → MIDI CHANNELS shows the receive channels. Standard listens on all channels. The FM-1's
+keys also send notes over USB and BLE, on channel 1 in Standard and Bitimbral and on the selected
+part's channel in QUAD.
 
 ## 7. What differs from Synth1
 
@@ -351,7 +335,7 @@ SY1 follows Synth1's structure and its measured parameter laws, but it is a ligh
 not an exact copy:
 
 - The LPDL filter plays as the 24 dB filter, and the effect a.d.1 uses a.d.2's curve.
-- The delay is 0.74 seconds a side at most; a longer time plays an octave shorter.
+- The delay fits 0.74 s per side on Standard and Bitimbral L, 0.37 s on Bitimbral R and 0.186 s per QUAD part. Longer times are halved until they fit.
 - With the delay and the chorus both on, the echoes also reach the output directly.
 - Osc1's detune does not thicken the sub.
 - It plays about seven voices, where Synth1 plays up to 32.

@@ -6,18 +6,15 @@ Nothing is installed on hardware or published by creating this experiment.
 
 ## Use
 
-GLO retains PART, BITIMBRAL, DISPLAY and DIAGNOSTIC in their existing positions and appends:
+Choose QUAD under **GLO → MODE**. Set Split/Stereo there and use **GLO → PART** to select
+a part and edit its voice limit, Drone mode and keyboard octave. **GLO → MIDI CHANNELS**
+sets all four receive channels. The same pages show the settings relevant to Standard and
+Bitimbral. In Bitimbral, Layer is separate from Split/Stereo.
 
-| Page | KNOB1 | KNOB2 | KNOB3 | KNOB4 |
-| --- | --- | --- | --- | --- |
-| QUAD (5/6) | Standard / Bitimbral / Quad | Part 1–4 | Split / Stereo | Selected part's voice limit |
-| QUAD / MIDI CHANNELS (6/6) | Part 1 channel | Part 2 channel | Part 3 channel | Part 4 channel |
-
-In QUAD, tap OCT- / OCT+ for the previous/next part; hold for octave. Both buttons together return
-to Standard. Enter QUAD again in settings. Each part has its own preset, edits, category browser,
-octave, arp, Hold/Drone and effects. Standard/Bitimbral use their original two-part settings and sounds.
-Mode/channel/output changes stop notes; held keys send note-off to the part and outgoing channel
-on which they started. Use Save to retain edits to a sound across power-off.
+In QUAD, tap OCT- / OCT+ for the previous/next part, or hold to change that part's keyboard octave.
+Both buttons together select Standard. Mode and audio-routing changes stop all notes. A QUAD channel
+change stops notes on its part. Held keys send note-off to the part and outgoing MIDI channel on
+which they started. Use SAVE to retain sound edits across power-off.
 
 ## Circuit Tracks
 
@@ -77,7 +74,7 @@ settings object; downgrading can reset global settings, but the user patch bank 
 
 The existing `F0 7D 53 59 31` header and `F7` terminator remain unchanged. Values are 7-bit bytes.
 
-- Feature byte from `03` adds bit 2 (`4`), announcing QUAD support.
+- The feature byte returned by `03` uses bit 2 (`4`) for QUAD and bit 3 (`8`) for the independent Bitimbral settings command.
 - `08 <mode> <output>` accepts mode `2` for QUAD, output `0` split or `1` stereo. `7F` keeps a field.
   Legacy modes retain their exact nine-byte reply payload. QUAD's `48` reply retains those fields
   with mode `2`, and appends `<ch3-1> <ch4-1> <slot3 lo7> <hi7> <slot4 lo7> <hi7>`.
@@ -87,7 +84,14 @@ The existing `F0 7D 53 59 31` header and `F7` terminator remain unchanged. Value
   Reply `4A <focus> <output> <ch1-1> <ch2-1> <ch3-1> <ch4-1>` reports the resulting settings.
   A query of all `7F` leaves sounding notes intact.
 
-The Patch Manager gates QUAD controls on feature bit 2. Older firmware keeps its existing controls.
+- `0B <routing> <layer> <chL-1> <chR-1>` edits Bitimbral settings. Routing is 0 Split or 1 Stereo,
+  layer is 0 off or 1 on, and `7F` keeps a field. Reply `4B` sends the same four fields with actual
+  values. With all fields set to `7F` it reads the settings and leaves notes sounding.
+- With `08`, Bitimbral output 2 still selects Stereo plus Layer. A legacy read maps Split plus
+  Layer to Split. Use `0B` to read both properties.
+
+The Patch Manager gates QUAD controls on bit 2 and Bitimbral channel editing and Layer on bit 3.
+Devices with earlier firmware expose their corresponding controls.
 The browser's library preview remains limited to its existing one/two-sound preview.
 
 ## Validate and build
@@ -107,7 +111,7 @@ Host tests cover each audio bus sample, FX isolation, all four MIDI/clock/macro 
 legacy settings migration, CPU fallback and overload shedding. Simulator screenshots are generated
 by `app/tests/quad.txt`; hardware timing, listening and the actual Circuit workflow remain unverified.
 
-Validated locally on 2026-11-19:
+Validation of the original QUAD commit, 2026-11-19:
 
 - Engine: 202 checks; app: 5,640 checks, including the QUAD integration tests.
 - Eight simulator scenarios pass: basic, performance, nord-preview, ux, display, factory, bitimbral, quad.

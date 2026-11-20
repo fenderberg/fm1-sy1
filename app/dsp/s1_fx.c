@@ -60,6 +60,36 @@ static inline float onepole_run(s1_onepole *f, int ch, float x)
     return y;
 }
 
+/* Delay calculation shared by the engine and the panel. */
+int s1_delay_times(int division, int spread, float tempo, float sr, uint32_t length,
+                   float *left, float *right)
+{
+    if (length <= 8) {
+        *left = *right = 0.0f;
+        return 0;
+    }
+    static const float beats[20] = {0.0f, 1.0f / 24, 1.0f / 12, 1.0f / 8, 1.0f / 6, 0.25f, 1.0f / 3,
+                                    0.375f, 0.5f, 2.0f / 3, 0.75f, 0.875f, 1.0f, 4.0f / 3,
+                                    1.5f, 1.75f, 2.0f, 3.0f, 3.5f, 4.0f};
+    const float beat = 60.0f / s1_maxf(tempo, 20.0f);
+    const float max_t = (float)(length - 4);
+    const int sp = spread - 64, sd = sp < 0 ? (-sp > 63 ? 63 : -sp) : (sp > 63 ? 63 : sp);
+    /* (m) one side later by 100 ms x 10^((|v - 64| - 63) / 21) */
+    const float min_t = s1_minf(max_t, s1_floorf(1e-4f * sr));
+    const float spread_t = sd ? s1_floorf(0.1f * sr * s1_exp2f((float)(sd - 63) / 21.0f * 3.32192809f)) : 0.0f;
+    const float off = s1_minf(spread_t, max_t - min_t);
+    float base = beats[s1_clampi(division, 0, 19)] * beat * sr;
+    int folded = 0;
+    while (base + off > max_t) {
+        base *= 0.5f;
+        folded = 1;
+    }
+    base = 4.0f * s1_floorf(base * 0.25f);   /* (m) whole multiples of 4 samples */
+    *left = s1_maxf(min_t, base + (sp > 0 ? off : 0.0f));
+    *right = s1_maxf(min_t, base + (sp < 0 ? off : 0.0f));
+    return folded;
+}
+
 /* ------------------------------------------------------------------ reset --- */
 void s1_fx_reset(s1_synth *s)
 {
@@ -174,21 +204,8 @@ void s1_fx_cook(s1_synth *s)
 
     /* ---- delay ---- */
     {
-        static const float beats[20] = {0.0f, 1.0f / 24, 1.0f / 12, 1.0f / 8, 1.0f / 6, 0.25f, 1.0f / 3,
-                                        0.375f, 0.5f, 2.0f / 3, 0.75f, 0.875f, 1.0f, 4.0f / 3,
-                                        1.5f, 1.75f, 2.0f, 3.0f, 3.5f, 4.0f};
-        const float beat = 60.0f / s1_maxf(s->tempo, 20.0f);
-        const float max_t = s->cfg.delay_len > 8 ? (float)(s->cfg.delay_len - 4) : 1.0f;
-        const int sp = P(DELAY_SPREAD) - 64, sd = sp < 0 ? (-sp > 63 ? 63 : -sp) : (sp > 63 ? 63 : sp);
-        /* (m) one side later by 100 ms x 10^((|v - 64| - 63) / 21) */
-        const float off = sd ? s1_floorf(0.1f * sr * s1_exp2f((float)(sd - 63) / 21.0f * 3.32192809f)) : 0.0f;
-        const float min_t = s1_floorf(1e-4f * sr);
-        float base = beats[s1_clampi(P(DELAY_TIME), 0, 19)] * beat * sr;
-        while (base + off > max_t)   /* longer than the line (the FM-1's memory): the next shorter octave */
-            base *= 0.5f;
-        base = 4.0f * s1_floorf(base * 0.25f);   /* (m) whole multiples of 4 samples */
-        s->ck.dly_tl = s1_maxf(min_t, base + (sp > 0 ? off : 0.0f));
-        s->ck.dly_tr = s1_maxf(min_t, base + (sp < 0 ? off : 0.0f));
+        s1_delay_times(P(DELAY_TIME), P(DELAY_SPREAD), s->tempo, sr, s->cfg.delay_len,
+                       &s->ck.dly_tl, &s->ck.dly_tr);
         s->ck.dly_fb = (float)P(DELAY_FEEDBACK) / 127.0f;
         s->ck.dly_wet = s1_minf(1.0f, (float)P(DELAY_DRY_WET) / 64.5f);
         s->ck.dly_dry = s1_minf(1.0f, (float)(127 - P(DELAY_DRY_WET)) / 63.0f);

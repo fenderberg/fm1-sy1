@@ -1,9 +1,10 @@
 # SY1 — QUAD Circuit experiment
 
 This local experimental fork adds **QUAD**, four independent sounds, beside the existing Standard and
-Bitimbral modes. In **GLO → QUAD**, choose the mode, part, output and voice limit; the following
-**QUAD / MIDI CHANNELS** page sets all four channels. Split sends parts **1+2 left, 3+4 right**;
-Stereo mixes all four in stereo. OCT- / OCT+ step through the four parts (hold for octave).
+Bitimbral modes. Choose it in **GLO → MODE**, alongside the Split/Stereo audio routing.
+**GLO → PART** selects a part and sets its limit, Drone mode and octave. **GLO → MIDI CHANNELS**
+sets the four receive channels. Split sends parts **1+2 left, 3+4 right**. Stereo mixes all four
+in stereo. OCT- / OCT+ step through the four parts (hold for octave).
 
 Defaults match Circuit Tracks: Synth 1/2 on channels 1/2, MIDI 1/2 on 3/4. Each part starts with three
 notes, its own arp, Hold/Drone, chorus and a shorter 0.186 s stereo delay. The original modes retain their
@@ -79,7 +80,7 @@ make test          # the engine: maths, tuning, envelopes, the patch reader, 400
 make test-app      # the app against a stand-in for the FM-1
 make test-web      # reader against C, nested ZIPs, library integrity and placement (Node >= 22.16)
 make test-site     # website navigation, local links and scripts (needs existing release and browser builds)
-make preview-nord  # the full Nord UX: simulator checks and screenshots of all 33 subpages in all three display styles
+make preview-nord  # the full Nord UX: simulator checks and screenshots of all 35 subpages in all three display styles
 make all           # build/s1render (a patch to a WAV file) and build/sy1pack (patches to a SysEx file)
 
 ./build.sh --host  # fm1-base's simulator, then:
@@ -165,7 +166,7 @@ PRESETS past `P08` to reach them.
 | Control | What it does |
 | --- | --- |
 | PRESETS / ALGORITHM | Patch within category / category. Empty categories are skipped; both lists wrap |
-| HOME, EDIT, SEL, ENV, LFO, FX, GLO | Open Play, Osc, Filter, Env, LFO, Effects or Global. Press again for the next row. On GLO → PART, KNOB3 (RANDOM) auditions eight variations of the current sound. Turn back to BASE to restore it. |
+| HOME, EDIT, SEL, ENV, LFO, FX, GLO | Open Play, Osc, Filter, Env, LFO, Effects or Global. Press again for the next row. On HOME → PATCH, KNOB1 (VARIATION) auditions eight variations of the current sound. Turn back to BASE to restore it. |
 | ARP | Tap: arp on/off. Hold 0.5 s: Arp settings; hold again: next row |
 | SEQ | Arp on: chord HOLD. Arp off: DRONE. Tap again to release |
 | SELECT | Choose a row |
@@ -185,7 +186,7 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.5.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → DISPLAY (3/4) → KNOB1**.
+All three display styles remain available in **0.5.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → SYSTEM (4/5) → KNOB2**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
@@ -219,7 +220,7 @@ FM-1 on purpose:
 - Delay and chorus together: the echoes also reach the output directly, not only through the chorus.
 - Detune: osc1 gets its eight copies, the sub does not.
 - Pitch bend and LFO pitch are not quantised to 1/128-octave steps.
-- 8 voices by default (VOICE > VOICES, 1–16); on an overload one is dropped.
+- 8 voices by default (GLO → PART → PART LIMIT, 1–16); on an overload one is dropped.
 
 ## Layout
 

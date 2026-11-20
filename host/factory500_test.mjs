@@ -11,7 +11,7 @@ const catalog=JSON.parse(await read('app/site/library/catalog.json'));
 assert.equal(manifest.count,256);assert.equal(manifest.patches.length,256);assert.equal(manifest.bankCount,27);
 const source=new Map(),bankNotes=[];
 for(const bank of catalog.banks){const entries=await unzipEntries(await read('app/site/library/'+bank.file));for(const f of entries)source.set(bank.id+':'+f.name,f.bytes);for(const f of entries)if(/\.txt$/i.test(f.name))bankNotes.push([bank.id,f]);}
-const header=(await read('app/presets/factory500.h')).toString();
+const header=(await read('app/presets/factory500.h')).toString().replaceAll('\r\n','\n');
 const block=header.split('FACTORY500[FACTORY500_COUNT][BANK_PAYLOAD] = {\n')[1].split('\n};')[0];
 const records=[...block.matchAll(/\{([\d,]+)\}/g)].map(m=>Buffer.from(m[1].split(',').map(Number)));
 assert.equal(records.length,256);

@@ -47,32 +47,32 @@ expect part 3
 tap OCT+
 wait 50
 expect part 0
-# The added GLOBAL pages leave the first four pages in place.
+# Routing, selected part and channels each have their own GLO row.
 tap GLO
-spin SELECT 4
+spin SELECT 1
 wait 50
-expect row 4
+expect row 1
 shot quad-split.png
-spin K3 1
+spin K2 1
 wait 50
 expect layout 1
 shot quad-stereo.png
-# Selecting a part from GLOBAL stays on GLOBAL so its encoders remain usable.
-spin K2 1
+spin SELECT -1
+spin K1 1
 wait 50
 expect part 1
-expect row 4
-spin K2 1
+expect row 0
+spin K1 1
 wait 50
 expect part 2
-expect row 4
-spin K2 1
+expect row 0
+spin K1 1
 wait 50
 expect part 3
-expect row 4
-spin SELECT 1
+expect row 0
+spin SELECT 2
 wait 50
-expect row 5
+expect row 2
 spin K4 1
 wait 50
 expect qch4 5
@@ -106,7 +106,8 @@ tap PLAY
 sysex F0 7D 53 59 31 08 01 02 F7
 wait 80
 expect mode 1
-expect layout 2
+expect layout 1
+expect layer 1
 expect chl 3
 expect chr 4
 midi 92 3C 64
