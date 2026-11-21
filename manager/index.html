@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SY1 · Patch Manager</title><meta name="description" content="Explore thousands of Synth1 presets and arrange the 1,024 user slots of your FM-1: add, sort, rename and sync."><link rel="stylesheet" href="manager.css?v=part-settings"><link rel="stylesheet" href="../assets/site.css">
 </head><body data-site-page="manager">
 <a class="site-skip" href="#content">Skip to content</a>
-<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../manager/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="../news/"><span class="nav-led" aria-hidden="true"></span>What's new</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../editor/"><span class="nav-led" aria-hidden="true"></span>Synth Editor</a><a href="../manager/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="../news/"><span class="nav-led" aria-hidden="true"></span>What's new</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
 <main id="content" tabindex="-1"><div id="pm" data-tab="lib">
 <div class="ptabs"><button type="button" id="tab-lib" aria-pressed="true">Library</button><button type="button" id="tab-dev" aria-pressed="false">My FM-1</button></div>
 <div class="panes">
@@ -19,6 +19,7 @@
         <p>Bring your own Synth1 collection: .sy1 files, bank ZIPs or a ZIP of banks. You can also drop them on this page. Imports stay on your computer.</p>
         <button type="button" id="pick">Choose files…</button><button type="button" id="pickdir">Choose a folder…</button>
       </div></details>
+      <button type="button" id="edit-patch" disabled>Edit patch</button>
       <button type="button" class="primary" id="add" disabled>Add to FM-1 →</button></span></div>
     <input type="file" id="files" multiple accept=".sy1,.zip" hidden><input type="file" id="dir" webkitdirectory multiple hidden>
     <div class="pbar">
@@ -95,5 +96,5 @@
   <div class="acts"><button type="button" id="undo" disabled>Undo</button><button type="button" id="discard" disabled>Discard all</button><button type="button" id="cancel" hidden>Stop</button><button type="button" class="primary" id="sync" disabled>Sync patch slots</button></div>
 </div>
 <div id="toast" role="status" hidden></div>
-</div></main><script type="module" src="app.js?v=part-settings"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v1.0.0 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
+</div></main><script type="module" src="app.js?v=synth-editor"></script><footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v1.0.0 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
 </body></html>

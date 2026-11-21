@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Synth Editor · SY1</title>
+  <meta name="description" content="Load, play and edit Synth1 patches in your browser.">
+  <link rel="stylesheet" href="editor.css">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body data-site-page="editor">
+<a class="site-skip" href="#content">Skip to content</a>
+<header class="site-header"><div class="site-header-inner"><a class="site-brand" href="../" aria-label="SY1 home">SY<span>1</span><span class="brand-caption">VIRTUAL ANALOG<br>FOR THE FM-1</span></a><nav class="site-nav" aria-label="Main navigation"><a href="../"><span class="nav-led" aria-hidden="true"></span>Overview</a><a href="../emu/"><span class="nav-led" aria-hidden="true"></span>Play</a><a href="../editor/" aria-current="page"><span class="nav-led" aria-hidden="true"></span>Synth Editor</a><a href="../manager/" target="_blank" rel="noopener"><span class="nav-led" aria-hidden="true"></span>Patch Manager</a><a href="../install/"><span class="nav-led" aria-hidden="true"></span>Install</a><a href="../manual/"><span class="nav-led" aria-hidden="true"></span>Manual</a><a href="../news/"><span class="nav-led" aria-hidden="true"></span>What's new</a><a href="https://github.com/fenderberg/fm1-sy1" class="source-link">Source <span aria-hidden="true">↗</span></a></nav></div></header>
+<main id="content" tabindex="-1">
+  <div class="instrument">
+    <header class="faceplate">
+      <div class="model"><h1>Synth Editor</h1><span>SY1 · VIRTUAL ANALOG</span></div>
+      <div class="patch-display"><label for="patch-name">PATCH NAME</label><input id="patch-name" maxlength="31" value="Init" autocomplete="off"><span id="source">Initial patch</span></div>
+      <div class="file-actions"><button id="browse">Browse presets</button><button id="open">Open .sy1 / ZIP</button><button id="save">Save .sy1</button><button id="init">Init patch</button></div>
+      <input id="file" type="file" accept=".sy1,.zip" hidden>
+    </header>
+    <section class="keyboard-row" aria-label="Audition patch">
+      <div class="monitor"><button id="hold" aria-pressed="false">Hold C4</button><label>Octave <select id="octave" aria-label="Keyboard octave"></select></label></div>
+      <div id="keyboard" aria-label="Piano keyboard"></div>
+    </section>
+    <p id="message" role="status">Play the keys with A–K. Hold C4 to hear changes as you edit.</p>
+    <div class="tabs" id="sections" role="group" aria-label="Editor sections"></div>
+    <div id="modules"></div>
+  </div>
+  <dialog id="library" aria-labelledby="browser-title">
+    <header><h2 id="browser-title">Browse presets</h2><button id="close" aria-label="Close preset browser">Close</button></header>
+    <label>Bank <select id="banks"></select></label>
+    <label>Find a patch <input type="search" id="find" autocomplete="off" placeholder="Name or category"></label>
+    <label>Patch <select id="presets" size="8"></select></label>
+    <p id="bank-info"></p><p id="library-status" role="status"></p><button id="load" class="primary">Load patch</button>
+  </dialog>
+</main>
+<script type="module" src="editor.js"></script>
+<footer class="site-footer"><div><a class="footer-wordmark" href="../">SY1</a><span>A little hardware. A lot of possibility.</span></div><p>v1.0.0 · Code: MIT · <a href="../library/CREDITS.md">Preset credits</a></p></footer>
+</body>
+</html>
