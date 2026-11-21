@@ -105,6 +105,7 @@ function filterLib() {
   const b = banks.get(bank); $('bank-info').hidden = !b;
   if (b) { $('bank-credit').textContent = `${b.author} · ${b.terms}`; $('bank-notes').textContent = (b.notes || []).map(n => n.path + '\n\n' + n.text).join('\n\n');
     $('bank-download').hidden = !b.file; if (b.file) $('bank-download').href = '../library/' + b.file; }
+  $('edit-patch').disabled = lsel.size !== 1;
   const fresh = [...lsel].filter(id => !libSlot.has(id)).length;
   $('add').disabled = !fresh || busy; $('add').textContent = fresh ? `Add ${num(fresh)} to FM-1 →` : 'Add to FM-1 →';
   drawLib();
@@ -475,6 +476,18 @@ function pick(sel, keys, k, e, anchor) {
   return k;
 }
 const devKeys = () => dview.map(s => slots[s] ? slots[s].uid : null);
+
+$('edit-patch').onclick = () => {
+  const p = byId.get([...lsel][0]);
+  if (!p || lsel.size !== 1) return;
+  const args = new URLSearchParams();
+  if (p.bytes) {
+    const url = URL.createObjectURL(new Blob([p.bytes]));
+    args.set('file', url); args.set('name', p.name);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } else args.set('preset', p.id);
+  window.open('../editor/#' + args, '_blank', 'noopener');
+};
 
 $('llist').addEventListener('click', e => {
   const row = e.target.closest('.prow'); if (!row) return; const k = +row.dataset.k, p = lview[k], act = e.target.dataset.act;

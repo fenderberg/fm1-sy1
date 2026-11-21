@@ -10,9 +10,9 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / "app/build/site"
-MAIN_ROUTES = ("", "emu", "manager", "install", "manual", "news")
+MAIN_ROUTES = ("", "emu", "editor", "manager", "install", "manual", "news")
 ROUTES = (*MAIN_ROUTES, "manual/screens")
-LABELS = ["Overview", "Play", "Patch Manager", "Install", "Manual", "What's new", "Source ↗"]
+LABELS = ["Overview", "Play", "Synth Editor", "Patch Manager", "Install", "Manual", "What's new", "Source ↗"]
 
 
 class Page(HTMLParser):
@@ -80,6 +80,8 @@ for route in ROUTES:
             checks += 1
 # The manager imports this module; omitting it makes the whole interface inert.
 assert "export function parseSy1" in (SITE / "emu/app_own.js").read_text(encoding="utf-8")
+assert (SITE / "editor/engine.wasm").read_bytes()[:4] == b"\0asm"
+assert (SITE / "editor/tables.js").is_file()
 assert (SITE / "assets/site.css").stat().st_size > 0
 catalog = json.loads((SITE / "library/catalog.json").read_text(encoding="utf-8"))
 assert catalog["patchCount"] == sum(bank["count"] for bank in catalog["banks"]) == 3174
@@ -95,4 +97,4 @@ assert "1.0.0" in news and "0.2.0" in news, "What's new lacks a version"
 factory = json.loads((SITE / "library/factory500.json").read_text(encoding="utf-8"))
 assert factory["count"] == len(factory["patches"]) == 256
 assert (SITE / "library/factory500.zip").is_file() and (SITE / "library/factory500-credits.txt").is_file()
-print(f"site: {checks + 34} checks passed (7 pages, shared navigation, local links, 27 preset banks, 145 screen captures)")
+print(f"site: {checks + 34} checks passed (8 pages, shared navigation, local links, 27 preset banks, 145 screen captures)")

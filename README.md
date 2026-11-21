@@ -35,6 +35,8 @@ Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
 patches load as they are. Every parameter can also be edited on the FM-1 itself.
 
+The [Synth Editor](https://fenderberg.github.io/fm1-sy1/editor/) lets you play and edit all 99 patch parameters in the browser. Open a community preset, a local `.sy1` file or a ZIP bank. Hold a note while you turn the knobs, then save a new `.sy1` file. You can also open a selected library patch in the editor from the Patch Manager.
+
 **Find a sound first:** the [Patch Manager](https://fenderberg.github.io/fm1-sy1/manager/) includes **3,174 presets in 27 community banks**. Search names, filter banks and sound categories, save favourites and preview in the page. Then arrange your FM-1's 1,024 slots like a set list: drag sounds in, reorder, rename, sort, tidy up, and sync the result over USB in one go. It also imports your own `.sy1` files, folders, bank ZIPs and ZIP collections containing bank ZIPs, entirely locally.
 
 <img src="docs/img/screen-play.png" width="240" alt="NORD: red strip, ivory text, Warm Pad"> <img src="docs/img/screen-green-play.png" width="240" alt="GREEN LED: green letters and segment numerals on black"> <img src="docs/img/screen-lcd-play.png" width="240" alt="GREEN LCD: dark letters and graphs on green">
@@ -90,7 +92,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ```
 
 Build the complete website with `make site VERSION=1.0.0` after building the matching release package and
-browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
+browser emulator, with Emscripten (`emcc`) on your PATH for the editor audio engine. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
 `tools/publish_site.sh VERSION [--push]` builds the firmware, emulator and complete site, and optionally publishes it
@@ -99,6 +101,7 @@ with a normal update to `gh-pages` (no history rewrite).
 Optional browser integration QA, with Playwright already installed and the complete site served locally:
 
 ```sh
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node host/editor_browser_test.mjs
 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs SY1_TEST_COLLECTION=/path/to/zipbank.zip node host/manager_browser_test.mjs
 ```
 

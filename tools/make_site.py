@@ -19,9 +19,32 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "app" / "site"
-PAGES = (("", "Overview"), ("emu", "Play"), ("manager", "Patch Manager"),
+PAGES = (("", "Overview"), ("emu", "Play"), ("editor", "Synth Editor"), ("manager", "Patch Manager"),
          ("install", "Install"), ("manual", "Manual"), ("news", "What's new"))
 SOURCE = "https://github.com/fenderberg/fm1-sy1"
+
+
+def build_editor(out):
+    dsp = ROOT / "app/dsp"
+    editor = out / "editor"
+    shutil.copytree(SITE / "editor", editor, dirs_exist_ok=True)
+    exports = ["init", "patch", "load", "param", "key", "stop", "output", "render"]
+    subprocess.run(["emcc", "-O2", "-ffp-contract=off", "-mbulk-memory", "-sFILESYSTEM=0", "-sINITIAL_MEMORY=2097152", "--no-entry",
+                    "-Wl,--export-memory", *[f"-Wl,--export=editor_{name}" for name in exports],
+                    "-I", str(dsp), str(ROOT / "app/web/editor/engine.c"),
+                    *[str(dsp / name) for name in ("s1_synth.c", "s1_fx.c", "s1_tables.c")],
+                    "-o", str(editor / "engine.wasm")], check=True)
+    # Share the engine's parameter bounds, defaults and physical units with the panel.
+    source = (dsp / "s1_tables.c").read_text()
+    tables = {}
+    for key in ("param_min", "param_max", "param_def", "param_name", "t_attack_s", "t_env_tau_s",
+                "t_fine_cents", "t_osc2_semis", "t_unison_cents", "t_amp_sustain"):
+        body = re.search(rf"\bs1_{key}\[.*?\] = \{{([^}}]+)\}}", source, re.S)[1]
+        if key == "param_name":
+            tables[key] = re.findall(r'"([^"]+)"', body)
+        else:
+            tables[key] = [json.loads(token.strip().removesuffix("f")) for token in body.split(",") if token.strip()]
+    (editor / "tables.js").write_text("export default " + json.dumps(tables, separators=(",", ":")) + ";\n")
 
 
 def bundle_library(directory, catalog):
@@ -103,6 +126,7 @@ def main(pkg, version, destination=None):
     out = Path(destination).resolve() if destination else ROOT / "app" / "build" / "site"
     subprocess.run([sys.executable, str(ROOT / "base" / "tools" / "make_site.py"),
                     str(ROOT / "app"), str(Path(pkg).resolve()), version, str(out)], check=True)
+    build_editor(out)
     shutil.copytree(SITE / "assets", out / "assets", dirs_exist_ok=True)
     shutil.copytree(SITE / "manager", out / "manager", dirs_exist_ok=True)
     shutil.copytree(SITE / "library", out / "library", dirs_exist_ok=True)
