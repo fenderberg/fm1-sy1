@@ -10,9 +10,9 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / "app/build/site"
-MAIN_ROUTES = ("", "emu", "manager", "install", "manual")
+MAIN_ROUTES = ("", "emu", "manager", "install", "manual", "news")
 ROUTES = (*MAIN_ROUTES, "manual/screens")
-LABELS = ["Overview", "Play", "Patch Manager", "Install", "Manual", "Source ↗"]
+LABELS = ["Overview", "Play", "Patch Manager", "Install", "Manual", "What's new", "Source ↗"]
 
 
 class Page(HTMLParser):
@@ -90,7 +90,9 @@ assert (SITE / "manager/app.js").is_file()
 report = json.loads((SITE / "manual/screens/validation.json").read_text(encoding="utf-8"))
 assert report["subpages"] == 33 and report["display_styles"] == 3 and report["screenshots"] == 145
 assert len(list((SITE / "manual/screens").glob("*.png"))) == report["screenshots"]
+news = (SITE / "news/index.html").read_text(encoding="utf-8")
+assert "1.0.0" in news and "0.2.0" in news, "What's new lacks a version"
 factory = json.loads((SITE / "library/factory500.json").read_text(encoding="utf-8"))
 assert factory["count"] == len(factory["patches"]) == 256
 assert (SITE / "library/factory500.zip").is_file() and (SITE / "library/factory500-credits.txt").is_file()
-print(f"site: {checks + 34} checks passed (6 pages, shared navigation, local links, 27 preset banks, 145 screen captures)")
+print(f"site: {checks + 34} checks passed (7 pages, shared navigation, local links, 27 preset banks, 145 screen captures)")

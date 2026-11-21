@@ -20,7 +20,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "app" / "site"
 PAGES = (("", "Overview"), ("emu", "Play"), ("manager", "Patch Manager"),
-         ("install", "Install"), ("manual", "Manual"))
+         ("install", "Install"), ("manual", "Manual"), ("news", "What's new"))
 SOURCE = "https://github.com/fenderberg/fm1-sy1"
 
 
@@ -82,6 +82,23 @@ def decorate(document, current, version):
     return document.replace('</body>', footer + '\n</body>', 1)
 
 
+def whats_new(out):
+    """news/index.html: CHANGELOG.md, every version with what changed, newest first."""
+    changes = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    body = re.sub(r"\A# [^\n]*\n", "", changes).lstrip()
+    body = re.sub(r"^## (\d)", r"## Version \1", body, flags=re.M)   # "## 1.0.0" would read as section 1
+    md = ("# What's new\n\nWhat changed in each version of SY1, newest first. Installing a new version keeps your "
+          "user slots, patches and settings. Older firmware packages are on the "
+          f"[releases page]({SOURCE}/releases).\n\n" + body)
+    page = out / "news"
+    page.mkdir(parents=True, exist_ok=True)
+    source = page / "CHANGELOG.md"
+    source.write_text(md, encoding="utf-8")
+    subprocess.run([sys.executable, str(ROOT / "base" / "tools" / "manual_html.py"), str(source),
+                    str(page / "index.html"), "--name", "SY1", "--repo", SOURCE], check=True, capture_output=True)
+    source.unlink()
+
+
 def main(pkg, version, destination=None):
     out = Path(destination).resolve() if destination else ROOT / "app" / "build" / "site"
     subprocess.run([sys.executable, str(ROOT / "base" / "tools" / "make_site.py"),
@@ -100,6 +117,7 @@ def main(pkg, version, destination=None):
     document = document.replace('href="../nord-pixel/index.html"', 'href="../"')
     document = document.replace("De eerdere pixelproef A", "Back to the manual")
     (screens / "index.html").write_text(document, encoding="utf-8")
+    whats_new(out)
     catalog = json.loads((SITE / "library/catalog.json").read_text(encoding="utf-8"))
     bundle_library(out / "library", catalog)
     landing = (SITE / "index.html").read_text(encoding="utf-8")

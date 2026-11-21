@@ -1,10 +1,31 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 — 2026-11-21
 
-- **Circuit MIDI tracks: knobs 5–8 work again.** 0.5.0 had swapped their controllers, so FILTER FREQ, RESONANCE,
-  MODULATION and FX moved the wrong things on MIDI 1 and 2. They are 71, 74, 12 and 13 again, as measured on a
-  Circuit Tracks with its factory MIDI template. The synth tracks (CC 80–87) were not affected.
+**SY1 1.0: one synth, two or four. QUAD plays four sounds at once, made for the Circuit Tracks.**
+
+- **QUAD: four parts at once.** GLO → MODE now has three modes: Standard (one sound, all MIDI channels),
+  Bitimbral (two parts, L and R) and QUAD (four parts). In QUAD, parts 1–4 listen on channels 1–4 by default:
+  the Circuit Tracks' Synth 1, Synth 2, MIDI 1 and MIDI 2. Each part has its own patch, arp, Hold/Drone,
+  effects, octave and voice limit, and QUAD remembers its own four sounds and settings.
+- **Split left and right.** With routing on Split, QUAD sends parts 1+2 to the left output and parts 3+4 to the
+  right, effects included, so the two groups arrive on separate mixer channels, such as the Circuit Tracks' two
+  inputs.
+- **All of the Circuit's macro knobs.** In QUAD the synth tracks' macro knobs 1–8 (CC 80–87) and the MIDI tracks'
+  knobs (CC 1, 2, 5, 11, 71, 74, 12, 13) each move the sound their label names. The manual lists every controller.
+- **Circuit MIDI tracks: knobs 5–8 fixed.** 0.5.0 had swapped their controllers, so FILTER FREQ, RESONANCE,
+  MODULATION and FX moved the wrong things. They are 71, 74, 12 and 13 again, as measured on a Circuit Tracks
+  with its factory MIDI template.
+- **Tighter timing.** The audio block is half as long (128 frames, 2.9 ms instead of 5.8 ms), so notes and knobs
+  respond sooner. Parts that are not playing stay on the external MIDI clock's grid, so they come in on the beat
+  when you switch to them or to QUAD. The knobs' glide keeps the same speed.
+- **Clearer settings.** The GLO pages show which settings belong to the mode, the part and the patch.
+- The Patch Manager shows QUAD when the firmware supports it: four play buttons per slot, Split/Stereo, and four
+  MIDI channel fields.
+- The hardware log (`fm1_remote.py log`) counts MIDI notes, clock and late messages per input: USB and the TRS
+  jack.
+
+Your user slots, patches and settings are kept by the update.
 
 ## 0.5.0 — 2026-11-18
 
@@ -29,7 +50,8 @@
   voices' age counter no longer wraps around after long sessions.
 - Correct the Circuit Tracks' default MIDI template mapping for knobs 5–8: CC12 is cutoff, CC13 resonance,
   CC71 modulation and CC74 FX. Previously the modulation knob swept the cutoff and the FX knob changed
-  resonance. The browser demo and manual now use the same physical knob order.
+  resonance. The browser demo and manual now use the same physical knob order. *This was a mistake, undone in 1.0.0: the
+  Circuit's MIDI tracks send 71, 74, 12, 13 on knobs 5–8.*
 
 ## 0.4.2 — 2026-11-17
 

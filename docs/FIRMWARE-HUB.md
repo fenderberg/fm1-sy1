@@ -2,7 +2,7 @@
 
 The current submission is for **SY1 by Fenderberg**, repository
 <https://github.com/fenderberg/fm1-sy1>, code license MIT.
-Release **0.3.1** uses **FM-1_51000301**. The app-owned `app/fm1.toml` defines
+Release **1.0.0** uses **FM-1_51010000** (0.3.1 used FM-1_51000301). The app-owned `app/fm1.toml` defines
 project prefix **51**; the release version supplies the last six digits. Development
 builds use FM-1_5100. No changes to the fm1-base submodule are needed.
 

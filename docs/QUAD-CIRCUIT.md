@@ -1,8 +1,6 @@
-# QUAD Circuit experiment
+# QUAD with the Circuit Tracks
 
-Local worktree: `../synth1-quad`, branch `experiment/quad-circuit`, based on `6ba0cb1` plus a copy
-of the original workspace's existing changes. The original `synth1` workspace stays untouched.
-Nothing is installed on hardware or published by creating this experiment.
+QUAD shipped in SY1 1.0.0. The manual's section "The Circuit's macro knobs: MIDI CC values" lists every knob.
 
 ## Use
 
@@ -22,8 +20,8 @@ which they started. Use SAVE to retain sound edits across power-off.
 | --- | --- | --- | --- |
 | 1 | Synth 1 | 1 | CC80–87 |
 | 2 | Synth 2 | 2 | CC80–87 |
-| 3 | MIDI 1 | 3 | CC1,2,5,11,12,13,71,74 |
-| 4 | MIDI 2 | 4 | CC1,2,5,11,12,13,71,74 |
+| 3 | MIDI 1 | 3 | CC1,2,5,11,71,74,12,13 |
+| 4 | MIDI 2 | 4 | CC1,2,5,11,71,74,12,13 |
 
 The eight macros keep the existing musical mapping: oscillator mix, oscillator modulation,
 amp envelope, filter envelope, cutoff, resonance, modulation and FX. Routing is by each part's

@@ -1,7 +1,7 @@
 # SY1
 
 SY1 is a polysynth for the M-VAVE FM-1 that plays Synth1 patches. This manual explains the screen, the pages,
-how to get patches into the FM-1, and MIDI. Version **0.5.0** has a new factory bank: 256 community presets, a cross-section of all 13 sound categories, the same categories the Patch Manager uses. It plays two sounds at once in bitimbral mode (layered, split, or on two MIDI channels), keeps everything on GLOBAL out of the patch, and has a Patch Manager that arranges all 1,024 user slots and the NORD, GREEN LED and GREEN LCD display styles.
+how to get patches into the FM-1, and MIDI. Version **1.0.0** plays one sound, two (Bitimbral) or four (QUAD) at once, with the Circuit Tracks' macro knobs mapped on every part. It includes 256 community presets in all 13 sound categories, 1,024 user slots, a Patch Manager with more than 3,000 more sounds, and the NORD, GREEN LED and GREEN LCD display styles. What changed in each version: [What's new](../news/).
 
 ![SY1's Play page: Warm Pad, a filter diagram, four encoder values and the playing status](img/screen-play.png)
 
@@ -211,39 +211,43 @@ the variation and patch category.
 
 ### QUAD with Circuit Tracks
 
-Circuit Synth 1/2 macros use **CC80–87**, mapped in order to the same eight musical macros as the existing
-bitimbral mode. Parts 3/4 use the MIDI tracks' default template **CC1,2,5,11,12,13,71,74**.
-The synth-track macro automation is transmitted over **USB only**; the MIDI tracks' template automation
-also reaches DIN. MIDI channels can be reassigned without changing these part roles.
-Enable MIDI notes, CC and clock transmission on the Circuit. Both devices' USB sockets need a host;
-a computer can route Circuit MIDI to the FM-1 for all four tracks and macros.
-In split output, the Circuit's two input mixer strips control the two groups, rather than individual parties.
+QUAD's four parts follow the Circuit Tracks' four melodic tracks: part 1 is Synth 1 (channel 1), part 2 Synth 2
+(channel 2), part 3 MIDI 1 (channel 3) and part 4 MIDI 2 (channel 4). Channels can be changed on GLO → MIDI
+CHANNELS without changing which knobs a part answers to. Enable MIDI notes, CC and clock transmission on the
+Circuit. The synth tracks' macro movements go out over **USB only**; the MIDI tracks' knobs also reach the DIN/TRS
+output. Both devices' USB sockets need a host, so a computer can route the Circuit's MIDI to the FM-1 for all four
+tracks and their knobs. With Split, the Circuit's two input mixer strips control the two groups (parts 1+2 and
+3+4), not individual parts.
 
-The Patch Manager shows **Quad** only when firmware announces support, provides four play buttons per
-synced slot, Split/Stereo, and four MIDI channel fields with an explicit **Apply channels** button.
-The browser's library preview remains a one/two-sound preview.
+The Patch Manager shows **Quad** only when the firmware announces support. It provides four play buttons per
+synced slot, Split/Stereo, and four MIDI channel fields with an explicit **Apply channels** button. The browser's
+library preview remains a one/two-sound preview.
 
-**The Circuit's eight knobs.** In bitimbral, with the Circuit Tracks' factory MIDI template on its MIDI tracks,
-each macro knob moves what its label says on the part of its channel. The knob in the middle is the patch as it
-is; turning either way adds to it or takes from it, and a new patch starts from the middle again. The screen
-names the knob, what it moves and the value.
+### The Circuit's macro knobs: MIDI CC values
 
-| Circuit knob | Controller | SY1 |
-| --- | --- | --- |
-| 1 OSCILLATOR | 1 | The balance of the two oscillators |
-| 2 OSC MOD | 2 | Detune: the detuned copies, and oscillator 2 a little |
-| 3 AMP ENV | 5 | Amp release and decay (the attack stays) |
-| 4 FILTER ENV | 11 | Filter envelope amount, and a little of its decay |
-| 5 FILTER FREQ | 71 | Cutoff |
-| 6 RESONANCE | 74 | Resonance |
-| 7 MODULATION | 12 | LFO 1's depth (above the middle LFO 1 is switched on) |
-| 8 FX | 13 | The delay's level (above the middle the delay is switched on) |
+Each of the Circuit's eight knobs moves what its label says on the part of its channel. The knob in the middle
+(64) is the patch as it is; turning either way adds to it or takes from it, gliding, and a new patch starts from the
+middle again. The screen names the part, the knob, what it moves and the value.
 
-These numbers follow the Circuit Tracks' [default MIDI template](https://userguides.novationmusic.com/hc/en-gb/articles/26207128061458-Using-Circuit-Tracks-Synths-MIDI-Tracks-and-Drums).
-Version 0.5.0 assigned knobs 5–8 in the wrong order (12, 13, 71, 74); this is corrected again. Recorded knob movements on the Circuit are replayed
-with every pattern loop, including after changing its MIDI template; they keep changing the sound until cleared.
+| Circuit knob | Synth 1 / Synth 2 (QUAD parts 1, 2) | MIDI 1 / MIDI 2 (Bitimbral L, R; QUAD parts 3, 4) | What it moves on SY1 |
+| --- | --- | --- | --- |
+| 1 OSCILLATOR | CC 80 | CC 1 | The balance of the two oscillators |
+| 2 OSC MOD | CC 81 | CC 2 | Detune: the detuned copies, and oscillator 2 a little |
+| 3 AMP ENV | CC 82 | CC 5 | Amp release and decay (the attack stays) |
+| 4 FILTER ENV | CC 83 | CC 11 | Filter envelope amount, and a little of its decay |
+| 5 FILTER FREQ | CC 84 | CC 71 | Cutoff |
+| 6 RESONANCE | CC 85 | CC 74 | Resonance |
+| 7 MODULATION | CC 86 | CC 12 | LFO 1's depth (above the middle LFO 1 is switched on) |
+| 8 FX | CC 87 | CC 13 | The delay's level (above the middle the delay is switched on) |
 
-In standard mode these controllers do what the patch routes them to, as before.
+The synth tracks' CC 80–87 are the macro positions in Novation's
+[Circuit Tracks Programmer's Reference Guide](https://fael-downloads-prod.focusrite.com/customer/prod/downloads/circuit_tracks_programmer_s_reference_guide_v3.pdf).
+The MIDI tracks' numbers are their factory MIDI template, measured on a Circuit Tracks. If you edit a template in
+Novation Components, put these numbers on its knobs to keep the mapping. Version 0.5.0 had knobs 5–8 of the MIDI
+tracks in the wrong order (12, 13, 71, 74); 1.0.0 corrects this. Recorded knob movements on the Circuit are replayed
+with every pattern loop, also after changing its MIDI template; they keep changing the sound until cleared.
+
+In Standard these controllers do what the patch routes them to, as in Synth1.
 
 ## 5. Loading your own patches
 

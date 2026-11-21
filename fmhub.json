@@ -1,5 +1,5 @@
 {
-  "what": "A Synth1-inspired polysynth that plays two sounds at once in bitimbral mode: layered, split or on two MIDI channels. 256 presets in 13 categories, 1,024 user slots. Two oscillators plus sub, FM, ring mod, sync, four filters, arp, drone and effects. 3,174 more sounds in the Patch Manager.",
+  "what": "A clone of the legendary Synth1 VST. One synth, bitimbral or quad-timbral, with the sounds split left and right for devices like the Circuit Tracks. 256 sounds on the device, 3,000+ in the Patch Manager, 20,000+ Synth1 sounds to find online.",
   "author": "Fenderberg",
   "kinds": [
     "synth"

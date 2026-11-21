@@ -1,17 +1,17 @@
-# SY1 — QUAD Circuit experiment
+# SY1
 
-This local experimental fork adds **QUAD**, four independent sounds, beside the existing Standard and
-Bitimbral modes. Choose it in **GLO → MODE**, alongside the Split/Stereo audio routing.
-**GLO → PART** selects a part and sets its limit, Drone mode and octave. **GLO → MIDI CHANNELS**
-sets the four receive channels. Split sends parts **1+2 left, 3+4 right**. Stereo mixes all four
-in stereo. OCT- / OCT+ step through the four parts (hold for octave).
+**Version 1.0.0** · [What's new](https://fenderberg.github.io/fm1-sy1/news/)
 
-Defaults match Circuit Tracks: Synth 1/2 on channels 1/2, MIDI 1/2 on 3/4. Each part starts with three
-notes, its own arp, Hold/Drone, chorus and a shorter 0.186 s stereo delay. The original modes retain their
-buffers and independent sounds/settings. The Patch Manager supports four parts and channel editing too.
+SY1 plays one sound, two (**Bitimbral**) or four (**QUAD**) at once. Choose the mode in **GLO → MODE**, alongside
+the Split/Stereo audio routing. **GLO → PART** selects a part and sets its limit, Drone mode and octave;
+**GLO → MIDI CHANNELS** sets the receive channels. In QUAD, Split sends parts **1+2 left, 3+4 right**; Stereo mixes
+all four in stereo. OCT- / OCT+ step through the parts (hold for octave).
 
-See [the experiment and Circuit setup](docs/QUAD-CIRCUIT.md). This is an experimental build;
-hardware timing and audio with a real Circuit still need validation.
+QUAD's defaults match the Novation Circuit Tracks: Synth 1/2 on channels 1/2, MIDI 1/2 on 3/4, and every track's
+eight macro knobs mapped (synth tracks CC 80–87, MIDI tracks CC 1, 2, 5, 11, 71, 74, 12, 13: see the
+[manual's CC table](https://fenderberg.github.io/fm1-sy1/manual/)). Each part has its own arp, Hold/Drone, chorus
+and a 0.186 s stereo delay. The Patch Manager supports four parts and channel editing too. Circuit setup:
+[docs/QUAD-CIRCUIT.md](docs/QUAD-CIRCUIT.md).
 
 ---
 
@@ -28,7 +28,8 @@ The eight original sounds P01–P08 remain available too.
 **Two sounds at once:** press OCT- and OCT+ together for **bitimbral mode**: two parts, L and R, each with its own
 patch, arpeggiator, Hold/Drone and effects, the second on the FM-1's second core. Layer them (DOUBLE), send them
 to the two outputs (SPLIT), or play them from two MIDI channels (3 and 4 to begin with) of any DAW, groovebox or
-sequencer. A Novation Circuit Tracks' two MIDI tracks and eight macro knobs map straight on.
+sequencer. **Four sounds at once:** QUAD plays parts 1–4 on channels 1–4, the Circuit Tracks' two synth and two
+MIDI tracks, with every track's macro knobs mapped.
 
 Two oscillators and a sub, FM / ring / sync, four filter types, three envelopes, two LFOs, arpeggiator,
 unison, ten effects, EQ, tempo delay and chorus: Synth1's 99 parameters, under Synth1's own numbers, so its
@@ -44,9 +45,9 @@ filter curves, FM index and the rest) are the measurements of the original Synth
 
 SY1 is not affiliated with or endorsed by Daichi Laboratory. Its engine contains no Synth1 code. The separate community preset library retains original banks, readmes and author terms; see [preset credits](app/site/library/CREDITS.md).
 
-Latest release: [v0.5.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v0.5.0) · [What changed](CHANGELOG.md)
+Latest release: [v1.0.0](https://github.com/fenderberg/fm1-sy1/releases/tag/v1.0.0) · [What changed](CHANGELOG.md) · [What's new on the website](https://fenderberg.github.io/fm1-sy1/news/)
 
-The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.5.0 uses the USB identity **FM-1_51000500** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
+The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 1.0.0 uses the USB identity **FM-1_51010000** (project prefix 51). See [hub submission and hardware test status](docs/FIRMWARE-HUB.md). SY1 does not read other firmwares’ projects or samples; switching firmwares can overwrite their storage.
 
 ## Status: early
 
@@ -57,7 +58,7 @@ The Firmware Hub card is defined in [fmhub.json](fmhub.json). SY1 0.5.0 uses the
 | App: screen, panel, keys, MIDI, patch storage | Passes in fm1-base's simulator (`app/tests/basic.txt`) and in `make test-app` |
 | Browser emulator with a patch loader | Works: drop `.sy1` files or a `.zip` bank on the page |
 | Firmware (`./build.sh`) | Builds; installs and runs on one FM-1 (driven over USB with `base/tools/fm1_remote.py`) |
-| Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. Bitimbral (unreleased) renders its second part on the second core: measured, two parts of 8 voices cost what one does |
+| Voices on the FM-1 | About 7 on one core: a plain voice costs about 10 % of the render's time, a detuned one with chorus about 12 %. Bitimbral renders its second part on the second core: measured, two parts of 8 voices cost what one does |
 | Sound on the FM-1, and compared with the original Synth1 | **Not judged yet** |
 | Patch library and hardware manager | 3,174 hosted patches; local nested-ZIP import; search, favourites, in-page preview; staged slot editing (add, move, rename, sort, sets) with acknowledged USB sync |
 
@@ -88,7 +89,7 @@ app/build/host/sy1_host app/tests/basic.txt app/build/host
 ./build.sh         # the firmware: app/build/sy1.fwsc (JieLi toolchain and AC79 SDK: see base/README.md)
 ```
 
-Build the complete website with `make site VERSION=0.5.0` after building the matching release package and
+Build the complete website with `make site VERSION=1.0.0` after building the matching release package and
 browser emulator. It includes the Patch Manager and shared navigation on every page. Preview it with
 `python3 -m http.server 8471 --bind 127.0.0.1 --directory app/build/site`.
 The app-owned builder is `tools/make_site.py`; the shared theme and homepage are in `app/site/`.
@@ -186,14 +187,14 @@ active control; grey notches show saved values. Pages remember their last subpag
 Envelope, LFO and arp feedback uses a compact engine snapshot. See the
 [complete screen gallery](docs/mockups/nord-redesign/index.html) and [manual](app/docs/MANUAL.md).
 
-All three display styles remain available in **0.5.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → SYSTEM (4/5) → KNOB2**.
+All three display styles remain available in **1.0.0**: **NORD**, **GREEN LED** and **GREEN LCD**. Choose **GLO → SYSTEM (4/5) → KNOB2**.
 GREEN LED uses green pixel lettering and segment numerals on black. GREEN LCD uses dark lettering
 and graphics on a soft green background, with a lighter focus panel. Both retain the graphs and live
 feedback. KNOB1 chooses NORD, GREEN (LED), or LCD.
 NORD remains the default. This is a global preference, saved while idle; old settings migrate without
-losing the selected patch or other controls. Build with `./build.sh --release 0.5.0` and
-`./build.sh --web --release 0.5.0`, or on GitHub with the *Release build* workflow
-(`gh workflow run release.yml -f version=0.5.0`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
+losing the selected patch or other controls. Build with `./build.sh --release 1.0.0` and
+`./build.sh --web --release 1.0.0`, or on GitHub with the *Release build* workflow
+(`gh workflow run release.yml -f version=1.0.0`), which builds the package, the emulator and the website. Optional browser QA is `node host/display_browser_test.mjs`
 with `PLAYWRIGHT_MODULE` as above and `SY1_TEST_URL` pointing to the complete site.
 
 See [all 32 pages in three styles](https://fenderberg.github.io/fm1-sy1/manual/screens/).
