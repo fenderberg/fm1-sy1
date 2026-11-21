@@ -2,6 +2,7 @@
  * Everything is scoped to #pm so the shared site styles (assets/site.css) cannot restyle the tool's small controls. */
 :root { --c0: #f0795a; --c1: #7fb6e8; --c2: #f3bf64; --c3: #94d6af; --c4: #c9a0e8; --c5: #e88fc0; --c6: #8fd8d8; --c7: #8a8d8a; --sel: #343024; --teal: #94d6af; }
 html, body { height: 100%; }
+body[data-site-page="manager"] .site-skip:not(:focus) { clip-path: inset(50%); }
 #pm { font-size: 13px; line-height: 1.4; height: 100%; min-height: 0; display: flex; flex-direction: column; }
 #pm .muted { color: var(--muted); font-size: 11px; }
 #pm button { min-height: 0; padding: 6px 11px; font-size: 13px; cursor: pointer; }
@@ -36,9 +37,17 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
 #pm #bank-info p { margin: 8px 0 4px; }
 #pm #bank-notes { white-space: pre-wrap; max-height: 160px; overflow: auto; font-size: 10px; line-height: 1.6; margin: 8px 0 0; }
 
+#pm #dev { overflow: auto; }
 #pm .plist { flex: 1; min-height: 140px; overflow-y: auto; position: relative; overscroll-behavior: contain; }
 #pm .plist > div { position: relative; }
 #pm .prow { position: absolute; left: 0; right: 0; height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid #2a2c2d; cursor: default; user-select: none; }
+#pm #dlist .prow { height: var(--row-height, 36px); }
+#pm .dev-main { display: flex; align-items: center; flex: 1; min-width: 0; gap: inherit; height: 36px; }
+#pm .quad-row { display: block; }
+#pm .quad-row .dev-main { gap: 8px; }
+#pm .quad-actions { display: flex; align-items: center; gap: 6px; padding-left: 38px; color: var(--muted); }
+#pm .quad-actions span { font-size: 11px; }
+#pm .quad-actions .ic { border-color: var(--rule); }
 #pm .prow:hover { background: #232526; }
 #pm .prow.sel { background: var(--sel); }
 #pm .prow.dropat { box-shadow: inset 0 2px 0 var(--amber); }
@@ -115,13 +124,18 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
 #pm .seg button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
 #pm .seg button:last-child { border-radius: 0 4px 4px 0; }
 #pm .seg button[aria-pressed=true] { background: var(--sel); border-color: var(--amber); color: var(--ink); position: relative; }
-#pm .partinfo { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+#pm .live-note, #pm .part-routing, #pm #channelstatus { flex: 1 0 100%; margin: 0; }
+#pm #channelstatus:empty { display: none; }
+#pm .partinfo { flex: 1 0 100%; min-width: 0; display: flex; flex-wrap: wrap; gap: 3px 10px; overflow-wrap: anywhere; }
+#pm .part-label { color: var(--ink); padding-right: 3px; }
+#pm #layer[aria-pressed=true] { background: var(--sel); border-color: var(--amber); }
 #pm .tl, #pm .tr { display: inline-block; font: 700 10px ui-monospace, monospace; padding: 1px 5px; border-radius: 3px; color: #10150f; }
-#pm .tl { background: var(--pl); } #pm .tr { background: var(--pr); margin-left: 8px; }
-#pm .prow .ic.pl, #pm .prow .ic.pr { font: 700 11px ui-monospace, monospace; }
+#pm .tl { background: var(--pl); } #pm .tr { background: var(--pr); }
+#pm .prow .ic.pl, #pm .prow .ic.pr, #pm .prow .ic.ppart { font: 700 11px ui-monospace, monospace; }
 #pm .prow .ic.pl.on { color: #10150f; background: var(--pl); }
 #pm .prow .ic.pr.on { color: #10150f; background: var(--pr); }
 #pm .slotmap i.pl { box-shadow: 0 0 0 2px var(--pl); position: relative; z-index: 2; }
+#pm .slotmap i.sounding { outline: 2px solid var(--amber); position: relative; z-index: 2; }
 #pm .slotmap i.pr { box-shadow: 0 0 0 2px var(--pr); position: relative; z-index: 2; }
 #pm .pairbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 7px 12px; border-top: 1px solid var(--rule); background: #1d2620; font-size: 12px; }
 #pm .pairbar b { min-width: 0; overflow-wrap: anywhere; }
@@ -129,7 +143,15 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
 [hidden] { display: none !important; }
 
 @media (max-width: 860px) {
-  #pm .panes { grid-template-columns: minmax(0, 1fr); }
+  body[data-site-page="manager"] { height: auto; min-height: 100dvh; overflow: visible; }
+  body[data-site-page="manager"] main { flex: none; }
+  #pm { height: auto; }
+  #pm .panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  #pm #dev { overflow: visible; }
+  #pm .plist { flex: none; height: clamp(220px, 45dvh, 400px); }
+  #pm #dlist .badge:empty { display: none; }
+  #pm #dlist .badge { width: 44px; }
+  #pm #dlist .prow select { width: min(119px, 31vw); }
   #pm .maplabel span:nth-child(2) { display: none; }
   #pm .ptabs { display: flex; }
   #pm[data-tab=lib] #dev, #pm[data-tab=dev] #lib { display: none; }
@@ -137,3 +159,7 @@ body[data-site-page="manager"] #pm section.pane, #pm section.pane { margin: 0; p
   #pm .pop, #pm #m-about .pop { width: min(290px, calc(100vw - 40px)); }
   #pm #lib .pop { right: auto; left: 0; }
 }
+
+#pm #quadchannels { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#pm #quadchannels label { display: flex; align-items: center; gap: 5px; }
+#pm #quadchannels input { width: 48px; }

@@ -1,5 +1,5 @@
 // The Patch Manager: a library on the left, the FM-1's 1,024 user slots on the right.
-// Every edit is staged in the browser; MIDI writes happen only through the explicit Sync action.
+// Slot edits are staged for Sync; playback and device settings are applied over MIDI.
 import { parseSy1, unzipSy1 } from '../emu/app_own.js';
 import { CATEGORIES, CATEGORY_ORDER, compareCategory, category, fold, patchName, bankName, asciiName, RECORD, PART, recordFrom, withMeta, recordName,
   recordCategory, recordKey, fullKey, packFrame, unpack7, insertAt, appendSlots, arrange, changes } from './library.js?v=categories13';
@@ -26,7 +26,9 @@ let lview = [], dview = [], lsel = new Set(), dsel = new Set(), lanchor = 0, dan
 let lcat = -1, dcat = -1, lfav = false, lnew = false, lfactory = false, drag = null;
 let access = null, input = null, output = null, waiting = null, busy = false, cancelled = false, legacy = false;
 // Bitimbral (SY1 with SysEx 08/09): the FM-1's mode, output, channels and the user slots parts L and R play (-1: none).
-let partsOK = false, bi = null, pinned = null, lastR = null;
+let partsOK = false, quadOK = false, routingOK = false, bi = null, pinned = null, lastR = null;
+const channelDrafts = new Map();
+const devRowHeight = () => bi?.mode === 2 ? 68 : ROW;
 const LAYOUTS = ['Split', 'Stereo', 'Double'];
 
 const bankOf = it => it.entry ? banks.get(it.entry.bank).name : 'On the FM-1';
@@ -48,11 +50,13 @@ function commit(next) {
 }
 
 // ---- lists: only the rows in view exist
-function vlist(el, count, render) {
+function vlist(el, count, render, rowHeight = () => ROW) {
   const sp = el.firstElementChild;
   const draw = () => {
-    const n = count(), a = Math.max(0, Math.floor(el.scrollTop / ROW) - 5), b = Math.min(n, Math.ceil((el.scrollTop + el.clientHeight) / ROW) + 5);
-    sp.style.height = n * ROW + 'px'; let h = ''; for (let i = a; i < b; i++) h += render(i, i * ROW);
+    const height = rowHeight(), n = count();
+    const a = Math.max(0, Math.floor(el.scrollTop / height) - 5), b = Math.min(n, Math.ceil((el.scrollTop + el.clientHeight) / height) + 5);
+    sp.style.height = n * height + 'px';
+    let h = ''; for (let i = a; i < b; i++) h += render(i, i * height);
     sp.innerHTML = n ? h : '<p class="none">' + esc(el.dataset.none || '') + '</p>';
   };
   el.addEventListener('scroll', () => { if (!el.querySelector('.rename')) draw(); }, {passive: true});
@@ -71,14 +75,15 @@ const drawDev = vlist($('dlist'), () => dview.length, (k, y) => {
   const s = dview[k], it = slots[s], st = status(s), badge = st ? `<span class="badge ${st[0]}">${st[1]}</span>` : '<span class="badge"></span>';
   if (!it) return `<div class="prow empty${st ? ' gone' : ''}" style="top:${y}px" data-k="${k}"><span class="no">${pad(s + 1)}</span><span class="nm">${st ? esc(base[s].name) : 'empty'}</span>${badge}</div>`;
   const sel = dsel.has(it.uid), name = esc(it.name), fixed = it.locked || busy ? ' disabled' : '';
-  return `<div class="prow${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORY_ORDER.map(i => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${esc(CATEGORIES[i])}</option>`).join('')}</select>${partButtons(s, it, name)}<button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>`;
-});
-/** Play this slot on the FM-1: on part L, or in bitimbral on L or R. Only a slot the FM-1 already holds. */
+  const quad = bi?.mode === 2, buttons = partButtons(s, it, name);
+  return `<div class="prow${quad ? ' quad-row' : ''}${sel ? ' sel' : ''}" style="top:${y}px" data-k="${k}"${it.locked || legacy ? '' : ' draggable="true"'}><div class="dev-main"><span class="no">${pad(s + 1)}</span><input type="checkbox" data-act="pick"${sel ? ' checked' : ''} aria-label="Select ${name}"><i class="dot c${it.cat}"></i><span class="nm"${it.locked ? '' : ' title="Double-click to rename"'}>${name}</span><span class="bk">${esc(bankOf(it))}</span>${badge}<select data-act="cat" aria-label="Character of ${name}"${fixed}>${CATEGORY_ORDER.map(i => `<option value="${i}"${i === it.cat ? ' selected' : ''}>${esc(CATEGORIES[i])}</option>`).join('')}</select>${quad ? '' : buttons}<button type="button" class="ic" data-act="del" aria-label="Remove ${name}"${busy ? ' disabled' : ''}>✕</button></div>${quad ? `<div class="quad-actions"><span>Assign to part</span>${buttons}</div>` : ''}</div>`;
+}, devRowHeight);
+/** Assign a synced slot to one of the active hardware parts. */
 function partButtons(s, it, name) {
   if (!output || !partsOK || !bi) return '';
   const synced = it === base[s] && !busy, off = synced ? '' : ' disabled', why = synced ? '' : ' (sync first)';
-  const one = (p, label) => `<button type="button" class="ic p${'lr'[p]}${bi.slot[p] === s ? ' on' : ''}" data-act="part" data-part="${p}" aria-pressed="${bi.slot[p] === s}" aria-label="Play ${name} on part ${label}" title="Play on the FM-1, part ${label}${why}"${off}>${label}</button>`;
-  return bi.on ? one(0, 'L') + one(1, 'R') : `<button type="button" class="ic pl${bi.slot[0] === s ? ' on' : ''}" data-act="part" data-part="0" aria-pressed="${bi.slot[0] === s}" aria-label="Play ${name} on the FM-1" title="Play on the FM-1${why}"${off}>▶</button>`;
+  const one = (p, label) => `<button type="button" class="ic p${bi.layout === 0 ? (bi.mode === 2 ? (p < 2 ? 'l' : 'r') : 'lr'[p]) : 'part'}${bi.slot[p] === s ? ' on' : ''}" data-act="part" data-part="${p}" aria-pressed="${bi.slot[p] === s}" aria-label="Assign ${name} to part ${label}" title="Assign to FM-1 part ${label}${why}"${off}>${label}</button>`;
+  return bi.mode === 2 ? [0, 1, 2, 3].map(p => one(p, String(p + 1))).join('') : bi.on ? one(0, 'L') + one(1, 'R') : `<button type="button" class="ic ppart${bi.slot[0] === s ? ' on' : ''}" data-act="part" data-part="0" aria-pressed="${bi.slot[0] === s}" aria-label="Select ${name} on the FM-1" title="Select this patch on the FM-1${why}"${off}>▶</button>`;
 }
 $('llist').dataset.none = 'No sounds match. Try another search, bank or character.';
 
@@ -116,11 +121,12 @@ function filterDev() {
     dview.push(s);
   }
   chips($('dchips'), counts, dcat);
+  $('dlist').style.setProperty('--row-height', devRowHeight() + 'px');
   $('dcount').textContent = output ? `${num(used)} / ${num(SLOTS)} slots used · ${num(SLOTS - used)} free` : used ? `${num(used)} waiting for your FM-1` : 'not connected';
   $('capfill').style.width = used / SLOTS * 100 + '%';
   const shown = new Set(dview); let h = '';
   for (let s = 0; s < SLOTS; s++) { const it = slots[s];
-    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}${bi && bi.slot[0] === s ? ' pl' : ''}${bi && bi.on && bi.slot[1] === s ? ' pr' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}${bi && bi.slot[0] === s ? (bi.on ? ' · part L' : ' · playing') : ''}${bi && bi.on && bi.slot[1] === s ? ' · part R' : ''}"></i>`; }
+    h += `<i data-s="${s}" class="${it ? 'c' + it.cat : ''}${it !== base[s] ? ' pend' : ''}${it && dsel.has(it.uid) ? ' hit' : ''}${filtering && it && !shown.has(s) ? ' dim' : ''}${bi && bi.on && bi.layout === 0 && (bi.slot[0] === s || bi.mode === 2 && bi.slot[1] === s) ? ' pl' : ''}${bi && bi.on && bi.layout === 0 && (bi.mode === 2 ? bi.slot[2] === s || bi.slot[3] === s : bi.slot[1] === s) ? ' pr' : ''}${bi && ((!bi.on && bi.slot[0] === s) || (bi.on && bi.layout !== 0 && bi.slot.includes(s))) ? ' sounding' : ''}" title="${pad(s + 1)} · ${it ? esc(it.name) : 'empty'}${bi ? bi.slot.map((slot, p) => slot === s ? bi.mode === 2 ? ' · part ' + (p + 1) : p === 0 ? bi.on ? ' · part L' : ' · playing' : bi.on ? ' · part R' : '' : '').join('') : ''}"></i>`; }
   $('map').innerHTML = h;
   // Always there, so the list does not jump under the pointer when the first patch is selected.
   $('selcount').textContent = dsel.size ? `${dsel.size} selected` : 'Select patches to move or remove them'; $('movebox').hidden = legacy;
@@ -134,7 +140,7 @@ function syncBar() {
   const parts = [ch.added && `<b>${num(ch.added)}</b> added`, ch.moved && `<b>${num(ch.moved)}</b> moved`, ch.edited && `<b>${num(ch.edited)}</b> edited`, ch.removed && `<b>${num(ch.removed)}</b> removed`].filter(Boolean);
   $('syncmsg').innerHTML = busy ? 'Working…' : !ch.total ? `<span class="muted">${output ? 'Your FM-1 matches this layout. Add sounds, reorder or tidy up, then sync once.' : 'Add sounds from the library. Connect your FM-1 to arrange its slots and sync.'}</span>`
     : `${parts.join(' · ')} <span class="muted">· ${output ? `${num(ch.total)} slots to write. Your FM-1 is untouched until you sync.` : 'Connect your FM-1 to sync.'}</span>`;
-  $('sync').disabled = !ch.total || busy || !output; $('sync').textContent = ch.total && output ? `Sync ${num(ch.total)} slots to FM-1` : 'Sync to FM-1';
+  $('sync').disabled = !ch.total || busy || !output; $('sync').textContent = ch.total && output ? `Sync ${num(ch.total)} patch slots` : 'Sync patch slots';
   $('discard').disabled = !ch.total || busy; $('undo').disabled = !history.length || busy;
 }
 function refresh() {
@@ -252,7 +258,8 @@ function onMessage(e) {
   const m = e.data, w = waiting; if (!w || m.length < 8 || HEAD.some((v, i) => m[i] !== v) || m.at(-1) !== 0xf7 || m[5] !== w.cmd || (input && e.target !== input)) return;
   const isSlot = [0x41, 0x44, 0x45, 0x47].includes(w.cmd);
   if (w.cmd === 0x49 && (m.length < 11 || m[6] !== w.part || (m[7] | m[8] << 7) !== w.slot)) return;
-  if (m.length < (w.cmd === 0x43 || w.cmd === 0x47 ? 11 : isSlot ? 10 : 8) || isSlot && (m[6] | m[7] << 7) !== w.slot || w.cmd === 0x47 && m[8] !== w.part) return;
+  const minimum = w.cmd === 0x4a ? 13 : w.cmd === 0x43 || w.cmd === 0x47 || w.cmd === 0x4b ? 11 : isSlot ? 10 : 8;
+  if (m.length < minimum || isSlot && (m[6] | m[7] << 7) !== w.slot || w.cmd === 0x47 && m[8] !== w.part) return;
   waiting = null; clearTimeout(w.timer); w.done({data: m, port: e.target});
 }
 function ask(out, frame, command, ms = 3000, part = 0) {
@@ -271,35 +278,103 @@ function setConnected() {
   const on = !!output; $('connection').dataset.state = on ? 'connected' : 'disconnected';
   $('connection-label').textContent = on ? 'FM-1 CONNECTED' : 'FM-1 NOT CONNECTED'; $('connect').textContent = on ? 'Read again' : 'Connect to the FM-1';
   $('connect').className = on ? '' : 'primary'; $('connect').disabled = busy;
-  if (!on) { legacy = false; partsOK = false; bi = null; }
+  if (!on) { legacy = false; partsOK = false; quadOK = false; routingOK = false; bi = null; channelDrafts.clear(); }
 }
 /** The FM-1's parts, from an answer to 08. */
 function partsFrom(m) {
-  if (m.length < 16) return null;
-  return {on: !!m[6], layout: m[7], focus: m[8], ch: [m[9] + 1, m[10] + 1], slot: [(m[11] | m[12] << 7) - 1, (m[13] | m[14] << 7) - 1]};
+  if (m.length < 16 || m[6] > 2 || m[6] === 2 && m.length < 22) return null;
+  const state = {mode: m[6], on: !!m[6], layout: m[7], layer: m[6] === 1 && m[7] === 2, focus: m[8], ch: [m[9] + 1, m[10] + 1], slot: [(m[11] | m[12] << 7) - 1, (m[13] | m[14] << 7) - 1]};
+  if (state.mode === 2) {
+    state.ch.push(m[15] + 1, m[16] + 1);
+    state.slot.push((m[17] | m[18] << 7) - 1, (m[19] | m[20] << 7) - 1);
+  }
+  return state;
 }
 async function readParts() {
   if (!output || !partsOK) return;
   const r = await askAgain(output, cmd(0x08, 0x7f, 0x7f), 0x48, 800);
   if (r) bi = partsFrom(r.data) || bi;
+  await readBiRouting();
+}
+function updateBiRouting(message) {
+  bi.layout = message[6];
+  bi.layer = !!message[7];
+  bi.ch = [message[8] + 1, message[9] + 1];
+}
+async function readBiRouting() {
+  if (!routingOK || bi?.mode !== 1) return;
+  const r = await askAgain(output, cmd(0x0b, 0x7f, 0x7f, 0x7f, 0x7f), 0x4b, 800);
+  if (r?.data.length >= 11) updateBiRouting(r.data);
 }
 /** One request that changes the FM-1's parts, then its state read back. */
-async function partsDo(frame, answer, part, done) {
+async function partsDo(frame, answer, part, done, applied) {
   if (busy || !output || !partsOK) return;
-  busy = true; refresh();
+  busy = true; setConnected(); refresh();
   try { const r = await askAgain(output, frame, answer, 1500, part); if (!r) throw new Error('The FM-1 did not answer. Press Read again.');
-    if (answer === 0x48) bi = partsFrom(r.data) || bi; else if (r.data[9]) throw new Error('That slot is empty on the FM-1. Press Read again.');
-    if (answer !== 0x48) await readParts(); if (done) toast(done()); }
+    if (answer === 0x48) bi = partsFrom(r.data) || bi; else if (answer === 0x49 && r.data[9]) throw new Error('That slot is empty on the FM-1. Press Read again.');
+    if (answer === 0x48) await readBiRouting();
+    else if (answer === 0x4b && r.data.length >= 11) updateBiRouting(r.data);
+    else if (answer === 0x4a && r.data.length >= 13) {
+      bi.focus = r.data[6]; bi.layout = r.data[7];
+      bi.ch = Array.from(r.data.slice(8, 12), ch => ch + 1);
+    } else await readParts();
+    applied?.();
+    if (done) toast(done()); }
   catch (e) { say(e.message, true); }
-  finally { busy = false; refresh(); }
+  finally { busy = false; setConnected(); refresh(); }
+}
+const partLabel = (mode, p) => mode === 2 ? String(p + 1) : 'LR'[p];
+const channelInputs = Array.from({length: 4}, (_, p) => $('qch' + p));
+function drawChannels() {
+  const editable = bi.mode === 2 || (bi.mode === 1 && routingOK);
+  $('quadchannels').hidden = !editable;
+  if (!editable) return;
+  const draft = channelDrafts.get(bi.mode);
+  const labels = bi.mode === 2 ? ['1 · Synth 1', '2 · Synth 2', '3 · MIDI 1', '4 · MIDI 2'] : ['Part L', 'Part R'];
+  channelInputs.forEach((input, p) => {
+    input.parentElement.hidden = p >= labels.length;
+    input.disabled = busy || p >= labels.length;
+    if (p >= labels.length) return;
+    input.previousElementSibling.textContent = labels[p];
+    const value = draft?.[p]?.value ?? String(bi.ch[p]);
+    if (input.value !== value) input.value = value;
+  });
+  const edited = draft?.some(Boolean);
+  $('quadapply').disabled = busy || !edited;
+  $('channelreset').hidden = !edited;
+  $('channelreset').disabled = busy;
+  const changed = draft?.some((field, p) => field && field.before !== bi.ch[p]);
+  $('channelstatus').textContent = changed ? `FM-1 channels are now ${bi.ch.join(', ')}. Your edits are still here.` :
+    edited ? (bi.layer ? 'Apply channels stops notes on both layered parts.' :
+      'Apply channels stops notes on the parts whose channels change.') : '';
 }
 function drawParts() {
   const show = !!(output && partsOK && bi); $('parts').hidden = !show; if (!show) return;
-  for (const b of document.querySelectorAll('[data-mode]')) { b.setAttribute('aria-pressed', String(+b.dataset.mode === +bi.on)); b.disabled = busy; }
-  for (const b of document.querySelectorAll('[data-layout]')) { b.setAttribute('aria-pressed', String(+b.dataset.layout === bi.layout)); b.disabled = busy; }
+  for (const b of document.querySelectorAll('[data-mode]')) { b.setAttribute('aria-pressed', String(+b.dataset.mode === bi.mode)); b.disabled = busy; b.hidden = +b.dataset.mode === 2 && !quadOK; }
+  for (const b of document.querySelectorAll('[data-layout]')) {
+    b.setAttribute('aria-pressed', String(+b.dataset.layout === bi.layout));
+    b.disabled = busy;
+    b.hidden = +b.dataset.layout === 2 && (bi.mode === 2 || routingOK);
+  }
   $('layoutseg').hidden = !bi.on;
-  const plays = p => bi.slot[p] >= 0 ? `${pad(bi.slot[p] + 1)} ${esc(slots[bi.slot[p]]?.name || base[bi.slot[p]]?.name || '')}` : 'a built-in or factory sound';
-  $('partinfo').innerHTML = bi.on ? `<span class="tl">L</span> ch ${bi.ch[0]} · ${plays(0)} <span class="tr">R</span> ch ${bi.ch[1]} · ${plays(1)}` : `Plays ${plays(0)}`;
+  $('layer').hidden = !routingOK || bi.mode !== 1;
+  $('layer').disabled = busy;
+  $('layer').setAttribute('aria-pressed', String(bi.layer));
+  const plays = p => bi.slot[p] >= 0 ? `${pad(bi.slot[p] + 1)} ${esc(base[bi.slot[p]]?.name || '')}` : 'a built-in or factory sound';
+  const count = bi.mode === 2 ? 4 : bi.mode === 1 ? 2 : 1;
+  $('partinfo').innerHTML = bi.on ? Array.from({length: count}, (_, p) => {
+    const color = bi.layout === 0 ? (p < (bi.mode === 2 ? 2 : 1) ? 'tl' : 'tr') : 'part-label';
+    return `<span><b class="${color}">${partLabel(bi.mode, p)}</b> ch ${bi.ch[p]} · ${plays(p)}${p === bi.focus ? ' <strong>· panel</strong>' : ''}</span>`;
+  }).join('') : `<span>Omni MIDI · Plays ${plays(0)}</span>`;
+  const shared = bi.on && (bi.mode === 2 || routingOK) ? [...new Set(bi.ch)].map(ch => {
+    const parts = bi.ch.flatMap((value, p) => value === ch ? [partLabel(bi.mode, p)] : []);
+    return parts.length > 1 ? `Parts ${parts.join(', ')} share ch ${ch}` : '';
+  }).filter(Boolean) : [];
+  const split = bi.on && bi.layout === 0 ? (bi.mode === 2 ? 'Left 1+2 · Right 3+4' : 'Part L left · Part R right') : '';
+  const layer = bi.on && bi.layer ? 'Notes play both parts · Other MIDI follows its channel' : '';
+  $('part-routing').textContent = [split, layer, ...shared].filter(Boolean).join(' · ');
+  $('part-routing').hidden = !$('part-routing').textContent;
+  drawChannels();
 }
 function drawPair() {
   $('pairbar').hidden = !pinned; if (!pinned) return;
@@ -331,6 +406,8 @@ async function readDevice() {
     // Only an SY1 that announces the record read gets command 07; 0.3.1 and earlier report names only.
     const old = !(a.data.length >= 12 && a.data[10] & 1);
     partsOK = a.data.length >= 12 && !!(a.data[10] & 2);
+    quadOK = a.data.length >= 12 && !!(a.data[10] & 4);
+    routingOK = a.data.length >= 12 && !!(a.data[10] & 8);
     for (let s = 0; s < used; s++) {
       if (!output) throw new Error('FM-1 disconnected.');
       if (s % 8 === 0) say(`Reading slot ${s + 1} of ${used}…`);
@@ -420,7 +497,7 @@ $('dlist').addEventListener('click', e => {
   const row = e.target.closest('.prow'); if (!row || e.target.matches('select, .rename')) return; const k = +row.dataset.k, s = dview[k];
   if (e.target.dataset.act === 'del') { const next = slots.slice(); next[s] = null; return void commit(next); }
   if (e.target.dataset.act === 'part') { const p = +e.target.dataset.part, it = slots[s];
-    return void partsDo(cmd(0x09, p, ...slotBytes(s)), 0x49, p, () => `${bi.on ? 'Part ' + 'LR'[p] : 'The FM-1'} now plays ${pad(s + 1)} ${it.name}.`); }
+    return void partsDo(cmd(0x09, p, ...slotBytes(s)), 0x49, p, () => `${bi.on ? 'Part ' + (bi.mode === 2 ? p + 1 : 'LR'[p]) : 'The FM-1'} now plays ${pad(s + 1)} ${it.name}.`); }
   // The second click of a double-click: the row was redrawn by the first, so a dblclick event would hit a dead node.
   if (e.detail === 2 && e.target.closest('.nm')) return rename(row, s);
   danchor = pick(dsel, devKeys(), k, e, danchor); filterDev();
@@ -444,15 +521,47 @@ for (const [el, set] of [[$('lchips'), v => { lcat = v; }], [$('dchips'), v => {
 for (const id of ['search', 'bank', 'lsort']) $(id).addEventListener(id === 'search' ? 'input' : 'change', () => { $('llist').scrollTop = 0; filterLib(); });
 for (const id of ['dq', 'dempty', 'dpend']) $(id).addEventListener(id === 'dq' ? 'input' : 'change', () => { $('dlist').scrollTop = 0; filterDev(); });
 $('add').onclick = addSelected;
-for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { const on = +b.dataset.mode; if (!bi || on === +bi.on) return;
-  partsDo(cmd(0x08, on, 0x7f), 0x48, 0, () => on ? `Bitimbral: part L listens on channel ${bi.ch[0]}, part R on ${bi.ch[1]}.` : 'Standard: one sound on every channel.'); };
-for (const b of document.querySelectorAll('[data-layout]')) b.onclick = () => { const v = +b.dataset.layout; if (!bi || v === bi.layout) return;
-  partsDo(cmd(0x08, 0x7f, v), 0x48, 0, () => `Output: ${LAYOUTS[v]}.`); };
+for (const b of document.querySelectorAll('[data-mode]')) b.onclick = () => { const on = +b.dataset.mode; if (!bi || on === bi.mode) return;
+  partsDo(cmd(0x08, on, 0x7f), 0x48, 0, () => on === 2 ? `Quad: four parts on channels ${bi.ch.join(', ')}.` : on ? `Bitimbral: part L listens on channel ${bi.ch[0]}, part R on ${bi.ch[1]}.` : 'Standard: one sound on every channel.'); };
+for (const b of document.querySelectorAll('[data-layout]')) b.onclick = () => {
+  const value = +b.dataset.layout;
+  if (!bi || value === bi.layout) return;
+  if (bi.mode === 1 && routingOK) partsDo(cmd(0x0b, value, 0x7f, 0x7f, 0x7f), 0x4b, 0, () => `Audio routing: ${LAYOUTS[value]}.`);
+  else partsDo(cmd(0x08, 0x7f, value), 0x48, 0, () => `Output: ${LAYOUTS[value]}.`);
+};
+$('layer').onclick = () => {
+  if (bi?.mode === 1 && routingOK) partsDo(cmd(0x0b, 0x7f, +!bi.layer, 0x7f, 0x7f), 0x4b, 0,
+    () => bi.layer ? 'Layer on. Notes play both parts.' : 'Layer off.');
+};
+channelInputs.forEach((input, p) => {
+  input.oninput = () => {
+    if (!bi?.on) return;
+    const draft = channelDrafts.get(bi.mode) || [];
+    const before = draft[p]?.before ?? bi.ch[p];
+    draft[p] = input.value === String(bi.ch[p]) ? null : {value: input.value, before};
+    channelDrafts.set(bi.mode, draft);
+    drawChannels();
+  };
+});
+$('channelreset').onclick = () => { if (bi) { channelDrafts.delete(bi.mode); drawChannels(); } };
+$('quadchannels').onsubmit = e => {
+  e.preventDefault();
+  if (!bi?.on || $('quadapply').disabled) return;
+  const mode = bi.mode, draft = channelDrafts.get(mode);
+  if (draft.some(field => field && (!/^[0-9]+$/.test(field.value) || +field.value < 1 || +field.value > 16))) return;
+  const channels = bi.ch.map((_, p) => draft[p] ? Number(draft[p].value) - 1 : 0x7f);
+  const frame = mode === 2 ? cmd(0x0a, 0x7f, 0x7f, ...channels) : cmd(0x0b, 0x7f, 0x7f, ...channels);
+  partsDo(frame, mode === 2 ? 0x4a : 0x4b, 0, () => `FM-1 MIDI channels: ${bi.ch.join(', ')}.`,
+    () => channelDrafts.delete(mode));
+};
 $('pairoff').onclick = () => { pinned = lastR = null; drawLib(); drawPair(); $('preview-status').textContent = '▶ plays a sound here in the page.'; };
 $('pairadd').onclick = () => {
   if (!pinned || !lastR) return; const items = fromLibrary([pinned, lastR]); if (!items.length) return;
   const next = appendSlots(slots, items); if (!next) return toast('Not enough free slots for the pair.');
-  if (commit(next)) toast(`Pair staged side by side. After syncing, press L and R on the two slots to play them together.`);
+  if (commit(next)) toast(output && bi?.mode === 2 ?
+    'Pair staged. After syncing, assign the two sounds with the numbered part buttons.' :
+    output && bi?.mode === 1 ? 'Pair staged. After syncing, assign the two sounds to L and R.' :
+    'Pair staged. Sync the slots, then choose Bitimbral or Quad to play the sounds together.');
 };
 // Back from the FM-1's panel: what the parts play may have changed there.
 addEventListener('focus', () => { if (!output || !partsOK || busy || waiting) return; busy = true; readParts().catch(() => {}).finally(() => { busy = false; refresh(); }); });
@@ -460,7 +569,7 @@ $('map').addEventListener('click', e => {
   const s = e.target.dataset.s; if (s === undefined) return; const it = slots[+s];
   if (!it) return toast(`Slot ${pad(+s + 1)} is empty.`);
   dsel.clear(); dsel.add(it.uid); filterDev();
-  const k = dview.indexOf(+s); if (k >= 0) { $('dlist').scrollTop = Math.max(0, k * ROW - 72); danchor = k; drawDev(); }
+  const k = dview.indexOf(+s); if (k >= 0) { $('dlist').scrollTop = Math.max(0, k * devRowHeight() - 72); danchor = k; drawDev(); }
 });
 $('remove').onclick = () => { const next = slots.slice(); for (const s of selectedSlots()) next[s] = null; commit(next); };
 $('desel').onclick = () => { dsel.clear(); filterDev(); };
@@ -558,6 +667,7 @@ async function sync() {
     }
   } catch (e) { error = e.message; }
   finally {
+    if (output && partsOK && done) await readParts();
     busy = false; bar.hidden = true; $('cancel').hidden = true;
     const left = changes(base, slots).total;
     result.textContent = `${num(done)} slots written and confirmed.` + (left ? ` ${num(left)} still staged.` : '') + (cancelled && left ? ' Sync stopped.' : '') + (error ? ' ' + error : '');
