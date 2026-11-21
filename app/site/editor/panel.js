@@ -1,34 +1,39 @@
 import t from './tables.js';
 
-// IDs are the numbers stored in a Synth1 patch.
-export const sections = {
-  Synthesis: [
-    ['Oscillator 1', [[0,'Waveform'], [45,'FM amount'], [76,'Detune'], [8,'Pulse width']]],
-    ['Oscillator 2', [[1,'Waveform'], [2,'Pitch'], [3,'Fine'], [4,'Key track'], [6,'Sync'], [7,'Ring mod']]],
-    ['Mixer & sub', [[5,'Osc mix'], [95,'Sub level'], [96,'Sub wave'], [97,'Sub octave'], [9,'Transpose'], [72,'Fine tune'], [91,'Phase']]],
-    ['Filter', [[14,'Type'], [19,'Cutoff'], [20,'Resonance'], [23,'Saturation'], [22,'Key track'], [21,'Env amount'], [24,'Velocity']]],
-    ['Filter envelope', [[15,'Attack'], [16,'Decay'], [17,'Sustain'], [18,'Release']]],
-    ['Amplifier', [[25,'Attack'], [26,'Decay'], [27,'Sustain'], [28,'Release'], [29,'Gain'], [30,'Velocity'], [90,'Pan']]],
-  ],
-  Modulation: [
-    ['LFO 1', [[57,'Enabled'], [42,'Waveform'], [41,'Destination'], [43,'Speed'], [44,'Depth'], [67,'Tempo sync'], [68,'Key sync']]],
-    ['LFO 2', [[58,'Enabled'], [47,'Waveform'], [46,'Destination'], [48,'Speed'], [49,'Depth'], [69,'Tempo sync'], [70,'Key sync']]],
-    ['Mod envelope', [[10,'Enabled'], [71,'Destination'], [11,'Amount'], [12,'Attack'], [13,'Decay']]],
-    ['Controller 1', [[86,'Source'], [87,'Destination'], [50,'Sensitivity']]],
-    ['Controller 2', [[88,'Source'], [89,'Destination'], [51,'Sensitivity']]],
-  ],
-  Effects: [
-    ['Effect', [[77,'Enabled'], [78,'Type'], [79,'Control 1'], [80,'Control 2'], [81,'Mix']]],
-    ['Equalizer', [[60,'Tone'], [61,'Frequency'], [62,'Level'], [63,'Q']]],
-    ['Tempo delay', [[65,'Enabled'], [82,'Type'], [35,'Time'], [36,'Feedback'], [37,'Mix'], [83,'Spread'], [98,'Tone']]],
-    ['Chorus', [[66,'Enabled'], [64,'Type'], [52,'Time'], [53,'Depth'], [54,'Rate'], [55,'Feedback'], [56,'Level']]],
-  ],
-  Performance: [
-    ['Voice', [[38,'Play mode'], [94,'Polyphony'], [40,'Bend range'], [39,'Glide time'], [74,'Auto glide']]],
-    ['Unison', [[73,'Enabled'], [93,'Voices'], [75,'Detune'], [84,'Pan spread'], [85,'Pitch'], [92,'Phase']]],
-    ['Arpeggiator', [[59,'Enabled'], [31,'Pattern'], [32,'Octaves'], [33,'Beat'], [34,'Gate']]],
-  ],
-};
+// Rows follow the controls' positions on the original front panel. Each ID is a .sy1 parameter.
+export const modules = [
+  {area:'osc', name:'Oscillators', groups:[
+    ['osc-one','1', [[0,'wave'],[76,'det'],[45,'FM']]],
+    ['sub','sub', [[96,'wave'],[95,'level'],[97,'oct']]],
+    ['osc-two','2', [[1,'wave'],[7,'ring'],[6,'sync'],[4,'track'],[2,'pitch'],[3,'fine']]],
+    ['mix','', [[9,'key shift'],[5,'mix'],[8,'p/w'],[91,'phase'],[72,'tune']]],
+    ['mod-env','', [[10,'m.env'],[12,'A'],[13,'D'],[11,'amt'],[71,'dest.']]],
+  ]},
+  {area:'amp', name:'Amplifier', groups:[['','',[[25,'A'],[26,'D'],[27,'S'],[28,'R'],[29,'gain'],[30,'vel']]]]},
+  {area:'filter', name:'Filter', groups:[
+    ['filter-knobs','',[[15,'A'],[16,'D'],[17,'S'],[18,'R'],[21,'amt'],[19,'frq'],[20,'res'],[23,'sat'],[22,'trk'],[24,'vel']]],
+    ['filter-type','',[[14,'type']]],
+  ]},
+  {area:'lfo', name:'LFO', groups:[
+    ['lfo-one','',[[57,'1'],[42,'wave'],[41,'dest'],[43,'spd'],[44,'amt'],[67,'tempo'],[68,'key']]],
+    ['lfo-two','',[[58,'2'],[47,'wave'],[46,'dest'],[48,'spd'],[49,'amt'],[69,'tempo'],[70,'key']]],
+  ]},
+  {area:'arp', name:'Arpeggiator', groups:[['','',[[59,'on'],[31,'type'],[32,'range'],[33,'beat'],[34,'gate']]]]},
+  {area:'wheel', name:'Wheel / MIDI', groups:[
+    ['bend','',[[40,'p.b range']]],
+    ['route','src 1',[[86,'source'],[50,'sens'],[87,'destination']]],
+    ['route','src 2',[[88,'source'],[51,'sens'],[89,'destination']]],
+  ]},
+  {area:'fx', name:'Effect', groups:[['','',[[77,'on'],[78,'type'],[79,'ctl 1'],[80,'ctl 2'],[81,'level']]]]},
+  {area:'eq', name:'Equalizer / Pan', groups:[['','',[[61,'freq'],[62,'level'],[63,'Q'],[60,'tone'],[90,'L–R']]]]},
+  {area:'delay', name:'Tempo Delay', groups:[['','',[[65,'on'],[82,'type'],[35,'time'],[83,'sprd'],[36,'fdbk'],[98,'tone'],[37,'d/w']]]]},
+  {area:'chorus', name:'Chorus / Flanger', groups:[['','',[[66,'on'],[64,'type'],[52,'time'],[53,'depth'],[54,'rate'],[55,'fdbk'],[56,'level']]]]},
+  {area:'voice', name:'Voice', groups:[
+    ['voice-mode','',[[38,'mode'],[94,'poly']]],
+    ['glide','portamento',[[39,'time'],[74,'auto']]],
+    ['unison','',[[73,'unison'],[93,'num'],[75,'det'],[92,'phase'],[84,'sprd'],[85,'pitch']]],
+  ]},
+];
 
 const waves = ['Saw','Triangle','Square','Sample & hold','Random','Sine'];
 const targets = ['Osc 2','Osc 1 + 2','Filter','Amp','Pulse width','FM','Pan'];

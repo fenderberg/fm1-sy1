@@ -32,13 +32,12 @@ try {
   const fixture = Buffer.from('Old Bass\r\ncolor=blue\r\nver=105\r\n9,-12\r\n19,83\r\n92,12\r\n87,65535\r\n110,42\r\n');
   await input.setInputFiles({name:'Old.sy1',mimeType:'application/octet-stream',buffer:fixture});
   await page.waitForFunction(() => document.querySelector('#patch-name').value === 'Old Bass');
-  const ids = [];
-  for (const tab of ['Synthesis','Modulation','Effects','Performance']) {
-    await page.getByRole('button',{name:tab,exact:true}).click();
-    ids.push(...await page.locator('#modules [id]').evaluateAll(nodes => nodes.map(n => Number(n.id.slice(1)))));
-  }
+  const ids = await page.locator('#modules [id^=p]:visible').evaluateAll(nodes => nodes.map(n => Number(n.id.slice(1))));
   assert.deepEqual(ids.sort((a,b)=>a-b),Array.from({length:99},(_,i)=>i));
-  await page.getByRole('button',{name:'Synthesis',exact:true}).click();
+  // The classic panel's LED selectors must update the patch and support keyboard navigation.
+  await page.locator('#p0').getByRole('radio',{name:'Saw',exact:true}).check();
+  await page.keyboard.press('ArrowRight');
+  assert(await page.locator('#p0').getByRole('radio',{name:'Pulse',exact:true}).isChecked());
   await page.locator('#p19').focus(); await page.keyboard.press('ArrowRight');
   await page.locator('#patch-name').fill('My Bass');
   const download = page.waitForEvent('download');
@@ -46,7 +45,7 @@ try {
   const saved = await download;
   assert.equal(saved.suggestedFilename(),'My Bass.sy1');
   const raw = await readFile(await saved.path()), expected = parseSy1(fixture).values;
-  expected[19]++;
+  expected[0] = 2; expected[19]++;
   assert.equal(parseSy1(raw).lines,99); assert.deepEqual(parseSy1(raw).values,expected);
   assert(raw.includes('color=blue\r\n')); assert(raw.includes('110,42\r\n'));
   await input.setInputFiles({name:'Damaged.sy1',mimeType:'application/octet-stream',buffer:Buffer.from('Bad')});
