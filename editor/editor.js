@@ -1,7 +1,7 @@
 import {parseSy1, unzipSy1} from '../emu/app_own.js';
 import {patchName, fold} from '../manager/library.js';
 import t from './tables.js';
-import {controls} from './controls.js';
+import {controls} from './controls.js?v=classic';
 import {keyboard} from './keyboard.js';
 import {exportPatch} from './patch.js';
 
