@@ -312,7 +312,7 @@ function el(tag, attrs = {}, text = "") {
 
 // ---- a pretend Circuit Tracks: two tracks of notes on MIDI channels 3 and 4, the clock, and its eight macro knobs,
 // played into the emulated FM-1 in bitimbral mode. No hardware: for hearing what two parts do.
-const KNOBS = [["OSCILLATOR", 1], ["OSC MOD", 2], ["AMP ENV", 5], ["FILTER ENV", 11], ["FILTER FREQ", 12], ["RESONANCE", 13], ["MODULATION", 71], ["FX", 74]];
+const KNOBS = [["OSCILLATOR", 1], ["OSC MOD", 2], ["AMP ENV", 5], ["FILTER ENV", 11], ["FILTER FREQ", 71], ["RESONANCE", 74], ["MODULATION", 12], ["FX", 13]];
 const SOUNDS = ["P01 Saw Bass", "P02 Warm Pad", "P03 Pulse Lead", "P04 Pluck", "P05 Sync Lead", "P06 FM Bell", "P07 Strings", "P08 Arp"];
 // a pattern: one bar of 16 steps; each event [step, notes, length in steps]
 const line = (notes) => notes.map((n, s) => n ? [s, [n], 1] : null).filter(Boolean);

@@ -93,14 +93,14 @@ static void test_quad(void)
 
     /* The synth tracks use CC80..87; the MIDI tracks use the default template. */
     const int32_t cutoff = s1_get_param(PART[0], S1P_FILTER_FREQ);
-    midi(0xB0, 84, 127); midi(0xB2, 12, 0); run(300);
+    midi(0xB0, 84, 127); midi(0xB2, 71, 0); run(300);
     CHECK(s1_get_param(PART[0], S1P_FILTER_FREQ) > cutoff &&
           s1_get_param(PART[2], S1P_FILTER_FREQ) < cutoff, "Circuit synth/MIDI macro maps did not work");
     CHECK(s1_get_param(PART[1], S1P_FILTER_FREQ) == cutoff &&
           s1_get_param(PART[3], S1P_FILTER_FREQ) == cutoff, "Circuit macros changed other parts");
     static const uint8_t circuit_cc[2][8] = {
         {80, 81, 82, 83, 84, 85, 86, 87},
-        {1, 2, 5, 11, 12, 13, 71, 74}
+        {1, 2, 5, 11, 71, 74, 12, 13}
     };
     uint8_t targets[NPARTS][8];
     for (uint32_t p = 0; p < NPARTS; p++)

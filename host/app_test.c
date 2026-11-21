@@ -671,7 +671,7 @@ static void test_factory500(void)
 static void test_circuit_macros(void)
 {
     /* Hardware specification, independent of MACRO_CC: Circuit Tracks' default template in knob order. */
-    static const uint8_t cc[8] = {1, 2, 5, 11, 12, 13, 71, 74};
+    static const uint8_t cc[8] = {1, 2, 5, 11, 71, 74, 12, 13};
     static const uint8_t parameter[8] = {S1P_OSC_MIX, S1P_OSC1_DETUNE, S1P_AMP_RELEASE,
         S1P_FILTER_AMOUNT, S1P_FILTER_FREQ, S1P_FILTER_RES, S1P_LFO1_DEPTH, S1P_DELAY_DRY_WET};
     int32_t values[S1_NPARAMS], other_values[S1_NPARAMS];

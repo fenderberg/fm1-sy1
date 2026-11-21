@@ -163,8 +163,9 @@ static void ev_push_to(uint32_t part, uint32_t type, uint32_t a, int32_t b)
  * middle again. Audio interrupt, but macro_param: the main loop's popup uses it too. */
 #define NMACRO 8u
 typedef struct { uint8_t id; int8_t depth; } mtarget_t;   /* depth: knob units at the knob's end, from its middle */
-/* Circuit Tracks' default MIDI template, in physical knob order (5..8 are 12, 13, 71, 74). */
-static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 12, 13, 71, 74};
+/* Circuit Tracks' default MIDI template, in physical knob order: 5..8 send 71, 74, 12, 13 (measured on a Circuit
+ * Tracks, 2026-11-21; its MIDI tracks send these on their own channels, 3 and 4 by default). */
+static const uint8_t MACRO_CC[NMACRO] = {1, 2, 5, 11, 71, 74, 12, 13};
 static const char *const MACRO_NAME[NMACRO] = {"OSCILLATOR", "OSC MOD", "AMP ENV", "FILTER ENV", "FILTER FREQ",
                                                "RESONANCE", "MODULATION", "FX"};
 static const mtarget_t MACRO[NMACRO][2] = {

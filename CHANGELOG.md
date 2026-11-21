@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Circuit MIDI tracks: knobs 5–8 work again.** 0.5.0 had swapped their controllers, so FILTER FREQ, RESONANCE,
+  MODULATION and FX moved the wrong things on MIDI 1 and 2. They are 71, 74, 12 and 13 again, as measured on a
+  Circuit Tracks with its factory MIDI template. The synth tracks (CC 80–87) were not affected.
+
 ## 0.5.0 — 2026-11-18
 
 **A new factory bank: 256 presets, a cross-section of all 13 sound categories.**
